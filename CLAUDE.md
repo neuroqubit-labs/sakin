@@ -1,235 +1,245 @@
 # Sakin — Claude Bağlamı
 
-## Proje Özeti
+## Biz Kimiz
 
-**Sakin**, apartman ve site yönetim şirketlerine dijital altyapı sağlayan bir SaaS ürünüdür.
+Kayseri / Konya gibi iç Anadolu şehirlerinde bina yönetim hizmetleri veren bir şirketiz.
+Bu yazılımı önce kendi operasyonumuzu yönetmek için kullanacağız — ilk müşteri biziz.
+Ardından bölgedeki benzer şirketlere SaaS olarak sunacağız (~6 ay hedef).
 
-- **Şu an**: Kendi yönetim şirketimizde çalışır MVP
-- **Hedef**: ~6 ay içinde SaaS ürüne geçiş
-- **Pazar**: İç Anadolu bina yönetim şirketleri (Kayseri, Konya öncelikli)
-- **Rakip durum**: Excel + WhatsApp tabanlı mevcut yönetim modellerini dijitalleştiriyoruz
+**Neden bu yazılımı yazıyoruz?**
+Çünkü sektör hâlâ Excel ve WhatsApp üzerinde yürüyor. Bunu bizzat yaşıyoruz.
+Mevcut alternatiflerin ya çok pahalı, ya çok karmaşık, ya da bölgeye yabancı olduğunu görüyoruz.
 
-## İş Alanı Bağlamı
+---
 
-Bina yönetim sektörünün temel operasyonları:
+## Hedef Kullanıcı: Yönetim Şirketi Personeli
 
-- **Aidat yönetimi**: Aylık aidat tanımlama → otomatik borç oluşturma → tahsilat takibi
-- **Ödeme akışı**: Sakin mobil uygulama üzerinden iyzico ile ödeme → borç otomatik düşümü
-- **Talep/arıza yönetimi**: Sakin → yönetici iletişim kanalı (elektrik, temizlik vb. kategoriler)
-- **Personel yönetimi**: Güvenlik, temizlik personeli vardiya ve görev takibi (Faz 2+)
-- **Duyuru sistemi**: Toplu SMS/push notification, borç hatırlatmaları
-- **Raporlama**: Tahsilat oranı, gecikmiş borçlar, daire bazlı durum
+Günlük işini şöyle düşün:
 
-**Kritik iş kuralları:**
-- Bir daire için aynı ay/yıl ikinci kez aidat oluşturulamaz (idempotent)
-- Ödeme yapıldığında `Dues.paidAmount` güncellenir, tam ödeme → `status: PAID`
-- Vadesi geçmiş `PENDING` aidatlar → `OVERDUE` (cron veya manuel tetik)
-- Sakin ev sahibi (`OWNER`) veya kiracı (`TENANT`) olabilir; ödeme sorumluluğu farklılaşabilir
+- Sabah ofise gelince Excel'i açıyor, hangi dairenin aidatı ödemediğini kontrol ediyor
+- Telefon açıyor, hatırlatıyor, not alıyor — aynı döngü her ay
+- Whatsapp'ta 10 farklı site grubundan bakım talepleri geliyor, hangisini takip etti hangisini etmedi belli değil
+- Asansör şirketi faturası geldi, gider girişi için ayrı bir defter var
+- Güvenlik görevlisinin izni çakıştı, vardiya planını elle yapıyor
+- Ay sonu yönetim kuruluna rapor hazırlamak için saatler harcıyor
 
-## Monorepo Yapısı
+Bu kişi teknik değil. Sistemi beğenmesi için "Excel'den daha kolay" olması yeterli.
+Özellik zenginliği değil, iş yükü azalması isteniyor.
 
+## Hedef Kullanıcı: Sakin (Daire Sakini)
+
+- Aidat borcunu öğrenmek için yöneticiyi aramak zorunda kalıyor
+- Ödeme yapmak için bankaya gidip EFT yapıyor ya da ofise uğruyor
+- Asansör bozuldu, kim arıyacak? WhatsApp'a yazıyor, kaybolup gidiyor
+- Hangi ayların borcunu ödediğini hatırlamıyor
+
+Bu kişinin beklentisi minimal: borcunu görsün, kolay ödesin, arıza bildirsin.
+Mobil uygulama bir "engagement ürünü" değil — işlevsel bir araç.
+
+---
+
+## Ne İnşa Ediyoruz
+
+Üç bileşen:
+
+**1. Yönetim Paneli (Admin Panel)**
+Yönetim şirketi personelinin her şeyi yönettiği merkez.
+Aidat oluşturma, tahsilat takibi, gider girişi, personel yönetimi, duyuru gönderme.
+
+**2. Sakin Mobil Uygulaması**
+Sakinlerin elindeki araç.
+Borç görüntüleme, online ödeme, arıza bildirimi, duyuru okuma.
+
+**3. Backend API**
+İki uygulamanın veri ve iş mantığını taşıyan servis katmanı.
+
+---
+
+## Temel Özellikler ve İş Mantığı
+
+### Aidat & Borç Yönetimi (en kritik modül)
+- Her ay site genelinde toplu aidat oluşturulur (örn. Nisan 2026, ₺500)
+- Her daire için ayrı borç kaydı açılır — aynı ay ikinci kez oluşturulamaz (idempotent)
+- Sakin ödeme yaptıkça `paidAmount` artar; tam ödeme → `PAID`, vadesi geçmiş → `OVERDUE`
+- Yönetici geçmiş ay borçlarını görebilir: "Daire 1: Eylül 800₺ borçlu, Ekim temiz, Kasım 800₺ borçlu"
+- Daire bazlı ekstre oluşturulup sakine gönderilebilir
+
+### Online Ödeme (iyzico)
+- Sakin mobil uygulamadan kredi/banka kartıyla öder
+- Ödeme ertesi gün yönetim şirketi hesabına aktarılır (iyzico t+1)
+- Manuel ödeme girişi de var: nakit veya EFT için admin girer
+
+### Gelir & Gider Takibi
+- Toplanan aidatlar otomatik gelir olarak kaydedilir
+- Asansör bakım faturası, temizlik personel ücreti, elektrik faturası gibi giderler admin tarafından girilir
+- Site bazında net durum görünür: bu ay ne toplandı, ne harcandı
+
+### İletişim: WhatsApp & SMS
+- Yönetici tüm sakinlere ya da belirli bir daireye toplu mesaj gönderebilir
+- Borç hatırlatmaları otomatik tetiklenebilir
+- Sakinlere erişim kanalı olarak WhatsApp/SMS entegrasyonu planlanıyor (Faz 2)
+
+### Talep / Arıza Yönetimi (Faz 2)
+- Sakin uygulamadan talep oluşturur: kategori (elektrik, temizlik, asansör vb.), açıklama
+- Yönetici görür, ilgili personele atar, durum günceller (açık → işlemde → tamamlandı)
+- Amacı: WhatsApp gruplarındaki dağınık iletişimi tek kanala toplamak
+
+### Çalışan Takibi (Faz 2)
+- Güvenlik, temizlik gibi personelin vardiya ve görev takibi
+- Görev atama, raporlama
+
+### Bildirim Sistemi (Faz 2)
+- Push notification (Firebase FCM)
+- Ödeme hatırlatmaları, duyurular, talep güncellemeleri
+
+---
+
+## Stratejik Bağlam
+
+**Faz 1 — MVP, kendi şirketimizde**
+Çalışır sistem. Aidat, ödeme, admin panel, temel mobil uygulama.
+Bu fazda öğreniyoruz: hangi özellik gerçekten kullanılıyor, iş akışında ne sürtünme yaratıyor.
+
+**Faz 2 — Genişleme**
+Talep yönetimi, bildirimler, WhatsApp/SMS.
+İlk harici müşteri denemeleri başlayabilir.
+
+**Faz 3 — SaaS**
+Çok müşterili altyapı zaten baştan var (multi-tenant).
+Self-serve onboarding, abonelik yönetimi, ölçek.
+
+**Kapsam dışı (bilinçli olarak):**
+ERP muhasebe, e-fatura, BI, yapay zeka, genel kurul sistemi, uluslararasılaşma.
+Bunları tartışmaya açmak bile zaman kaybı — odak korunmalı.
+
+---
+
+## Ürün Felsefesi
+
+- **Basitlik önce**: Excel kullanan biri adaptasyon sürtünmesi yaşamamalı
+- **Şeffaflık**: Her finansal hareket izlenebilir; yönetici de sakin de güvenmeli
+- **Güvenilirlik**: Ödeme ve borç sistemi hata affetmez — para hassas alan
+- **Operasyon odaklı**: Teorik değil, bu kişi bugün ne yapıyor, nasıl kolaylaşıyor
+- **MVP'yi çalıştır, sonra büyüt**: Çalışmayan bir özellik zenginliği yerine çalışan bir çekirdek
+
+---
+
+## Kullanıcı Rolleri
+
+| Rol | Kim | Ne yapar |
+|-----|-----|---------|
+| `SUPER_ADMIN` | Biz (sistem sahibi) | Tenant yönetimi, SaaS operasyonu |
+| `TENANT_ADMIN` | Yönetim şirketi yöneticisi | Tüm operasyon: aidat, ödeme, personel, raporlama |
+| `STAFF` | Yönetim şirketi personeli | Talep yönetimi, operasyonel görevler |
+| `RESIDENT` | Daire sakini | Borç görme, ödeme, talep bildirme, duyuru okuma |
+
+---
+
+## Teknik Mimari (Özet)
+
+### Monorepo
 ```
 sakin/
-├── apps/
-│   ├── api/          # NestJS 11 — REST API, port 3001
-│   ├── admin/        # Next.js 15 — yönetim paneli, port 3000
-│   └── mobile/       # Expo SDK 53 — sakin mobil uygulaması
-├── packages/
-│   ├── database/     # Prisma 6 schema + PrismaClient
-│   ├── shared/       # Zod şemaları, TypeScript tipleri, enum'lar (@sakin/shared)
-│   └── ui/           # shadcn/ui tabanlı React bileşenler (@sakin/ui)
-├── doc/              # İş alanı dokümanları (referans)
-├── CLAUDE.md         # Bu dosya
-└── turbo.json
+├── apps/api/          # NestJS 11 — REST API (port 3001)
+├── apps/admin/        # Next.js 15 App Router (port 3000)
+├── apps/mobile/       # Expo SDK 53, React Native
+├── packages/database/ # Prisma 6, PostgreSQL (@sakin/database)
+├── packages/shared/   # Zod şemaları, tipler, enum'lar (@sakin/shared)
+├── packages/ui/       # shadcn/ui bileşenler (@sakin/ui)
+└── doc/               # İş alanı dokümanları
 ```
 
-**Bağımlılık grafiği** (build sırası):
-```
-packages/shared → (bağımlılığı yok, önce build edilir)
-packages/database → (bağımlılığı yok, önce build edilir)
-packages/ui → (bağımlılığı yok, önce build edilir)
-apps/api → @sakin/database + @sakin/shared
-apps/admin → @sakin/shared + @sakin/ui
-apps/mobile → @sakin/shared
-```
+**Build sırası**: shared → database → ui → api / admin / mobile
 
-## Tech Stack
-
-| Katman | Teknoloji |
-|--------|-----------|
-| Monorepo | pnpm workspaces + Turborepo 2 |
-| Backend | NestJS 11, TypeScript, Fastify adapter |
-| Admin Panel | Next.js 15 (App Router), TypeScript, Tailwind CSS |
-| Mobile | Expo SDK 53, React Native, Expo Router |
+### Tech Stack
+| | |
+|--|--|
+| Backend | NestJS 11 + Fastify + TypeScript |
+| Admin Panel | Next.js 15 (App Router) + Tailwind |
+| Mobile | Expo SDK 53 + Expo Router |
 | Veritabanı | PostgreSQL + Prisma 6 |
-| Auth | Firebase Authentication (telefon OTP mobil / email-şifre admin) |
+| Auth | Firebase (telefon OTP → mobil / email → admin) |
 | Ödeme | iyzico |
-| Bildirim | Firebase FCM (Faz 2) |
-| Validasyon | Zod — şemalar @sakin/shared'da, hem API hem frontend kullanır |
-| UI | shadcn/ui (admin panel) |
+| Validasyon | Zod — @sakin/shared'da, hem API hem frontend kullanır |
 
-## Domain Modeli
-
+### Domain Modeli
 ```
 Tenant (Yönetim Şirketi)
-├── User (SUPER_ADMIN | TENANT_ADMIN | STAFF | RESIDENT)
-├── Site (Apartman / Site)
-│   ├── Block (Blok — opsiyonel)
-│   └── Unit (Daire — number + floor + type)
-│       ├── Resident (OWNER | TENANT — userId nullable)
-│       │   └── Payment
-│       └── Dues (@@unique: unitId + periodMonth + periodYear)
-│           └── Payment (ONLINE | CASH | BANK_TRANSFER)
+├── User
+└── Site (Apartman / Site)
+    ├── Block (Blok — opsiyonel)
+    └── Unit (Daire)
+        ├── Resident (OWNER | TENANT)
+        └── Dues [@@unique: unitId + ay + yıl]
+            └── Payment (iyzico veya manuel)
 ```
 
-**Enum'lar** (`packages/shared/src/enums/index.ts`):
-- `UserRole`: SUPER_ADMIN, TENANT_ADMIN, STAFF, RESIDENT
-- `ResidentType`: OWNER, TENANT
-- `UnitType`: APARTMENT, COMMERCIAL, STORAGE, PARKING
-- `DuesStatus`: PENDING, PAID, OVERDUE, PARTIALLY_PAID, WAIVED
-- `PaymentMethod`: ONLINE, CASH, BANK_TRANSFER
-- `PaymentStatus`: PENDING, SUCCESS, FAILED, REFUNDED
-
-## Multi-Tenant Mimarisi
-
-**Strateji**: Row-level tenancy — her tabloda `tenantId` kolonu
+### Multi-Tenant
+Row-level tenancy — her tabloda `tenantId`.
+`PrismaService.forTenant(tenantId)` → Prisma Client Extensions ile her sorguya otomatik filtre.
+SaaS geçişinde yalnızca `prisma.service.ts` değişir, servisler dokunulmaz.
 
 ```
-HTTP Request
-  → TenantMiddleware → Firebase token doğrulama → tenantId + role çıkarma
-  → Controller → @Tenant() decorator ile tenantContext
-  → Service → this.prisma.forTenant(tenantId)
-  → PrismaService.$extends → tüm query/create/update/delete'e tenantId filtresi
-  → PostgreSQL
+Request → TenantMiddleware (Firebase → tenantId+role) → Controller → Service.forTenant() → DB
 ```
 
-**Kritik dosyalar:**
-- `apps/api/src/prisma/prisma.service.ts` — `forTenant()` Prisma Client Extensions
-- `apps/api/src/common/middleware/tenant.middleware.ts` — Firebase → tenantContext
-- `apps/api/src/app.module.ts` — middleware binding (`/auth/register` hariç)
+### API
+- Base: `http://localhost:3001/api/v1`
+- Swagger: `http://localhost:3001/api/docs` (dev)
+- Response: `{ "data": ... }` | Hata: `{ "statusCode", "message", "details" }`
 
-**SaaS geçişinde**: Yalnızca `prisma.service.ts` değişir; servisler/controller'lar dokunulmaz.
-
-## API Yapısı
-
-**Base URL**: `http://localhost:3001/api/v1`
-**Swagger**: `http://localhost:3001/api/docs` (dev modda)
-
-**Mevcut modüller:**
-- `auth` — Firebase token doğrulama, kullanıcı kaydı/profil
+### Mevcut Modüller
+- `auth` — Firebase token, kullanıcı kaydı
 - `site` — Site CRUD
-- `dues` — Aidat oluşturma (toplu), listeleme, güncelleme, overdue işaretleme
-- `site`, `unit`, `resident`, `payment`, `tenant` — stub (geliştirilecek)
+- `dues` — Toplu aidat oluşturma, listeleme, overdue işaretleme
+- `unit`, `resident`, `payment`, `tenant` — stub (geliştirilecek)
 
-**Response formatı** (TransformInterceptor):
-```json
-{ "data": ... }
-```
+---
 
-**Hata formatı** (AllExceptionsFilter):
-```json
-{ "statusCode": 400, "message": "...", "error": "Bad Request", "details": [...] }
-```
+## Faz Durumu
 
-## Admin Panel Yapısı
-
-**Port**: 3000
-
-```
-/login                    → Firebase email/password
-/(dashboard)/
-  dashboard/              → Genel özet (tahsilat oranı, gecikmiş borçlar)
-  sites/                  → Site listesi + oluşturma
-  residents/              → Sakin listesi
-  dues/                   → Aidat listesi
-  dues/generate/          → Toplu aidat oluşturma formu
-  payments/               → Ödeme geçmişi, manuel ödeme girişi
-```
-
-## Mobile Yapısı
-
-Expo Router + Firebase Auth (telefon OTP)
-
-```
-(auth)/login              → Telefon numarası + SMS OTP
-(tabs)/
-  index                   → Borç özeti (DuesStatus'a göre renkli)
-  pay                     → iyzico ödeme (Faz 1)
-  tickets                 → Talep yönetimi (Faz 2 stub)
-  announcements           → Duyurular (Faz 2 stub)
-```
-
-## Faz Yol Haritası
-
-### Faz 1 — Çekirdek (Şu an)
-- [x] Monorepo altyapısı
-- [x] Prisma schema (tam domain modeli)
+### Faz 1 — Çekirdek
+- [x] Monorepo altyapısı (pnpm + Turborepo)
+- [x] Prisma schema — tam domain modeli
 - [x] Multi-tenant middleware
 - [x] Auth modülü
 - [x] Site modülü
-- [x] Dues modülü (toplu oluşturma, listeleme)
+- [x] Dues modülü (oluşturma, listeleme, overdue)
 - [ ] Unit modülü (CRUD)
 - [ ] Resident modülü (CRUD)
-- [ ] Payment modülü (manuel ödeme + iyzico)
-- [ ] Dues → Payment entegrasyonu (ödeme sonrası paidAmount güncelleme)
-- [ ] Admin panel gerçek API entegrasyonu
-- [ ] Mobile gerçek API entegrasyonu
+- [ ] Payment modülü (manuel + iyzico entegrasyonu)
+- [ ] Dues → Payment akışı (paidAmount güncelleme, status geçişleri)
+- [ ] Gelir & Gider takibi
+- [ ] Admin panel → API entegrasyonu (şu an statik)
+- [ ] Mobile → API entegrasyonu (şu an mock data)
 
 ### Faz 2
-- [ ] Talep/arıza yönetimi (ticket sistemi)
-- [ ] Firebase FCM bildirim sistemi
-- [ ] Borç hatırlatma otomasyonu
+- [ ] Talep/arıza yönetimi
+- [ ] Push notification (Firebase FCM)
+- [ ] WhatsApp / SMS entegrasyonu
+- [ ] Çalışan takibi
 
 ### Faz 3
-- [ ] Gelişmiş raporlama
-- [ ] Operasyon optimizasyonu
+- [ ] Raporlama (tahsilat oranı, site bazlı mali durum)
+- [ ] Self-serve SaaS onboarding
 
-## Geliştirme Komutları
+---
+
+## Geliştirme
 
 ```bash
-# Bağımlılık yükle
 pnpm install
+pnpm db:generate          # Prisma client oluştur
+pnpm db:migrate:dev       # Migration (PostgreSQL gerekli)
+pnpm db:seed              # Demo veri
 
-# Prisma client oluştur (schema değişince)
-pnpm db:generate
-
-# Migration (PostgreSQL bağlantısı gerekli)
-pnpm db:migrate:dev
-
-# Seed verisi
-pnpm db:seed
-
-# Tek uygulama geliştirme
 pnpm --filter=@sakin/api dev
 pnpm --filter=@sakin/admin dev
 pnpm --filter=@sakin/mobile dev
-
-# Tüm uygulamalar paralel
-pnpm dev
-
-# Typecheck
-pnpm typecheck
+pnpm dev                  # Hepsi paralel
 ```
 
-**Ortam değişkenleri:**
-- `apps/api/.env.example` → `apps/api/.env`
-- `apps/admin/.env.example` → `apps/admin/.env.local`
-- `packages/database/.env.example` → `packages/database/.env`
-
-## Kapsam Dışı (Bilinçli Olarak)
-
-Şu an ve yakın gelecekte **yapılmayacaklar**:
-- ERP seviyesinde muhasebe (e-fatura, e-defter)
-- Gelişmiş BI / analitik
-- Yapay zeka önerileri
-- Çoklu dil / uluslararası kullanım
-- Genel kurul / oylama sistemi
-- Karmaşık gecikme faizi hesaplama
-
-## Tasarım Prensipleri
-
-1. **Basitlik**: Excel kullanan bir yönetici adapte edebilmeli
-2. **Şeffaflık**: Tüm finansal hareketler izlenebilir
-3. **Güvenilirlik**: Ödeme/borç sistemi hataya kapalı (idempotent operasyonlar)
-4. **Operasyon odaklılık**: Teorik değil, günlük iş akışına göre tasarla
-5. **MVP önce**: Çalışır sistem üzerinde geliştir, kapsam kaymasından kaçın
+**Env dosyaları:**
+- `apps/api/.env.example` → `.env`
+- `apps/admin/.env.example` → `.env.local`
+- `packages/database/.env.example` → `.env`
