@@ -1,0 +1,29 @@
+{
+  "name": "sakin",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "turbo run db:generate --filter=@sakin/database",
+    "db:migrate": "turbo run db:migrate --filter=@sakin/database",
+    "db:migrate:dev": "pnpm --filter=@sakin/database prisma migrate dev",
+    "db:studio": "pnpm --filter=@sakin/database prisma studio",
+    "db:seed": "pnpm --filter=@sakin/database prisma db seed",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.4"
+}

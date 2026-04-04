@@ -1,0 +1,272 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// TENANT (Yönetim Şirketi)
+// Sistemdeki her kayıt bir tenant'a aittir.
+// ─────────────────────────────────────────────
+model Tenant {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  contactEmail String
+  contactPhone String
+  city         String
+  address      String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sites    Site[]
+  users    User[]
+  dues     Dues[]
+  payments Payment[]
+
+  @@index([slug])
+  @@map("tenants")
+}
+
+// ─────────────────────────────────────────────
+// USER (Platform kullanıcısı)
+// Firebase UID harici kimlik sağlayıcısıdır.
+// ─────────────────────────────────────────────
+model User {
+  id          String   @id @default(uuid())
+  tenantId    String
+  firebaseUid String   @unique
+  email       String?
+  phoneNumber String?
+  displayName String?
+  role        UserRole @default(RESIDENT)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  resident Resident?
+
+  @@index([tenantId])
+  @@index([firebaseUid])
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// SITE (Apartman / Site)
+// ─────────────────────────────────────────────
+model Site {
+  id         String   @id @default(uuid())
+  tenantId   String
+  name       String
+  address    String
+  city       String
+  district   String?
+  totalUnits Int
+  hasBlocks  Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  blocks Block[]
+  units  Unit[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("sites")
+}
+
+// ─────────────────────────────────────────────
+// BLOCK (Blok — site içinde opsiyonel gruplama)
+// ─────────────────────────────────────────────
+model Block {
+  id         String   @id @default(uuid())
+  tenantId   String
+  siteId     String
+  name       String
+  totalUnits Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  site  Site   @relation(fields: [siteId], references: [id])
+  units Unit[]
+
+  @@unique([siteId, name])
+  @@index([tenantId])
+  @@index([siteId])
+  @@map("blocks")
+}
+
+// ─────────────────────────────────────────────
+// UNIT (Daire / Bağımsız Bölüm)
+// ─────────────────────────────────────────────
+model Unit {
+  id          String   @id @default(uuid())
+  tenantId    String
+  siteId      String
+  blockId     String?
+  number      String
+  floor       Int?
+  type        UnitType @default(APARTMENT)
+  area        Float?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  site      Site       @relation(fields: [siteId], references: [id])
+  block     Block?     @relation(fields: [blockId], references: [id])
+  residents Resident[]
+  dues      Dues[]
+
+  // Daire numarası blok (veya site) içinde benzersiz
+  @@unique([siteId, blockId, number])
+  @@index([tenantId])
+  @@index([siteId])
+  @@index([blockId])
+  @@map("units")
+}
+
+// ─────────────────────────────────────────────
+// RESIDENT (Sakin — daire sahibi veya kiracı)
+// Bir dairenin birden fazla sakini olabilir.
+// ─────────────────────────────────────────────
+model Resident {
+  id          String       @id @default(uuid())
+  tenantId    String
+  unitId      String
+  userId      String?      @unique // nullable — uygulama kullanmayan sakinler
+  firstName   String
+  lastName    String
+  email       String?
+  phoneNumber String
+  type        ResidentType
+  isActive    Boolean      @default(true)
+  moveInDate  DateTime?
+  moveOutDate DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  unit     Unit      @relation(fields: [unitId], references: [id])
+  user     User?     @relation(fields: [userId], references: [id])
+  payments Payment[]
+
+  @@index([tenantId])
+  @@index([unitId])
+  @@map("residents")
+}
+
+// ─────────────────────────────────────────────
+// DUES (Aidat — daire başına aylık kayıt)
+// Her daire için her ay bir kayıt.
+// ─────────────────────────────────────────────
+model Dues {
+  id          String     @id @default(uuid())
+  tenantId    String
+  unitId      String
+  amount      Decimal    @db.Decimal(10, 2)
+  paidAmount  Decimal    @default(0) @db.Decimal(10, 2)
+  status      DuesStatus @default(PENDING)
+  dueDate     DateTime
+  periodMonth Int // 1-12
+  periodYear  Int // örn. 2024
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  unit     Unit      @relation(fields: [unitId], references: [id])
+  payments Payment[]
+
+  // Aynı daire için aynı ay/yıl tekrar aidat oluşturulamaz
+  @@unique([unitId, periodMonth, periodYear])
+  @@index([tenantId])
+  @@index([unitId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("dues")
+}
+
+// ─────────────────────────────────────────────
+// PAYMENT (Ödeme)
+// Bir aidat kaydı için birden fazla kısmi ödeme olabilir.
+// ─────────────────────────────────────────────
+model Payment {
+  id           String        @id @default(uuid())
+  tenantId     String
+  duesId       String
+  residentId   String?
+  amount       Decimal       @db.Decimal(10, 2)
+  method       PaymentMethod
+  status       PaymentStatus @default(PENDING)
+  paidAt       DateTime?
+  note         String?
+  receiptNumber String?
+
+  // iyzico alanları
+  iyzicoPaymentId      String?
+  iyzicoConversationId String?
+  iyzicoToken          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  dues     Dues      @relation(fields: [duesId], references: [id])
+  resident Resident? @relation(fields: [residentId], references: [id])
+
+  @@index([tenantId])
+  @@index([duesId])
+  @@index([residentId])
+  @@index([status])
+  @@index([iyzicoPaymentId])
+  @@map("payments")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+enum UserRole {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  STAFF
+  RESIDENT
+}
+
+enum ResidentType {
+  OWNER
+  TENANT
+}
+
+enum UnitType {
+  APARTMENT
+  COMMERCIAL
+  STORAGE
+  PARKING
+}
+
+enum DuesStatus {
+  PENDING
+  PAID
+  OVERDUE
+  PARTIALLY_PAID
+  WAIVED
+}
+
+enum PaymentMethod {
+  ONLINE
+  CASH
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
