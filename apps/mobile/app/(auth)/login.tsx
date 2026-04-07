@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native'
-import auth from '@react-native-firebase/auth'
+import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth'
 
 export default function LoginScreen() {
   const [phoneNumber, setPhoneNumber] = useState('')
   const [code, setCode] = useState('')
-  const [confirm, setConfirm] = useState<Awaited<ReturnType<typeof auth['signInWithPhoneNumber']>> | null>(null)
+  const [confirm, setConfirm] = useState<FirebaseAuthTypes.ConfirmationResult | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function sendCode() {
@@ -47,7 +47,7 @@ export default function LoginScreen() {
             value={phoneNumber}
             onChangeText={setPhoneNumber}
             keyboardType="phone-pad"
-            autoCompleteType="tel"
+            autoComplete="tel"
           />
           <TouchableOpacity style={styles.button} onPress={sendCode} disabled={loading}>
             <Text style={styles.buttonText}>{loading ? 'Gönderiliyor...' : 'SMS Kodu Gönder'}</Text>

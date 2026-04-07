@@ -1,38 +1,21 @@
-import Link from 'next/link'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { UserRole, type UserRole as UserRoleType } from '@sakin/shared'
+import { decodeSession } from '@/lib/session'
+import { DashboardShell } from '@/components/dashboard-shell'
 
-const navItems = [
-  { href: '/dashboard', label: 'Özet' },
-  { href: '/sites', label: 'Siteler' },
-  { href: '/residents', label: 'Sakinler' },
-  { href: '/dues', label: 'Aidatlar' },
-  { href: '/payments', label: 'Ödemeler' },
-]
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies()
+  const session = decodeSession(cookieStore.get('sakin-session')?.value ?? '')
+  const role = (session?.role ?? null) as UserRoleType | null
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col">
-        <div className="p-6 border-b">
-          <h1 className="text-xl font-bold text-gray-900">Sakin</h1>
-          <p className="text-xs text-gray-500 mt-1">Yönetim Paneli</p>
-        </div>
+  if (!role) {
+    redirect('/login')
+  }
 
-        <nav className="flex-1 p-4 space-y-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="block px-4 py-2 rounded-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
+  if (role === UserRole.SUPER_ADMIN) {
+    redirect(process.env['NEXT_PUBLIC_PLATFORM_URL'] ?? 'http://localhost:3002')
+  }
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto p-8">{children}</main>
-    </div>
-  )
+  return <DashboardShell role={role}>{children}</DashboardShell>
 }

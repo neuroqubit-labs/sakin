@@ -188,39 +188,40 @@ Request → TenantMiddleware (Firebase → tenantId+role) → Controller → Ser
 - Swagger: `http://localhost:3001/api/docs` (dev)
 - Response: `{ "data": ... }` | Hata: `{ "statusCode", "message", "details" }`
 
-### Mevcut Modüller
-- `auth` — Firebase token, kullanıcı kaydı
-- `site` — Site CRUD
-- `dues` — Toplu aidat oluşturma, listeleme, overdue işaretleme
-- `unit`, `resident`, `payment`, `tenant` — stub (geliştirilecek)
+### API Modülleri
+`auth`, `site`, `block`, `unit`, `resident`, `occupancy`, `dues`, `payment`, `ledger`, `expense`, `announcement`, `export`, `tenant`, `platform`, `notification`
 
 ---
 
 ## Faz Durumu
 
-### Faz 1 — Çekirdek
+### Faz 1 — Çekirdek ✅ Tamamlandı
 - [x] Monorepo altyapısı (pnpm + Turborepo)
-- [x] Prisma schema — tam domain modeli
-- [x] Multi-tenant middleware
-- [x] Auth modülü
-- [x] Site modülü
-- [x] Dues modülü (oluşturma, listeleme, overdue)
-- [ ] Unit modülü (CRUD)
-- [ ] Resident modülü (CRUD)
-- [ ] Payment modülü (manuel + iyzico entegrasyonu)
-- [ ] Dues → Payment akışı (paidAmount güncelleme, status geçişleri)
-- [ ] Gelir & Gider takibi
-- [ ] Admin panel → API entegrasyonu (şu an statik)
-- [ ] Mobile → API entegrasyonu (şu an mock data)
+- [x] Prisma schema — tam domain modeli (22 model)
+- [x] Multi-tenant middleware + `PrismaService.forTenant()`
+- [x] Auth modülü (Firebase email/phone + dev bypass)
+- [x] Site, Block, Unit, Resident, Occupancy modülleri (CRUD)
+- [x] Dues modülü (toplu üretim, overdue, waive, daily cron)
+- [x] Payment modülü (iyzico checkout, manuel, banka transferi, webhook + HMAC)
+- [x] Ledger modülü (immutable entries, bakiye türetimi, PostgreSQL trigger)
+- [x] Expense, Announcement modülleri
+- [x] Export modülü (CSV — COLLECTIONS/DUES/LEDGER, batch history)
+- [x] Tenant modülü (work-summary, work-portfolio, gateway config)
+- [x] Platform modülü (tenant CRUD, plan yönetimi, PlatformGuard)
+- [x] Notification modülü (in-app kayıt, unread count)
+- [x] Admin panel → API tam entegrasyon (dashboard, work/*, reports, settings)
+- [x] Mobile → API tam entegrasyon (dues, ödeme WebView, bildirimler)
+- [x] `pnpm typecheck` → sıfır hata
 
 ### Faz 2
-- [ ] Talep/arıza yönetimi
+- [ ] Talep/arıza yönetimi (ticket sistemi)
 - [ ] Push notification (Firebase FCM)
 - [ ] WhatsApp / SMS entegrasyonu
 - [ ] Çalışan takibi
+- [ ] Refund otomasyonu
 
 ### Faz 3
-- [ ] Raporlama (tahsilat oranı, site bazlı mali durum)
+- [ ] Raporlama (tahsilat oranı, aging, site bazlı mali durum)
 - [ ] Self-serve SaaS onboarding
 
 ---

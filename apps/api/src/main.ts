@@ -1,5 +1,12 @@
 import 'reflect-metadata'
+import * as dotenv from 'dotenv'
+dotenv.config()
+import { validateEnv } from './config/env.validation'
+
+validateEnv()
+
 import { NestFactory } from '@nestjs/core'
+import { HttpAdapterHost } from '@nestjs/core'
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { AppModule } from './app.module'
@@ -13,6 +20,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ logger: process.env['NODE_ENV'] !== 'production' }),
+    { rawBody: true },
   )
 
   // Global prefix
@@ -25,7 +33,8 @@ async function bootstrap() {
   })
 
   // Global filters & interceptors
-  app.useGlobalFilters(new AllExceptionsFilter())
+  const httpAdapterHost = app.get(HttpAdapterHost)
+  app.useGlobalFilters(new AllExceptionsFilter(httpAdapterHost))
   app.useGlobalInterceptors(new TransformInterceptor())
 
   // Swagger (development only)

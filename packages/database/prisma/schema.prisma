@@ -7,10 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─────────────────────────────────────────────
-// TENANT (Yönetim Şirketi)
-// Sistemdeki her kayıt bir tenant'a aittir.
-// ─────────────────────────────────────────────
 model Tenant {
   id           String   @id @default(uuid())
   name         String
@@ -23,42 +19,93 @@ model Tenant {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  sites    Site[]
-  users    User[]
-  dues     Dues[]
-  payments Payment[]
+  users                 UserTenantRole[]
+  sites                 Site[]
+  residents             Resident[]
+  occupancies           UnitOccupancy[]
+  duesDefinitions       DuesDefinition[]
+  dues                  Dues[]
+  payments              Payment[]
+  paymentAttempts       PaymentAttempt[]
+  paymentProviderEvents PaymentProviderEvent[]
+  ledgerEntries         LedgerEntry[]
+  exportBatches         ExportBatch[]
+  notifications         Notification[]
+  paymentGateways       TenantPaymentGatewayConfig[]
+  expenses              Expense[]
+  announcements         Announcement[]
+  plan                  TenantPlan?
 
   @@index([slug])
   @@map("tenants")
 }
 
-// ─────────────────────────────────────────────
-// USER (Platform kullanıcısı)
-// Firebase UID harici kimlik sağlayıcısıdır.
-// ─────────────────────────────────────────────
 model User {
   id          String   @id @default(uuid())
-  tenantId    String
   firebaseUid String   @unique
   email       String?
   phoneNumber String?
   displayName String?
-  role        UserRole @default(RESIDENT)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id])
-  resident Resident?
+  tenantRoles              UserTenantRole[]
+  residentProfile          Resident?
+  initiatedPaymentAttempts PaymentAttempt[] @relation("PaymentAttemptInitiatedBy")
+  paymentsPaid             Payment[]        @relation("PaymentPaidByUser")
+  paymentsApproved         Payment[]        @relation("PaymentApprovedByUser")
+  ledgerEntriesCreated     LedgerEntry[]    @relation("LedgerEntryCreatedBy")
+  occupanciesCreated       UnitOccupancy[]  @relation("UnitOccupancyCreatedBy")
+  exportsRequested         ExportBatch[]    @relation("ExportBatchRequestedBy")
+  notificationsSent        Notification[]   @relation("NotificationSentByUser")
+  notifications            Notification[]
 
-  @@index([tenantId])
   @@index([firebaseUid])
+  @@index([phoneNumber])
   @@map("users")
 }
 
-// ─────────────────────────────────────────────
-// SITE (Apartman / Site)
-// ─────────────────────────────────────────────
+model UserTenantRole {
+  id        String   @id @default(uuid())
+  userId    String
+  tenantId  String?
+  role      UserRole
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id])
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+  @@index([role])
+  @@map("user_tenant_roles")
+}
+
+model TenantPaymentGatewayConfig {
+  id             String          @id @default(uuid())
+  tenantId       String
+  provider       PaymentProvider @default(IYZICO)
+  mode           GatewayMode     @default(TEST)
+  apiKey         String
+  secretKey      String
+  merchantName   String?
+  merchantId     String?
+  subMerchantKey String?
+  isActive       Boolean         @default(true)
+  metadata       Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, provider])
+  @@index([tenantId, isActive])
+  @@map("tenant_payment_gateway_configs")
+}
+
 model Site {
   id         String   @id @default(uuid())
   tenantId   String
@@ -72,18 +119,18 @@ model Site {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  tenant Tenant  @relation(fields: [tenantId], references: [id])
-  blocks Block[]
-  units  Unit[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  blocks          Block[]
+  units           Unit[]
+  duesDefinitions DuesDefinition[]
+  expenses        Expense[]
+  announcements   Announcement[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
   @@map("sites")
 }
 
-// ─────────────────────────────────────────────
-// BLOCK (Blok — site içinde opsiyonel gruplama)
-// ─────────────────────────────────────────────
 model Block {
   id         String   @id @default(uuid())
   tenantId   String
@@ -102,9 +149,6 @@ model Block {
   @@map("blocks")
 }
 
-// ─────────────────────────────────────────────
-// UNIT (Daire / Bağımsız Bölüm)
-// ─────────────────────────────────────────────
 model Unit {
   id          String   @id @default(uuid())
   tenantId    String
@@ -119,12 +163,15 @@ model Unit {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  site      Site       @relation(fields: [siteId], references: [id])
-  block     Block?     @relation(fields: [blockId], references: [id])
-  residents Resident[]
-  dues      Dues[]
+  site            Site             @relation(fields: [siteId], references: [id])
+  block           Block?           @relation(fields: [blockId], references: [id])
+  occupancies     UnitOccupancy[]
+  dues            Dues[]
+  payments        Payment[]
+  paymentAttempts PaymentAttempt[]
+  ledgerEntries   LedgerEntry[]
+  notifications   Notification[]
 
-  // Daire numarası blok (veya site) içinde benzersiz
   @@unique([siteId, blockId, number])
   @@index([tenantId])
   @@index([siteId])
@@ -132,58 +179,102 @@ model Unit {
   @@map("units")
 }
 
-// ─────────────────────────────────────────────
-// RESIDENT (Sakin — daire sahibi veya kiracı)
-// Bir dairenin birden fazla sakini olabilir.
-// ─────────────────────────────────────────────
 model Resident {
   id          String       @id @default(uuid())
   tenantId    String
-  unitId      String
-  userId      String?      @unique // nullable — uygulama kullanmayan sakinler
+  userId      String?      @unique
   firstName   String
   lastName    String
   email       String?
   phoneNumber String
+  tckn        String?
   type        ResidentType
   isActive    Boolean      @default(true)
-  moveInDate  DateTime?
-  moveOutDate DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  unit     Unit      @relation(fields: [unitId], references: [id])
-  user     User?     @relation(fields: [userId], references: [id])
-  payments Payment[]
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  user          User?           @relation(fields: [userId], references: [id])
+  occupancies   UnitOccupancy[]
+  payments      Payment[]
+  notifications Notification[]
 
   @@index([tenantId])
-  @@index([unitId])
+  @@index([phoneNumber])
   @@map("residents")
 }
 
-// ─────────────────────────────────────────────
-// DUES (Aidat — daire başına aylık kayıt)
-// Her daire için her ay bir kayıt.
-// ─────────────────────────────────────────────
-model Dues {
-  id          String     @id @default(uuid())
+model UnitOccupancy {
+  id                   String        @id @default(uuid())
+  tenantId             String
+  unitId               String
+  residentId           String
+  role                 OccupancyRole
+  isPrimaryResponsible Boolean       @default(false)
+  startDate            DateTime
+  endDate              DateTime?
+  isActive             Boolean       @default(true)
+  createdByUserId      String?
+  note                 String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  unit          Unit     @relation(fields: [unitId], references: [id])
+  resident      Resident @relation(fields: [residentId], references: [id])
+  createdByUser User?    @relation("UnitOccupancyCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([tenantId])
+  @@index([unitId, isActive])
+  @@index([residentId, isActive])
+  @@index([tenantId, unitId, isPrimaryResponsible, isActive])
+  @@map("unit_occupancies")
+}
+
+model DuesDefinition {
+  id          String   @id @default(uuid())
   tenantId    String
-  unitId      String
-  amount      Decimal    @db.Decimal(10, 2)
-  paidAmount  Decimal    @default(0) @db.Decimal(10, 2)
-  status      DuesStatus @default(PENDING)
-  dueDate     DateTime
-  periodMonth Int // 1-12
-  periodYear  Int // örn. 2024
+  siteId      String?
+  name        String
+  amount      Decimal  @db.Decimal(12, 2)
+  currency    String   @default("TRY")
+  type        DuesType @default(AIDAT)
+  dueDay      Int
+  isActive    Boolean  @default(true)
   description String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id])
-  unit     Unit      @relation(fields: [unitId], references: [id])
-  payments Payment[]
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  site   Site?  @relation(fields: [siteId], references: [id])
+  dues   Dues[]
 
-  // Aynı daire için aynı ay/yıl tekrar aidat oluşturulamaz
+  @@index([tenantId])
+  @@index([siteId])
+  @@map("dues_definitions")
+}
+
+model Dues {
+  id               String     @id @default(uuid())
+  tenantId         String
+  unitId           String
+  duesDefinitionId String?
+  amount           Decimal    @db.Decimal(12, 2)
+  currency         String     @default("TRY")
+  status           DuesStatus @default(PENDING)
+  dueDate          DateTime
+  periodMonth      Int
+  periodYear       Int
+  description      String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  unit            Unit             @relation(fields: [unitId], references: [id])
+  duesDefinition  DuesDefinition?  @relation(fields: [duesDefinitionId], references: [id])
+  payments        Payment[]
+  paymentAttempts PaymentAttempt[]
+
   @@unique([unitId, periodMonth, periodYear])
   @@index([tenantId])
   @@index([unitId])
@@ -192,45 +283,270 @@ model Dues {
   @@map("dues")
 }
 
-// ─────────────────────────────────────────────
-// PAYMENT (Ödeme)
-// Bir aidat kaydı için birden fazla kısmi ödeme olabilir.
-// ─────────────────────────────────────────────
 model Payment {
-  id           String        @id @default(uuid())
-  tenantId     String
-  duesId       String
-  residentId   String?
-  amount       Decimal       @db.Decimal(10, 2)
-  method       PaymentMethod
-  status       PaymentStatus @default(PENDING)
-  paidAt       DateTime?
-  note         String?
-  receiptNumber String?
+  id                String          @id @default(uuid())
+  tenantId          String
+  unitId            String
+  duesId            String?
+  paidByUserId      String?
+  paidByResidentId  String?
+  approvedByUserId  String?
+  amount            Decimal         @db.Decimal(12, 2)
+  currency          String          @default("TRY")
+  method            PaymentMethod
+  channel           PaymentChannel
+  provider          PaymentProvider @default(MANUAL)
+  status            PaymentStatus   @default(PENDING)
+  providerPaymentId String?
+  conversationId    String?
+  providerToken     String?
+  externalReference String?
+  paidAt            DateTime?
+  confirmedAt       DateTime?
+  failedAt          DateTime?
+  cancelledAt       DateTime?
+  refundedAt        DateTime?
+  note              String?
+  receiptNumber     String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
-  // iyzico alanları
-  iyzicoPaymentId      String?
-  iyzicoConversationId String?
-  iyzicoToken          String?
+  tenant         Tenant                 @relation(fields: [tenantId], references: [id])
+  unit           Unit                   @relation(fields: [unitId], references: [id])
+  dues           Dues?                  @relation(fields: [duesId], references: [id])
+  paidByUser     User?                  @relation("PaymentPaidByUser", fields: [paidByUserId], references: [id])
+  paidByResident Resident?              @relation(fields: [paidByResidentId], references: [id])
+  approvedByUser User?                  @relation("PaymentApprovedByUser", fields: [approvedByUserId], references: [id])
+  attempts       PaymentAttempt[]
+  providerEvents PaymentProviderEvent[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tenant   Tenant    @relation(fields: [tenantId], references: [id])
-  dues     Dues      @relation(fields: [duesId], references: [id])
-  resident Resident? @relation(fields: [residentId], references: [id])
-
+  @@unique([tenantId, provider, providerPaymentId])
   @@index([tenantId])
+  @@index([unitId])
   @@index([duesId])
-  @@index([residentId])
   @@index([status])
-  @@index([iyzicoPaymentId])
+  @@index([method])
+  @@index([paidAt])
+  @@index([conversationId])
   @@map("payments")
 }
 
-// ─────────────────────────────────────────────
-// ENUMS
-// ─────────────────────────────────────────────
+model PaymentAttempt {
+  id                String               @id @default(uuid())
+  tenantId          String
+  paymentId         String?
+  unitId            String
+  duesId            String?
+  initiatedByUserId String?
+  amount            Decimal              @db.Decimal(12, 2)
+  currency          String               @default("TRY")
+  provider          PaymentProvider
+  method            PaymentMethod
+  channel           PaymentChannel
+  status            PaymentAttemptStatus @default(INITIATED)
+  conversationId    String
+  providerReference String?
+  providerToken     String?
+  callbackUrl       String?
+  metadata          Json?
+  expiresAt         DateTime?
+  processedAt       DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id])
+  payment         Payment?               @relation(fields: [paymentId], references: [id])
+  unit            Unit                   @relation(fields: [unitId], references: [id])
+  dues            Dues?                  @relation(fields: [duesId], references: [id])
+  initiatedByUser User?                  @relation("PaymentAttemptInitiatedBy", fields: [initiatedByUserId], references: [id])
+  providerEvents  PaymentProviderEvent[]
+
+  @@unique([tenantId, conversationId])
+  @@index([tenantId])
+  @@index([paymentId])
+  @@index([unitId])
+  @@index([status])
+  @@map("payment_attempts")
+}
+
+model PaymentProviderEvent {
+  id               String              @id @default(uuid())
+  tenantId         String
+  paymentAttemptId String?
+  paymentId        String?
+  provider         PaymentProvider
+  eventType        String
+  eventId          String
+  signature        String?
+  processStatus    ProviderEventStatus @default(PENDING)
+  payload          Json
+  receivedAt       DateTime            @default(now())
+  processedAt      DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  paymentAttempt PaymentAttempt? @relation(fields: [paymentAttemptId], references: [id])
+  payment        Payment?        @relation(fields: [paymentId], references: [id])
+
+  @@unique([tenantId, provider, eventId])
+  @@index([tenantId])
+  @@index([paymentAttemptId])
+  @@index([paymentId])
+  @@index([processStatus])
+  @@map("payment_provider_events")
+}
+
+model LedgerEntry {
+  id              String              @id @default(uuid())
+  tenantId        String
+  unitId          String
+  amount          Decimal             @db.Decimal(12, 2)
+  currency        String              @default("TRY")
+  entryType       LedgerEntryType
+  referenceType   LedgerReferenceType
+  referenceId     String
+  idempotencyKey  String?
+  effectiveAt     DateTime
+  createdByUserId String?
+  note            String?
+  metadata        Json?
+  createdAt       DateTime            @default(now())
+
+  tenant        Tenant @relation(fields: [tenantId], references: [id])
+  unit          Unit   @relation(fields: [unitId], references: [id])
+  createdByUser User?  @relation("LedgerEntryCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId])
+  @@index([tenantId, unitId, effectiveAt])
+  @@index([tenantId, referenceType, referenceId])
+  @@map("ledger_entries")
+}
+
+model ExportBatch {
+  id                String       @id @default(uuid())
+  tenantId          String
+  type              ExportType
+  status            ExportStatus @default(PENDING)
+  filters           Json?
+  fileUrl           String?
+  requestedByUserId String?
+  rowCount          Int?
+  createdAt         DateTime     @default(now())
+  completedAt       DateTime?
+
+  tenant          Tenant @relation(fields: [tenantId], references: [id])
+  requestedByUser User?  @relation("ExportBatchRequestedBy", fields: [requestedByUserId], references: [id])
+
+  @@index([tenantId, type, status])
+  @@map("export_batches")
+}
+
+model Notification {
+  id           String              @id @default(uuid())
+  tenantId     String
+  userId       String?
+  residentId   String?
+  unitId       String?
+  channel      NotificationChannel
+  status       NotificationStatus  @default(PENDING)
+  templateKey  String?
+  payload      Json?
+  sentByUserId String?
+  sentAt       DateTime?
+  failedAt     DateTime?
+  errorMessage String?
+  createdAt    DateTime            @default(now())
+
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  user       User?     @relation(fields: [userId], references: [id])
+  resident   Resident? @relation(fields: [residentId], references: [id])
+  unit       Unit?     @relation(fields: [unitId], references: [id])
+  sentByUser User?     @relation("NotificationSentByUser", fields: [sentByUserId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("notifications")
+}
+
+model Announcement {
+  id          String    @id @default(uuid())
+  tenantId    String
+  siteId      String?
+  title       String    @db.VarChar(200)
+  body        String
+  publishedAt DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  site   Site?  @relation(fields: [siteId], references: [id])
+
+  @@index([tenantId])
+  @@index([siteId])
+  @@index([publishedAt])
+  @@map("announcements")
+}
+
+model TenantPlan {
+  id         String    @id @default(uuid())
+  tenantId   String    @unique
+  planType   PlanType  @default(TRIAL)
+  smsCredits Int       @default(0)
+  maxUnits   Int       @default(50)
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("tenant_plans")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  changes   Json?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  tenantId    String
+  siteId      String
+  amount      Decimal         @db.Decimal(12, 2)
+  category    ExpenseCategory
+  description String
+  date        DateTime
+  receiptUrl  String?
+  createdById String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  site   Site   @relation(fields: [siteId], references: [id])
+
+  @@index([tenantId])
+  @@index([siteId])
+  @@index([date])
+  @@map("expenses")
+}
+
 enum UserRole {
   SUPER_ADMIN
   TENANT_ADMIN
@@ -241,6 +557,14 @@ enum UserRole {
 enum ResidentType {
   OWNER
   TENANT
+  CONTACT
+}
+
+enum OccupancyRole {
+  OWNER
+  TENANT
+  RESPONSIBLE
+  CONTACT
 }
 
 enum UnitType {
@@ -250,23 +574,123 @@ enum UnitType {
   PARKING
 }
 
+enum DuesType {
+  AIDAT
+  EXTRA
+}
+
 enum DuesStatus {
   PENDING
+  PARTIALLY_PAID
   PAID
   OVERDUE
-  PARTIALLY_PAID
   WAIVED
+  CANCELLED
 }
 
 enum PaymentMethod {
-  ONLINE
-  CASH
+  ONLINE_CARD
   BANK_TRANSFER
+  CASH
+  POS
+}
+
+enum PaymentChannel {
+  RESIDENT_WEB
+  RESIDENT_MOBILE
+  STAFF_PANEL
+}
+
+enum PaymentProvider {
+  IYZICO
+  MANUAL
 }
 
 enum PaymentStatus {
   PENDING
-  SUCCESS
+  CONFIRMED
   FAILED
+  CANCELLED
   REFUNDED
+}
+
+enum PaymentAttemptStatus {
+  INITIATED
+  PENDING
+  CONFIRMED
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum ProviderEventStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  DUPLICATE
+}
+
+enum LedgerEntryType {
+  CHARGE
+  PAYMENT
+  ADJUSTMENT
+  WAIVER
+  REFUND
+}
+
+enum LedgerReferenceType {
+  DUES
+  PAYMENT
+  ADJUSTMENT
+  WAIVER
+  REFUND
+  MANUAL
+}
+
+enum ExportType {
+  COLLECTIONS
+  DUES
+  LEDGER
+  ACCOUNTING
+}
+
+enum ExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+  PUSH
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum GatewayMode {
+  TEST
+  LIVE
+}
+
+enum ExpenseCategory {
+  MAINTENANCE
+  CLEANING
+  SECURITY
+  UTILITIES
+  INSURANCE
+  MANAGEMENT_FEE
+  OTHER
+}
+
+enum PlanType {
+  TRIAL
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
 }

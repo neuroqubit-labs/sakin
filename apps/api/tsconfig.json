@@ -11,16 +11,8 @@
     "declarationMap": false,
     "incremental": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "paths": {
-      "@sakin/shared": ["../../packages/shared/src/index.ts"],
-      "@sakin/database": ["../../packages/database/src/index.ts"]
-    }
+    "emitDecoratorMetadata": true
   },
-  "include": [
-    "src",
-    "../../packages/shared/src",
-    "../../packages/database/src"
-  ],
+  "include": ["src"],
   "exclude": ["dist", "node_modules"]
 }

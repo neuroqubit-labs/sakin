@@ -1,10 +1,11 @@
-import type { UserRole } from '../enums/index.js'
+import type { UserRole } from '../enums/index'
 
 export interface TenantContext {
-  tenantId: string
+  tenantId: string | null
   userId: string
   role: UserRole
   firebaseUid: string
+  userTenantRoleId?: string | null
 }
 
 export interface PaginationMeta {
@@ -29,4 +30,16 @@ export interface ApiErrorResponse {
   message: string
   error?: string
   details?: unknown
+}
+
+export type RouteAccessPolicy = Record<string, UserRole[]>
+
+export interface WorkQueryParams {
+  siteId?: string
+  page?: number
+  limit?: number
+  search?: string
+  status?: string
+  dateFrom?: Date
+  dateTo?: Date
 }

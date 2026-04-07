@@ -1,10 +1,17 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, UsePipes } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Param, Body, Query, UsePipes, ForbiddenException } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger'
 import { DuesService } from './dues.service'
 import { Tenant } from '../../common/decorators/tenant.decorator'
+import { Roles } from '../../common/decorators/roles.decorator'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import type { TenantContext } from '@sakin/shared'
-import { GenerateDuesSchema, DuesFilterSchema, UpdateDuesSchema } from '@sakin/shared'
+import {
+  GenerateDuesSchema,
+  DuesFilterSchema,
+  UpdateDuesSchema,
+  UserRole,
+  WaiveDuesSchema,
+} from '@sakin/shared'
 
 @ApiTags('dues')
 @ApiBearerAuth()
@@ -12,43 +19,62 @@ import { GenerateDuesSchema, DuesFilterSchema, UpdateDuesSchema } from '@sakin/s
 export class DuesController {
   constructor(private readonly duesService: DuesService) {}
 
+  private getTenantId(ctx: TenantContext): string {
+    if (!ctx.tenantId) throw new ForbiddenException('Bu endpoint tenant kullanıcıları içindir')
+    return ctx.tenantId
+  }
+
   @Post('generate')
-  @ApiOperation({ summary: 'Siteye toplu aidat oluştur' })
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Siteye toplu aidat oluştur (TENANT_ADMIN)' })
   @UsePipes(new ZodValidationPipe(GenerateDuesSchema))
   async generate(@Body() dto: unknown, @Tenant() ctx: TenantContext) {
     return this.duesService.generate(
       dto as Parameters<DuesService['generate']>[0],
-      ctx.tenantId,
+      this.getTenantId(ctx),
+      ctx.userId,
     )
   }
 
   @Get()
-  @ApiOperation({ summary: 'Aidat listesi (filtreli, sayfalı)' })
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @ApiOperation({ summary: 'Aidat listesi (TENANT_ADMIN, STAFF)' })
   async findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = DuesFilterSchema.parse(query)
-    return this.duesService.findAll(filter, ctx.tenantId)
+    return this.duesService.findAll(filter, this.getTenantId(ctx))
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Aidat detayı' })
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @ApiOperation({ summary: 'Aidat detayı (TENANT_ADMIN, STAFF)' })
   async findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
-    return this.duesService.findOne(id, ctx.tenantId)
+    return this.duesService.findOne(id, this.getTenantId(ctx))
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Aidat güncelle (admin düzeltmesi)' })
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Aidat güncelle (TENANT_ADMIN)' })
   async update(
     @Param('id') id: string,
     @Body() body: unknown,
     @Tenant() ctx: TenantContext,
   ) {
     const dto = UpdateDuesSchema.parse(body)
-    return this.duesService.update(id, dto, ctx.tenantId)
+    return this.duesService.update(id, dto, this.getTenantId(ctx), ctx.userId)
+  }
+
+  @Post(':id/waive')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Aidat sil/affet (WAIVED)' })
+  async waive(@Param('id') id: string, @Body() body: unknown, @Tenant() ctx: TenantContext) {
+    const dto = WaiveDuesSchema.parse(body)
+    return this.duesService.waive(id, dto, this.getTenantId(ctx), ctx.userId)
   }
 
   @Post('mark-overdue')
-  @ApiOperation({ summary: 'Vadesi geçmiş aidatları OVERDUE yap' })
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Vadesi geçmiş aidatları OVERDUE yap (TENANT_ADMIN)' })
   async markOverdue(@Tenant() ctx: TenantContext) {
-    return this.duesService.markOverdue(ctx.tenantId)
+    return this.duesService.markOverdue(this.getTenantId(ctx))
   }
 }

@@ -22,7 +22,6 @@ out
 # Database
 *.db
 *.db-journal
-migrations/
 
 # OS
 .DS_Store
@@ -44,3 +43,17 @@ coverage
 
 # Prisma generated
 apps/api/src/generated/
+
+# Accidental TS build artifacts in source folders
+packages/shared/src/**/*.js
+packages/shared/src/**/*.js.map
+packages/database/src/**/*.js
+packages/database/src/**/*.js.map
+
+# Temp files
+.tmp-*
+*.tmp
+.codex
+
+# Prisma temp investigation scripts
+packages/database/prisma/.tmp-*

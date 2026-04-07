@@ -1,18 +1,23 @@
+'use client'
+
 import Link from 'next/link'
-import { Button } from '@sakin/ui'
+import { StaffPageHeader } from '@/components/staff-surface'
 
 export default function DuesPage() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Aidatlar</h1>
-        <Link href="/dues/generate">
-          <Button>Toplu Aidat Oluştur</Button>
-        </Link>
-      </div>
+      <StaffPageHeader
+        title="Aidatlar"
+        subtitle="Tenant-admin seviyesinde dönemsel tahakkuk yönetimi."
+        actions={(
+          <Link href="/work/dues" className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white">
+            Work Tahakkuk Ekranı
+          </Link>
+        )}
+      />
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-500 text-sm">Aidat listesi yükleniyor...</p>
+      <div className="ledger-panel p-6">
+        <p className="text-sm text-[#6b7280]">Aidat operasyonunun aktif yönetim akışı staff workspace’e taşınmıştır. Bu sayfada tenant-admin raporlama ve politika ayarları devam edecektir.</p>
       </div>
     </div>
   )

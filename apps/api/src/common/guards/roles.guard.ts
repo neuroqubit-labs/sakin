@@ -18,8 +18,13 @@ export class RolesGuard implements CanActivate {
       return true
     }
 
-    const request = context.switchToHttp().getRequest<RequestWithTenant>()
-    const { role } = request.tenantContext!
+    const request = context.switchToHttp().getRequest<RequestWithTenant & { raw?: RequestWithTenant }>()
+    const ctx = request.tenantContext ?? request.raw?.tenantContext
+    const role = ctx?.role
+
+    if (!role) {
+      throw new ForbiddenException('Rol bilgisi doğrulanamadı')
+    }
 
     if (!requiredRoles.includes(role)) {
       throw new ForbiddenException('Bu işlem için yetkiniz bulunmamaktadır')

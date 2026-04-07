@@ -13,11 +13,3 @@ export const UpdateSiteSchema = CreateSiteSchema.partial()
 
 export type CreateSiteDto = z.infer<typeof CreateSiteSchema>
 export type UpdateSiteDto = z.infer<typeof UpdateSiteSchema>
-
-export const CreateBlockSchema = z.object({
-  siteId: z.string().uuid(),
-  name: z.string().min(1).max(50),
-  totalUnits: z.number().int().positive(),
-})
-
-export type CreateBlockDto = z.infer<typeof CreateBlockSchema>

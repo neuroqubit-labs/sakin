@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { UnitType } from '../enums/index.js'
+import { UnitType } from '../enums/index'
 
 export const CreateUnitSchema = z.object({
   siteId: z.string().uuid(),
@@ -13,5 +13,24 @@ export const CreateUnitSchema = z.object({
 
 export const UpdateUnitSchema = CreateUnitSchema.partial().omit({ siteId: true })
 
+export const UnitFilterSchema = z.object({
+  siteId: z.string().uuid().optional(),
+  blockId: z.string().uuid().optional(),
+  floor: z.coerce.number().int().optional(),
+  search: z.string().min(1).max(100).optional(),
+  financialStatus: z.enum(['CLEAR', 'DEBTOR', 'OVERDUE']).optional(),
+  isActive: z.coerce.boolean().optional(),
+  type: z.nativeEnum(UnitType).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const CreateBlockSchema = z.object({
+  name: z.string().min(1).max(50),
+  totalUnits: z.number().int().positive(),
+})
+
 export type CreateUnitDto = z.infer<typeof CreateUnitSchema>
 export type UpdateUnitDto = z.infer<typeof UpdateUnitSchema>
+export type UnitFilterDto = z.infer<typeof UnitFilterSchema>
+export type CreateBlockDto = z.infer<typeof CreateBlockSchema>

@@ -1,18 +1,19 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common'
 import * as admin from 'firebase-admin'
 import { PrismaService } from '../../prisma/prisma.service'
 import type { RegisterDto } from '@sakin/shared'
-import { UserRole } from '@sakin/shared'
+import { PaymentStatus, UserRole } from '@sakin/shared'
 
 @Injectable()
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private readonly allowedRegisterRoles = new Set<UserRole>([UserRole.RESIDENT, UserRole.STAFF])
+
   /**
-   * Firebase token ile kullanıcıyı doğrular ve sistemde kayıt oluşturur.
-   * İlk kayıt olan kullanıcı için tenant gereklidir (SUPER_ADMIN tarafından oluşturulmuş olmalı).
+   * Firebase token ile kullanıcıyı doğrular ve kullanıcı + tenant rol ilişkisi oluşturur.
    */
-  async register(dto: RegisterDto, tenantId: string) {
+  async register(dto: RegisterDto) {
     let decoded: admin.auth.DecodedIdToken
 
     try {
@@ -21,26 +22,89 @@ export class AuthService {
       throw new UnauthorizedException('Geçersiz Firebase token')
     }
 
-    const existing = await this.prisma.user.findUnique({
+    const existingUser = await this.prisma.user.findUnique({
       where: { firebaseUid: decoded.uid },
     })
 
-    if (existing) {
-      throw new ConflictException('Bu kullanıcı zaten kayıtlı')
+    const requestedRole = dto.role ?? UserRole.RESIDENT
+
+    if (!this.allowedRegisterRoles.has(requestedRole)) {
+      throw new BadRequestException('Register üzerinden bu rol atanamaz')
+    }
+
+    if (requestedRole === UserRole.STAFF && !dto.tenantId) {
+      throw new BadRequestException('STAFF kaydı için tenantId zorunludur')
+    }
+
+    if (existingUser) {
+      if (dto.tenantId !== undefined) {
+        if (dto.tenantId) {
+          await this.prisma.userTenantRole.upsert({
+            where: {
+              userId_tenantId: {
+                userId: existingUser.id,
+                tenantId: dto.tenantId,
+              },
+            },
+            update: {
+              role: requestedRole,
+              isActive: true,
+            },
+            create: {
+              userId: existingUser.id,
+              tenantId: dto.tenantId,
+              role: requestedRole,
+              isActive: true,
+            },
+          })
+        } else {
+          const existingGlobalRole = await this.prisma.userTenantRole.findFirst({
+            where: { userId: existingUser.id, tenantId: null },
+            select: { id: true },
+          })
+
+          if (existingGlobalRole) {
+            await this.prisma.userTenantRole.update({
+              where: { id: existingGlobalRole.id },
+              data: {
+                role: requestedRole,
+                isActive: true,
+              },
+            })
+          } else {
+            await this.prisma.userTenantRole.create({
+              data: {
+                userId: existingUser.id,
+                tenantId: null,
+                role: requestedRole,
+                isActive: true,
+              },
+            })
+          }
+        }
+      }
+
+      return { userId: existingUser.id, tenantId: dto.tenantId ?? null, role: requestedRole }
     }
 
     const user = await this.prisma.user.create({
       data: {
-        tenantId,
         firebaseUid: decoded.uid,
         email: decoded.email,
         phoneNumber: decoded.phone_number,
         displayName: dto.displayName ?? decoded.name,
-        role: UserRole.RESIDENT,
       },
     })
 
-    return { userId: user.id, tenantId: user.tenantId, role: user.role }
+    await this.prisma.userTenantRole.create({
+      data: {
+        userId: user.id,
+        tenantId: dto.tenantId ?? null,
+        role: requestedRole,
+      },
+    })
+
+    return { userId: user.id, tenantId: dto.tenantId ?? null, role: requestedRole }
   }
 
   async getProfile(userId: string) {
@@ -48,13 +112,66 @@ export class AuthService {
       where: { id: userId },
       select: {
         id: true,
-        tenantId: true,
         email: true,
         phoneNumber: true,
         displayName: true,
-        role: true,
         createdAt: true,
+        tenantRoles: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            tenantId: true,
+            role: true,
+          },
+        },
       },
     })
+  }
+
+  async getDevBootstrap() {
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new ForbiddenException('Bu endpoint yalnızca development modunda kullanılabilir')
+    }
+
+    const tenant =
+      await this.prisma.tenant.findUnique({
+        where: { slug: 'demo-yonetim' },
+        select: { id: true, name: true, slug: true, isActive: true },
+      }) ??
+      await this.prisma.tenant.findFirst({
+        where: { isActive: true },
+        select: { id: true, name: true, slug: true, isActive: true },
+        orderBy: { createdAt: 'asc' },
+      })
+
+    if (!tenant) {
+      return {
+        ready: false,
+        message: 'Aktif tenant bulunamadı. Önce seed çalıştırın.',
+      }
+    }
+
+    const [siteCount, unitCount, residentCount, duesCount, paymentCount] = await Promise.all([
+      this.prisma.site.count({ where: { tenantId: tenant.id, isActive: true } }),
+      this.prisma.unit.count({ where: { tenantId: tenant.id, isActive: true } }),
+      this.prisma.unitOccupancy.count({ where: { tenantId: tenant.id, isActive: true } }),
+      this.prisma.dues.count({ where: { tenantId: tenant.id } }),
+      this.prisma.payment.count({ where: { tenantId: tenant.id, status: PaymentStatus.CONFIRMED } }),
+    ])
+
+    return {
+      ready: true,
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      tenantSlug: tenant.slug,
+      stats: {
+        siteCount,
+        unitCount,
+        residentCount,
+        duesCount,
+        paymentCount,
+      },
+      quickRoles: [UserRole.STAFF, UserRole.TENANT_ADMIN, UserRole.SUPER_ADMIN],
+    }
   }
 }

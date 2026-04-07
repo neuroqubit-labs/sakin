@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@sakin/ui'
 import { apiClient } from '@/lib/api'
-import type { GenerateDuesDto } from '@sakin/shared'
+import { DuesType, type GenerateDuesDto } from '@sakin/shared'
 
 export default function GenerateDuesPage() {
   const [loading, setLoading] = useState(false)
@@ -21,6 +21,8 @@ export default function GenerateDuesPage() {
       periodMonth: parseInt(form.get('periodMonth') as string, 10),
       periodYear: parseInt(form.get('periodYear') as string, 10),
       amount: parseFloat(form.get('amount') as string),
+      type: DuesType.AIDAT,
+      currency: 'TRY',
       dueDayOfMonth: parseInt(form.get('dueDayOfMonth') as string, 10),
       description: (form.get('description') as string) || undefined,
     }

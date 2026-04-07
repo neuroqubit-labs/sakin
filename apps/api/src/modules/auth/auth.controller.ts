@@ -14,8 +14,8 @@ export class AuthController {
   @Post('register')
   @ApiOperation({ summary: 'Firebase token ile sisteme kayıt ol' })
   @UsePipes(new ZodValidationPipe(RegisterSchema))
-  async register(@Body() dto: unknown, @Tenant() ctx: TenantContext) {
-    return this.authService.register(dto as Parameters<AuthService['register']>[0], ctx.tenantId)
+  async register(@Body() dto: unknown) {
+    return this.authService.register(dto as Parameters<AuthService['register']>[0])
   }
 
   @Get('me')
@@ -23,5 +23,11 @@ export class AuthController {
   @ApiOperation({ summary: 'Giriş yapmış kullanıcının profilini getir' })
   async getProfile(@Tenant() ctx: TenantContext) {
     return this.authService.getProfile(ctx.userId)
+  }
+
+  @Get('dev-bootstrap')
+  @ApiOperation({ summary: 'Dev hızlı giriş için tenant/bootstrap bilgisi (development only)' })
+  async getDevBootstrap() {
+    return this.authService.getDevBootstrap()
   }
 }

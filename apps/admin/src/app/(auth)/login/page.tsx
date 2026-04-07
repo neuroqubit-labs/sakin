@@ -1,15 +1,86 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { Button } from '@sakin/ui'
+import { setSessionCookie } from '@/lib/session'
+import { getDevTenantId, setDevTenantId } from '@/lib/dev-api'
+import { UserRole } from '@sakin/shared'
+
+interface DevBootstrapResponse {
+  ready: boolean
+  message?: string
+  tenantId?: string
+  tenantName?: string
+  tenantSlug?: string
+  stats?: {
+    siteCount: number
+    unitCount: number
+    residentCount: number
+    duesCount: number
+    paymentCount: number
+  }
+  quickRoles?: UserRole[]
+}
+
+const API_BASE_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001/api/v1'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [devTenantId, setDevTenantIdState] = useState('')
+  const [devRole, setDevRole] = useState<UserRole>(UserRole.STAFF)
+  const [devError, setDevError] = useState<string | null>(null)
+  const [bootstrap, setBootstrap] = useState<DevBootstrapResponse | null>(null)
+  const [bootstrapLoading, setBootstrapLoading] = useState(false)
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null)
+
+  const isDevBypassEnabled = process.env['NEXT_PUBLIC_USE_DEV_BYPASS'] === 'true' || process.env['NODE_ENV'] !== 'production'
+
+  useEffect(() => {
+    const savedTenantId = getDevTenantId()
+    if (savedTenantId) {
+      setDevTenantIdState(savedTenantId)
+    }
+
+    if (!isDevBypassEnabled) return
+
+    let active = true
+    const loadBootstrap = async () => {
+      setBootstrapLoading(true)
+      setBootstrapError(null)
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/dev-bootstrap`)
+        const payload = await response.json().catch(() => null) as { data?: DevBootstrapResponse } | null
+
+        if (!active) return
+        if (!response.ok || !payload?.data) {
+          throw new Error('Dev bootstrap bilgisi alınamadı')
+        }
+
+        setBootstrap(payload.data)
+
+        if (!savedTenantId && payload.data.ready && payload.data.tenantId) {
+          setDevTenantIdState(payload.data.tenantId)
+          setDevTenantId(payload.data.tenantId)
+        }
+      } catch (err) {
+        if (!active) return
+        setBootstrapError(err instanceof Error ? err.message : 'Dev bootstrap bilgisi alınamadı')
+      } finally {
+        if (active) setBootstrapLoading(false)
+      }
+    }
+
+    void loadBootstrap()
+
+    return () => {
+      active = false
+    }
+  }, [isDevBypassEnabled])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -24,6 +95,36 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleDevLogin(e: React.FormEvent) {
+    e.preventDefault()
+    setDevError(null)
+
+    const tenantId = devTenantId.trim()
+    const isSuperAdmin = devRole === UserRole.SUPER_ADMIN
+
+    if (!isSuperAdmin && !tenantId) {
+      setDevError('Tenant ID zorunlu')
+      return
+    }
+
+    if (tenantId) {
+      setDevTenantId(tenantId)
+    }
+
+    setSessionCookie({
+      userId: `dev-${devRole.toLowerCase()}`,
+      tenantId: isSuperAdmin ? null : tenantId,
+      role: devRole,
+    })
+
+    if (devRole === UserRole.SUPER_ADMIN) {
+      window.location.href = process.env['NEXT_PUBLIC_PLATFORM_URL'] ?? 'http://localhost:3002'
+      return
+    }
+
+    window.location.href = devRole === UserRole.STAFF ? '/work' : '/dashboard'
   }
 
   return (
@@ -73,6 +174,116 @@ export default function LoginPage() {
             {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
           </Button>
         </form>
+
+        {isDevBypassEnabled && (
+          <form className="pt-6 border-t border-gray-200 space-y-3" onSubmit={handleDevLogin}>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Dev Hızlı Giriş</p>
+
+            <div className="rounded-md bg-gray-50 border border-gray-200 p-3 space-y-2">
+              <p className="text-[11px] font-semibold text-gray-700 uppercase tracking-wide">Demo Bootstrap</p>
+              {bootstrapLoading && <p className="text-xs text-gray-500">Demo verisi kontrol ediliyor...</p>}
+              {bootstrapError && <p className="text-xs text-red-600">{bootstrapError}</p>}
+              {bootstrap && !bootstrap.ready && (
+                <p className="text-xs text-red-600">{bootstrap.message ?? 'Demo verisi hazır değil.'}</p>
+              )}
+              {bootstrap?.ready && (
+                <>
+                  <p className="text-xs text-gray-700">
+                    {bootstrap.tenantName} ({bootstrap.tenantSlug})
+                  </p>
+                  {bootstrap.stats && (
+                    <p className="text-[11px] text-gray-600">
+                      Site: {bootstrap.stats.siteCount} · Daire: {bootstrap.stats.unitCount} ·
+                      Sakin: {bootstrap.stats.residentCount} · Aidat: {bootstrap.stats.duesCount} ·
+                      Tahsilat: {bootstrap.stats.paymentCount}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setDevRole(UserRole.STAFF)}
+                className={`px-2 py-2 rounded-md text-xs font-semibold border ${
+                  devRole === UserRole.STAFF ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'
+                }`}
+              >
+                STAFF
+              </button>
+              <button
+                type="button"
+                onClick={() => setDevRole(UserRole.TENANT_ADMIN)}
+                className={`px-2 py-2 rounded-md text-xs font-semibold border ${
+                  devRole === UserRole.TENANT_ADMIN ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'
+                }`}
+              >
+                TENANT_ADMIN
+              </button>
+              <button
+                type="button"
+                onClick={() => setDevRole(UserRole.SUPER_ADMIN)}
+                className={`px-2 py-2 rounded-md text-xs font-semibold border ${
+                  devRole === UserRole.SUPER_ADMIN ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'
+                }`}
+              >
+                SUPER_ADMIN
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="devRole" className="block text-sm font-medium text-gray-700">
+                Rol
+              </label>
+              <select
+                id="devRole"
+                value={devRole}
+                onChange={(e) => setDevRole(e.target.value as UserRole)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+              >
+                <option value={UserRole.STAFF}>STAFF</option>
+                <option value={UserRole.TENANT_ADMIN}>TENANT_ADMIN</option>
+                <option value={UserRole.SUPER_ADMIN}>SUPER_ADMIN</option>
+              </select>
+            </div>
+
+            {devRole !== UserRole.SUPER_ADMIN && (
+              <div className="space-y-2">
+                <label htmlFor="devTenantId" className="block text-sm font-medium text-gray-700">
+                  Tenant ID
+                </label>
+                <input
+                  id="devTenantId"
+                  value={devTenantId}
+                  onChange={(e) => setDevTenantIdState(e.target.value)}
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+                {bootstrap?.ready && bootstrap.tenantId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDevTenantIdState(bootstrap.tenantId!)
+                      setDevTenantId(bootstrap.tenantId!)
+                    }}
+                    className="text-xs font-medium text-blue-600 hover:underline"
+                  >
+                    Demo tenant ID kullan
+                  </button>
+                )}
+              </div>
+            )}
+
+            {devError && (
+              <p className="text-sm text-red-600">{devError}</p>
+            )}
+
+            <Button type="submit" variant="secondary" className="w-full">
+              Dev Hızlı Giriş
+            </Button>
+          </form>
+        )}
       </div>
     </div>
   )

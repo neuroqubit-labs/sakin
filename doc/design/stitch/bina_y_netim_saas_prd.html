@@ -1,0 +1,50 @@
+# ÜRÜN: Bina Yönetim SaaS – Firma Paneli
+
+## 1) ÜRÜN FELSEFESİ
+Bu bir dashboard değildir. Bu bir tahsilat ve kontrol sistemidir.
+- Finans her şeyin merkezinde.
+- Kullanıcı aksiyon almalı.
+- Her ekran bir karar üretmeli.
+- Hızlı işlem (2-3 adım).
+- Context (Bina) her zaman görünür.
+
+## 2) GLOBAL YAPI
+- **Sol Menü:** Dashboard, Portföy, Daireler, Finans (Aidat, Tahsilat), Ayarlar.
+- **Üst Bar:** Aktif bina seçici, Global arama, Profil.
+
+## 3) ANA AKIŞ
+Dashboard -> Borçlu Listesi -> Daire Seç -> Ödeme Al.
+
+## 4) EKRANLAR
+### 4.1 Dashboard (Action Center)
+- KPIs: Toplam borç, Bu ay tahsilat, Geciken borç, Tahsilat oranı.
+- Borçlu Daireler Listesi (Daire no, kişi, borç, gecikme, hızlı ödeme).
+- Sağ Panel: Kritik Uyarılar.
+- Son Tahsilatlar.
+
+### 4.2 Portföy (Binalar)
+- Liste: Bina adı, toplam daire, doluluk, toplam borç.
+- Aksiyon: Bina seç.
+
+### 4.3 Daireler
+- Tablo: No, Sahip/Kiracı, Borç, Durum.
+- Filtreler: Borçlu/Temiz, Blok, Kat.
+
+### 4.4 Daire Detay (Kritik)
+- Üst: Daire/Kişi bilgisi.
+- Orta: Toplam borç (Büyük font).
+- Alt: Hareket geçmişi (Ledger).
+- Aksiyonlar: Ödeme al, Manuel işlem.
+
+### 4.5 Aidat & Tahakkuk
+- Form: Ay seç, Tutar gir, Tümüne uygula.
+
+### 4.6 Tahsilatlar
+- KPIs: Toplam tahsilat, Yöntem dağılımı.
+- Tablo: Daire, Ödeyen, Tutar, Yöntem, Durum.
+
+## 5) TASARIM PRENSİPLERİ
+- Kırmızı (Borç) / Yeşil (Ödeme).
+- Yoğun veri, az padding.
+- Modal-first yaklaşım.
+- Hız odaklı.

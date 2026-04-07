@@ -1,14 +1,18 @@
-import { Button } from '@sakin/ui'
+'use client'
+
+import { StaffPageHeader } from '@/components/staff-surface'
 
 export default function SitesPage() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Siteler</h1>
-        <Button>Yeni Site Ekle</Button>
-      </div>
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-500 text-sm">Site listesi yükleniyor...</p>
+      <StaffPageHeader
+        title="Siteler"
+        subtitle="Portföydeki bina/site kayıtları ve operasyon durumları."
+        actions={<button className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white">Yeni Site Ekle</button>}
+      />
+
+      <div className="ledger-panel p-6">
+        <p className="text-sm text-[#6b7280]">Site yönetim modülü yeni staff yüzeyine uyarlanıyor. Temel CRUD akışları bu panelde devam edecek.</p>
       </div>
     </div>
   )

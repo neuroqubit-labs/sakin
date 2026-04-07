@@ -6,13 +6,9 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common'
+import type { HttpAdapterHost } from '@nestjs/core'
 import type { ApiErrorResponse } from '@sakin/shared'
 
-// Framework-agnostic minimal response/request arayüzleri
-interface HttpResponse {
-  status(code: number): this
-  send(body: unknown): void
-}
 interface HttpRequest {
   method: string
   url: string
@@ -22,9 +18,11 @@ interface HttpRequest {
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name)
 
+  constructor(private readonly httpAdapterHost: HttpAdapterHost) {}
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp()
-    const response = ctx.getResponse<HttpResponse>()
+    const response = ctx.getResponse()
     const request = ctx.getRequest<HttpRequest>()
 
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR
@@ -51,7 +49,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       ...(details !== undefined && { details }),
     }
 
-    response.status(statusCode).send(body)
+    this.httpAdapterHost.httpAdapter.reply(response, body, statusCode)
 
     this.logger.warn(`${request.method} ${request.url} → ${statusCode}`)
   }

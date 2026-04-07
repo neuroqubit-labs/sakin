@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { PAGINATION } from '../constants/index.js'
+import { PAGINATION } from '../constants/index'
 
 export const PaginationSchema = z.object({
   page: z.coerce.number().int().positive().default(PAGINATION.DEFAULT_PAGE),
