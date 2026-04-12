@@ -5,12 +5,17 @@ import {
 } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import type {
+  CloseDuesPeriodDto,
+  CreateDuesPolicyDto,
   DuesFilterDto,
+  DuesPolicyFilterDto,
   GenerateDuesDto,
+  OpenDuesPeriodDto,
+  UpdateDuesPolicyDto,
   UpdateDuesDto,
   WaiveDuesDto,
 } from '@sakin/shared'
-import { DuesStatus, LedgerEntryType, LedgerReferenceType, PaymentStatus } from '@sakin/shared'
+import { DuesStatus, DuesType, LedgerEntryType, LedgerReferenceType, PaymentStatus } from '@sakin/shared'
 import { LedgerService } from '../ledger/ledger.service'
 import { calculateDuesStatus, toMoneyNumber } from '../../common/finance/finance.utils'
 
@@ -190,6 +195,121 @@ export class DuesService {
         totalPages: Math.ceil(total / filter.limit),
       },
     }
+  }
+
+  async listPolicies(filter: DuesPolicyFilterDto, tenantId: string) {
+    const db = this.prisma.forTenant(tenantId)
+    const where: Record<string, unknown> = {}
+    if (filter.siteId) where['siteId'] = filter.siteId
+    if (filter.isActive !== undefined) where['isActive'] = filter.isActive
+
+    const [data, total] = await Promise.all([
+      db.duesDefinition.findMany({
+        where,
+        include: {
+          site: {
+            select: { id: true, name: true, city: true },
+          },
+        },
+        orderBy: [{ updatedAt: 'desc' }],
+        skip: (filter.page - 1) * filter.limit,
+        take: filter.limit,
+      }),
+      db.duesDefinition.count({ where }),
+    ])
+
+    return {
+      data,
+      meta: {
+        total,
+        page: filter.page,
+        limit: filter.limit,
+        totalPages: Math.ceil(total / filter.limit),
+      },
+    }
+  }
+
+  async createPolicy(dto: CreateDuesPolicyDto, tenantId: string) {
+    const db = this.prisma.forTenant(tenantId)
+    return db.duesDefinition.create({
+      data: {
+        tenantId,
+        siteId: dto.siteId,
+        name: dto.name,
+        amount: dto.amount,
+        currency: dto.currency,
+        type: dto.type,
+        dueDay: dto.dueDay,
+        isActive: dto.isActive,
+        description: dto.description,
+      },
+    })
+  }
+
+  async updatePolicy(id: string, dto: UpdateDuesPolicyDto, tenantId: string) {
+    const db = this.prisma.forTenant(tenantId)
+    const existing = await db.duesDefinition.findFirst({ where: { id } })
+    if (!existing) throw new NotFoundException('Aidat policy bulunamadi')
+
+    return db.duesDefinition.update({
+      where: { id },
+      data: {
+        siteId: dto.siteId,
+        name: dto.name,
+        amount: dto.amount,
+        currency: dto.currency,
+        type: dto.type,
+        dueDay: dto.dueDay,
+        isActive: dto.isActive,
+        description: dto.description,
+      },
+    })
+  }
+
+  async openPeriod(dto: OpenDuesPeriodDto, tenantId: string, userId: string) {
+    const db = this.prisma.forTenant(tenantId)
+    const policy = await db.duesDefinition.findFirst({
+      where: { id: dto.policyId, siteId: dto.siteId },
+    })
+    if (!policy) throw new NotFoundException('Donem acilisi icin policy bulunamadi')
+    if (!policy.isActive) {
+      throw new BadRequestException('Pasif policy ile donem acilamaz')
+    }
+
+    return this.generate(
+      {
+        siteId: dto.siteId,
+        duesDefinitionId: policy.id,
+        periodMonth: dto.periodMonth,
+        periodYear: dto.periodYear,
+        amount: Number(policy.amount),
+        currency: policy.currency,
+        type: policy.type as DuesType,
+        dueDayOfMonth: policy.dueDay,
+        description: dto.description ?? policy.description ?? `${dto.periodMonth}/${dto.periodYear} donem aidati`,
+      },
+      tenantId,
+      userId,
+    )
+  }
+
+  async closePeriod(dto: CloseDuesPeriodDto, tenantId: string) {
+    const db = this.prisma.forTenant(tenantId)
+    if (!dto.forceOverdue) {
+      return { updated: 0, period: `${dto.periodMonth}/${dto.periodYear}` }
+    }
+
+    const result = await db.dues.updateMany({
+      where: {
+        periodMonth: dto.periodMonth,
+        periodYear: dto.periodYear,
+        unit: { siteId: dto.siteId },
+        status: { in: [DuesStatus.PENDING, DuesStatus.PARTIALLY_PAID] },
+      },
+      data: { status: DuesStatus.OVERDUE },
+    })
+
+    return { updated: result.count, period: `${dto.periodMonth}/${dto.periodYear}` }
   }
 
   async findOne(id: string, tenantId: string) {

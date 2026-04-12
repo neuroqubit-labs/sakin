@@ -13,6 +13,7 @@ sakin/
 │   └── platform/   # Next.js — Super admin paneli (port 3002)
 ├── packages/
 │   ├── database/   # Prisma 6 + PostgreSQL (@sakin/database)
+│   ├── api-core/   # Ortak API middleware/guard/filter/interceptor katmanı (@sakin/api-core)
 │   ├── shared/     # Zod şemaları, tipler, enum'lar (@sakin/shared)
 │   └── ui/         # shadcn/ui bileşenler (@sakin/ui)
 └── doc/            # Mimari ve iş alanı dokümanları
@@ -56,6 +57,12 @@ pnpm db:seed                  # Demo veri yükle
 
 ```bash
 pnpm dev                      # Tüm uygulamaları paralel başlatır
+```
+
+Servis shell'lerini (en az finance + metadata) tek komutla ayağa kaldırmak için:
+
+```bash
+npm run dev:services
 ```
 
 Veya tek tek:
@@ -131,6 +138,20 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
 | [doc/DB&BACKEND-ARC.md](doc/DB&BACKEND-ARC.md) | Veritabanı ve backend mimari kararları |
 | [doc/PAYMENT.md](doc/PAYMENT.md) | Ödeme altyapısı ve iyzico entegrasyon mimarisi |
 | [doc/CUTOVER-V2-RUNBOOK.md](doc/CUTOVER-V2-RUNBOOK.md) | Production deployment runbook |
+| [doc/SERVICE-BOUNDARY-OWNERSHIP-FREEZE.md](doc/SERVICE-BOUNDARY-OWNERSHIP-FREEZE.md) | Servis sınırları, tablo ownership freeze ve import guard kuralları |
+| [doc/S1-07A-INTERNAL-HTTP-CONTRACTS.md](doc/S1-07A-INTERNAL-HTTP-CONTRACTS.md) | S1-07a minimum internal HTTP contract seti (sync v1) |
+| [doc/S1-07B-FINANCE-SUPPORT-ADAPTER-SMOKE.md](doc/S1-07B-FINANCE-SUPPORT-ADAPTER-SMOKE.md) | S1-07b payment notification adapter implementasyon ve smoke notlari |
+| [doc/S1-05-FINANCE-MODULE-MOVE-FIRST-PASS.md](doc/S1-05-FINANCE-MODULE-MOVE-FIRST-PASS.md) | S1-05 finance modullerinin api-finance'e ilk-pass tasima notu |
+| [doc/S1-06-METADATA-MODULE-MOVE-FIRST-PASS.md](doc/S1-06-METADATA-MODULE-MOVE-FIRST-PASS.md) | S1-06 metadata modullerinin api-metadata'ya ilk-pass tasima notu |
+| [doc/S1-08-IMPORT-GUARD-ENFORCEMENT.md](doc/S1-08-IMPORT-GUARD-ENFORCEMENT.md) | S1-08 cross-service import guard enforcement ve fail-fast kaniti |
+| [doc/S1-09-LOCAL-MULTI-SERVICE-RUN.md](doc/S1-09-LOCAL-MULTI-SERVICE-RUN.md) | S1-09 local multi-service run komutu ve port/env standardi |
+| [doc/S1-10-SPRINT-1-SMOKE-REPORT.md](doc/S1-10-SPRINT-1-SMOKE-REPORT.md) | S1-10 Sprint 1 zorunlu smoke maddeleri, sonuc matrisi ve blocker listesi |
+| [doc/S1-11-API-AUTH-TENANT-CONTEXT-ADR.md](doc/S1-11-API-AUTH-TENANT-CONTEXT-ADR.md) | S1-11 api-auth tenant context strateji karari (ADR) |
+| [doc/SERVICE-DEPLOY-2-SPRINT-BACKLOG.md](doc/SERVICE-DEPLOY-2-SPRINT-BACKLOG.md) | Tek repo içinde bağımsız deploy birimleri için 2 sprint backlog planı |
+| [doc/SERVICE-DEPLOY-2-SPRINT-ISSUE-KIT.md](doc/SERVICE-DEPLOY-2-SPRINT-ISSUE-KIT.md) | Backlog maddelerini issue-ready formata çeviren şablon seti, PR checklist ve kapasite planı |
+| [doc/TENANT-ROLE-UI-2-SPRINT-BACKLOG.md](doc/TENANT-ROLE-UI-2-SPRINT-BACKLOG.md) | Tenant-admin arayuzu icin 2 sprintlik uygulanabilir backlog |
+| [doc/TENANT-ROLE-UI-ISSUE-KIT.md](doc/TENANT-ROLE-UI-ISSUE-KIT.md) | Tenant-admin backlog maddelerini issue-ready formata ceviren set |
+| [doc/TENANT-ROLE-UI-S1-P0-EXECUTION-PACK.md](doc/TENANT-ROLE-UI-S1-P0-EXECUTION-PACK.md) | Tenant-admin lineer planda ilk kritik set (T1-01->T1-03) icin uygulama paketi |
 | [doc/role-access-policy.md](doc/role-access-policy.md) | Rol ve erişim politikaları |
 | [CLAUDE.md](CLAUDE.md) | AI geliştirme bağlamı |
 

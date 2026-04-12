@@ -22,13 +22,16 @@ import {
   type CreateCheckoutSessionDto,
   type CreateManualBankTransferIntentDto,
   type CreateManualCollectionDto,
+  type PaymentExportFilterDto,
   type PaymentFilterDto,
+  type PaymentReconciliationFilterDto,
+  type PaymentSuspiciousFilterDto,
 } from '@sakin/shared'
 import { randomUUID } from 'crypto'
 import { LedgerService } from '../ledger/ledger.service'
-import { NotificationService } from '../notification/notification.service'
 import { calculateDuesStatus, toMoneyNumber } from '../../common/finance/finance.utils'
 import { AUDIT_ACTIONS } from '../../common/audit/audit-actions'
+import { SupportNotificationClient } from './internal/support-notification.client'
 
 @Injectable()
 export class PaymentService {
@@ -36,7 +39,7 @@ export class PaymentService {
     private readonly prisma: PrismaService,
     private readonly iyzico: IyzicoService,
     private readonly ledgerService: LedgerService,
-    private readonly notificationService: NotificationService,
+    private readonly supportNotificationClient: SupportNotificationClient,
   ) {}
 
   async createCheckoutSession(
@@ -297,12 +300,15 @@ export class PaymentService {
         },
       })
 
-      void this.notificationService.createForPayment(
+      void this.dispatchPaymentConfirmedNotification({
         tenantId,
-        payment.id,
-        payment.unitId,
-        toMoneyNumber(payment.amount),
-      )
+        paymentId: payment.id,
+        unitId: payment.unitId,
+        amount: toMoneyNumber(payment.amount),
+        currency: payment.currency,
+        confirmedAt: (payment.confirmedAt ?? new Date()).toISOString(),
+        source: 'manual',
+      })
 
       return payment
     })
@@ -534,33 +540,7 @@ export class PaymentService {
 
   async findAll(filter: PaymentFilterDto, tenantId: string) {
     const db = this.prisma.forTenant(tenantId)
-
-    const where: Record<string, unknown> = {}
-    if (filter.duesId) where['duesId'] = filter.duesId
-    if (filter.unitId) where['unitId'] = filter.unitId
-    if (filter.residentId) where['paidByResidentId'] = filter.residentId
-    if (filter.siteId) where['unit'] = { siteId: filter.siteId }
-    if (filter.method) where['method'] = filter.method
-    if (filter.status) where['status'] = filter.status
-    if (filter.provider) where['provider'] = filter.provider
-    if (filter.channel) where['channel'] = filter.channel
-    if (filter.dateFrom || filter.dateTo) {
-      where['paidAt'] = {
-        ...(filter.dateFrom ? { gte: filter.dateFrom } : {}),
-        ...(filter.dateTo ? { lte: filter.dateTo } : {}),
-      }
-    }
-    if (filter.search) {
-      where['OR'] = [
-        { note: { contains: filter.search, mode: 'insensitive' } },
-        { receiptNumber: { contains: filter.search, mode: 'insensitive' } },
-        { providerPaymentId: { contains: filter.search, mode: 'insensitive' } },
-        { paidByResident: { firstName: { contains: filter.search, mode: 'insensitive' } } },
-        { paidByResident: { lastName: { contains: filter.search, mode: 'insensitive' } } },
-        { unit: { number: { contains: filter.search, mode: 'insensitive' } } },
-        { unit: { site: { name: { contains: filter.search, mode: 'insensitive' } } } },
-      ]
-    }
+    const where = this.buildPaymentWhere(filter)
 
     const [data, total, methodSums, statusSums, monthTotal] = await Promise.all([
       db.payment.findMany({
@@ -642,6 +622,270 @@ export class PaymentService {
           count: item._count._all,
         })),
       },
+    }
+  }
+
+  async reconciliationSummary(filter: PaymentReconciliationFilterDto, tenantId: string) {
+    const db = this.prisma.forTenant(tenantId)
+    const where = this.buildPaymentWhere(filter)
+
+    const [statusGroups, methodGroups, totalConfirmed, pendingBankTransferCount] = await Promise.all([
+      db.payment.groupBy({
+        by: ['status'],
+        where,
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      db.payment.groupBy({
+        by: ['method'],
+        where,
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      db.payment.aggregate({
+        where: {
+          ...where,
+          status: PaymentStatus.CONFIRMED,
+        },
+        _sum: { amount: true },
+      }),
+      db.payment.count({
+        where: {
+          ...where,
+          method: PaymentMethod.BANK_TRANSFER,
+          status: PaymentStatus.PENDING,
+        },
+      }),
+    ])
+
+    const statusTotals = statusGroups.map((group) => ({
+      status: group.status,
+      amount: Number(group._sum.amount ?? 0),
+      count: group._count._all,
+    }))
+    const methodTotals = methodGroups.map((group) => ({
+      method: group.method,
+      amount: Number(group._sum.amount ?? 0),
+      count: group._count._all,
+    }))
+    const confirmedAmount = Number(totalConfirmed._sum.amount ?? 0)
+    const pendingAmount = statusTotals.find((row) => row.status === PaymentStatus.PENDING)?.amount ?? 0
+    const failedAmount = statusTotals.find((row) => row.status === PaymentStatus.FAILED)?.amount ?? 0
+
+    return {
+      window: {
+        dateFrom: filter.dateFrom ?? null,
+        dateTo: filter.dateTo ?? null,
+      },
+      totals: {
+        confirmedAmount,
+        pendingAmount,
+        failedAmount,
+        pendingBankTransferCount,
+      },
+      statusTotals,
+      methodTotals,
+    }
+  }
+
+  async suspiciousQueue(filter: PaymentSuspiciousFilterDto, tenantId: string) {
+    const db = this.prisma.forTenant(tenantId)
+    const olderThan = new Date(Date.now() - filter.pendingHoursThreshold * 60 * 60 * 1000)
+    const whereBase = this.buildPaymentWhere(filter, { dateField: 'createdAt' })
+
+    const where: Prisma.PaymentWhereInput = {
+      ...whereBase,
+      OR: [
+        {
+          status: PaymentStatus.PENDING,
+          createdAt: { lte: olderThan },
+        },
+        {
+          status: PaymentStatus.CONFIRMED,
+          provider: PaymentProvider.MANUAL,
+          method: { in: [PaymentMethod.CASH, PaymentMethod.POS, PaymentMethod.BANK_TRANSFER] },
+          receiptNumber: null,
+        },
+        {
+          status: PaymentStatus.FAILED,
+          amount: { gte: filter.highAmountThreshold },
+        },
+      ],
+    }
+
+    const [rows, total] = await Promise.all([
+      db.payment.findMany({
+        where,
+        include: {
+          unit: {
+            select: {
+              number: true,
+              site: { select: { name: true } },
+            },
+          },
+          paidByResident: {
+            select: {
+              firstName: true,
+              lastName: true,
+              phoneNumber: true,
+            },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }],
+        skip: (filter.page - 1) * filter.limit,
+        take: filter.limit,
+      }),
+      db.payment.count({ where }),
+    ])
+
+    const data = rows.map((row) => {
+      const reasons: string[] = []
+      if (row.status === PaymentStatus.PENDING && row.createdAt <= olderThan) {
+        reasons.push('PENDING_STALE')
+      }
+      if (
+        row.status === PaymentStatus.CONFIRMED &&
+        row.provider === PaymentProvider.MANUAL &&
+        [PaymentMethod.CASH, PaymentMethod.POS, PaymentMethod.BANK_TRANSFER].some((method) => method === row.method) &&
+        !row.receiptNumber
+      ) {
+        reasons.push('MISSING_RECEIPT')
+      }
+      if (row.status === PaymentStatus.FAILED && Number(row.amount) >= filter.highAmountThreshold) {
+        reasons.push('HIGH_AMOUNT_FAILED')
+      }
+      return { ...row, reasons }
+    })
+
+    return {
+      data,
+      meta: {
+        total,
+        page: filter.page,
+        limit: filter.limit,
+        totalPages: Math.ceil(total / filter.limit),
+      },
+      thresholds: {
+        pendingHoursThreshold: filter.pendingHoursThreshold,
+        highAmountThreshold: filter.highAmountThreshold,
+      },
+    }
+  }
+
+  async exportReceiptCsv(filter: PaymentExportFilterDto, tenantId: string) {
+    const db = this.prisma.forTenant(tenantId)
+    const where = this.buildPaymentWhere(filter)
+    const rows = await db.payment.findMany({
+      where: {
+        ...where,
+        status: PaymentStatus.CONFIRMED,
+      },
+      include: {
+        unit: {
+          select: {
+            number: true,
+            site: { select: { name: true } },
+          },
+        },
+        paidByResident: {
+          select: {
+            firstName: true,
+            lastName: true,
+            phoneNumber: true,
+          },
+        },
+      },
+      orderBy: { paidAt: 'desc' },
+      take: 5000,
+    })
+
+    const header = [
+      'paymentId',
+      'site',
+      'unitNumber',
+      'amount',
+      'currency',
+      'method',
+      'status',
+      'paidAt',
+      'receiptNumber',
+      'payer',
+      'note',
+    ].join(',')
+    const body = rows
+      .map((row) => {
+        const payer = row.paidByResident
+          ? `${row.paidByResident.firstName} ${row.paidByResident.lastName}`.trim()
+          : ''
+        return [
+          this.csvEscape(row.id),
+          this.csvEscape(row.unit.site.name),
+          this.csvEscape(row.unit.number),
+          Number(row.amount).toFixed(2),
+          this.csvEscape(row.currency),
+          this.csvEscape(row.method),
+          this.csvEscape(row.status),
+          this.csvEscape(row.paidAt?.toISOString() ?? ''),
+          this.csvEscape(row.receiptNumber ?? ''),
+          this.csvEscape(payer),
+          this.csvEscape(row.note ?? ''),
+        ].join(',')
+      })
+      .join('\n')
+
+    const stamp = new Date().toISOString().slice(0, 10)
+    return {
+      fileName: `payments-receipts-${stamp}.csv`,
+      csv: `${header}\n${body}`,
+      rowCount: rows.length,
+    }
+  }
+
+  async exportAuditCsv(filter: PaymentExportFilterDto, tenantId: string) {
+    const db = this.prisma.forTenant(tenantId)
+    const where = this.buildPaymentWhere(filter)
+    const payments = await db.payment.findMany({
+      where,
+      select: { id: true },
+      take: 5000,
+    })
+    const paymentIds = payments.map((payment) => payment.id)
+    if (paymentIds.length === 0) {
+      const header = ['auditLogId', 'paymentId', 'action', 'userId', 'createdAt', 'changes'].join(',')
+      const stamp = new Date().toISOString().slice(0, 10)
+      return {
+        fileName: `payments-audit-${stamp}.csv`,
+        csv: `${header}\n`,
+        rowCount: 0,
+      }
+    }
+
+    const logs = await db.auditLog.findMany({
+      where: {
+        entity: 'Payment',
+        entityId: { in: paymentIds },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10000,
+    })
+
+    const header = ['auditLogId', 'paymentId', 'action', 'userId', 'createdAt', 'changes'].join(',')
+    const body = logs
+      .map((log) => [
+        this.csvEscape(log.id),
+        this.csvEscape(log.entityId),
+        this.csvEscape(log.action),
+        this.csvEscape(log.userId),
+        this.csvEscape(log.createdAt.toISOString()),
+        this.csvEscape(log.changes ? JSON.stringify(log.changes) : ''),
+      ].join(','))
+      .join('\n')
+
+    const stamp = new Date().toISOString().slice(0, 10)
+    return {
+      fileName: `payments-audit-${stamp}.csv`,
+      csv: `${header}\n${body}`,
+      rowCount: logs.length,
     }
   }
 
@@ -864,12 +1108,15 @@ export class PaymentService {
     })
 
     // Notification (fire-and-forget — webhook işlemini bloklamaz)
-    void this.notificationService.createForPayment(
-      confirmedPayment.tenantId,
-      confirmedPayment.id,
-      confirmedPayment.unitId,
-      toMoneyNumber(confirmedPayment.amount),
-    )
+    void this.dispatchPaymentConfirmedNotification({
+      tenantId: confirmedPayment.tenantId,
+      paymentId: confirmedPayment.id,
+      unitId: confirmedPayment.unitId,
+      amount: toMoneyNumber(confirmedPayment.amount),
+      currency: confirmedPayment.currency,
+      confirmedAt: (confirmedPayment.confirmedAt ?? new Date()).toISOString(),
+      source: 'iyzico-webhook',
+    })
 
     return { success: true }
   }
@@ -904,6 +1151,36 @@ export class PaymentService {
     await db.dues.update({
       where: { id: duesId },
       data: { status },
+    })
+  }
+
+  private async dispatchPaymentConfirmedNotification(payload: {
+    tenantId: string
+    paymentId: string
+    unitId: string
+    amount: number
+    currency: string
+    confirmedAt: string
+    source: 'manual' | 'iyzico-webhook'
+  }) {
+    const result = await this.supportNotificationClient.dispatchPaymentConfirmed(payload)
+    if (result.accepted) {
+      return
+    }
+
+    await this.prisma.auditLog.create({
+      data: {
+        tenantId: payload.tenantId,
+        userId: 'system',
+        action: 'NOTIFICATION_DISPATCH_FAILED',
+        entity: 'Payment',
+        entityId: payload.paymentId,
+        changes: {
+          source: payload.source,
+          amount: payload.amount,
+          unitId: payload.unitId,
+        },
+      },
     })
   }
 
@@ -962,6 +1239,63 @@ export class PaymentService {
     const duesTotal = duesEntries.reduce((sum, row) => sum + toMoneyNumber(row.amount), 0)
     const paymentTotal = paymentEntries.reduce((sum, row) => sum + toMoneyNumber(row.amount), 0)
     return Math.max(0, duesTotal + paymentTotal)
+  }
+
+  private buildPaymentWhere(
+    filter: Partial<PaymentFilterDto> & {
+      siteId?: string
+      dateFrom?: Date
+      dateTo?: Date
+      method?: PaymentMethod
+      status?: PaymentStatus
+      provider?: PaymentProvider
+      channel?: PaymentFilterDto['channel']
+      search?: string
+      duesId?: string
+      unitId?: string
+      residentId?: string
+    },
+    options?: { dateField?: 'paidAt' | 'createdAt' },
+  ): Prisma.PaymentWhereInput {
+    const dateField = options?.dateField ?? 'paidAt'
+    const where: Prisma.PaymentWhereInput = {}
+
+    if (filter.duesId) where.duesId = filter.duesId
+    if (filter.unitId) where.unitId = filter.unitId
+    if (filter.residentId) where.paidByResidentId = filter.residentId
+    if (filter.siteId) where.unit = { siteId: filter.siteId }
+    if (filter.method) where.method = filter.method
+    if (filter.status) where.status = filter.status
+    if (filter.provider) where.provider = filter.provider
+    if (filter.channel) where.channel = filter.channel
+
+    if (filter.dateFrom || filter.dateTo) {
+      const dateRange = {
+        ...(filter.dateFrom ? { gte: filter.dateFrom } : {}),
+        ...(filter.dateTo ? { lte: filter.dateTo } : {}),
+      }
+      if (dateField === 'paidAt') where.paidAt = dateRange
+      if (dateField === 'createdAt') where.createdAt = dateRange
+    }
+
+    if (filter.search) {
+      where.OR = [
+        { note: { contains: filter.search, mode: 'insensitive' } },
+        { receiptNumber: { contains: filter.search, mode: 'insensitive' } },
+        { providerPaymentId: { contains: filter.search, mode: 'insensitive' } },
+        { paidByResident: { firstName: { contains: filter.search, mode: 'insensitive' } } },
+        { paidByResident: { lastName: { contains: filter.search, mode: 'insensitive' } } },
+        { unit: { number: { contains: filter.search, mode: 'insensitive' } } },
+        { unit: { site: { name: { contains: filter.search, mode: 'insensitive' } } } },
+      ]
+    }
+
+    return where
+  }
+
+  private csvEscape(value: string) {
+    const escaped = value.replaceAll('"', '""')
+    return `"${escaped}"`
   }
 
   private async assertResidentUnitAccess(

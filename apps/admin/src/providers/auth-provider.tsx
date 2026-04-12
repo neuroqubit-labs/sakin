@@ -30,6 +30,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!auth) {
+      const storageTenantId = getDevTenantId()
+      const session = getSessionFromCookieString(document.cookie)
+      const sessionTenantId = session?.tenantId ?? null
+      const devTenantId = storageTenantId ?? sessionTenantId
+      const canUseDevSession = isDevBypassEnabled() && Boolean(session)
+
+      if (canUseDevSession && session) {
+        if (devTenantId && devTenantId !== 'super') {
+          setDevTenantId(devTenantId)
+        }
+        setRole(session.role)
+        setTenantId(session.tenantId ?? devTenantId ?? null)
+      } else {
+        setRole(null)
+        setTenantId(null)
+        clearSessionCookie()
+      }
+
+      setLoading(false)
+      return
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser)
 
@@ -72,7 +95,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signOut = async () => {
-    await firebaseSignOut(auth)
+    if (auth) {
+      await firebaseSignOut(auth)
+    }
     clearSessionCookie()
     window.location.href = '/login'
   }

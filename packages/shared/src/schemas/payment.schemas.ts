@@ -75,6 +75,31 @@ export const PaymentFilterSchema = z.object({
   limit: z.coerce.number().int().positive().max(200).default(20),
 })
 
+export const PaymentReconciliationFilterSchema = z.object({
+  siteId: z.string().uuid().optional(),
+  dateFrom: z.coerce.date().optional(),
+  dateTo: z.coerce.date().optional(),
+})
+
+export const PaymentSuspiciousFilterSchema = z.object({
+  siteId: z.string().uuid().optional(),
+  dateFrom: z.coerce.date().optional(),
+  dateTo: z.coerce.date().optional(),
+  pendingHoursThreshold: z.coerce.number().int().positive().max(24 * 30).default(24),
+  highAmountThreshold: z.coerce.number().positive().default(10000),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(200).default(20),
+})
+
+export const PaymentExportFilterSchema = z.object({
+  siteId: z.string().uuid().optional(),
+  method: z.nativeEnum(PaymentMethod).optional(),
+  status: z.nativeEnum(PaymentStatus).optional(),
+  dateFrom: z.coerce.date().optional(),
+  dateTo: z.coerce.date().optional(),
+  search: z.string().min(1).max(100).optional(),
+})
+
 export const IyzicoWebhookSchema = z.object({
   eventId: z.string().optional(),
   token: z.string().optional(),
@@ -90,4 +115,7 @@ export type CreateManualCollectionDto = z.infer<typeof CreateManualCollectionSch
 export type CreateManualBankTransferIntentDto = z.infer<typeof CreateManualBankTransferIntentSchema>
 export type ConfirmManualBankTransferDto = z.infer<typeof ConfirmManualBankTransferSchema>
 export type PaymentFilterDto = z.infer<typeof PaymentFilterSchema>
+export type PaymentReconciliationFilterDto = z.infer<typeof PaymentReconciliationFilterSchema>
+export type PaymentSuspiciousFilterDto = z.infer<typeof PaymentSuspiciousFilterSchema>
+export type PaymentExportFilterDto = z.infer<typeof PaymentExportFilterSchema>
 export type IyzicoWebhookDto = z.infer<typeof IyzicoWebhookSchema>

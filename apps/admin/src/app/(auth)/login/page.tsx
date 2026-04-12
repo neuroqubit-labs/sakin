@@ -84,6 +84,10 @@ export default function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!auth) {
+      setError('Firebase ayari eksik. Dev Hizli Giris kullanin.')
+      return
+    }
     setLoading(true)
     setError(null)
 

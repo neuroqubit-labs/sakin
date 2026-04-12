@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, ForbiddenException } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Param, Body, ForbiddenException, Query } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger'
 import { SiteService } from './site.service'
 import { Tenant } from '../../common/decorators/tenant.decorator'
@@ -30,8 +30,8 @@ export class SiteController {
   @Get()
   @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
   @ApiOperation({ summary: 'Site listesi (TENANT_ADMIN, STAFF)' })
-  findAll(@Tenant() ctx: TenantContext) {
-    return this.siteService.findAll(this.getTenantId(ctx))
+  findAll(@Tenant() ctx: TenantContext, @Query('includeInactive') includeInactive?: string) {
+    return this.siteService.findAll(this.getTenantId(ctx), includeInactive === 'true')
   }
 
   @Get(':id')

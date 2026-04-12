@@ -5,6 +5,7 @@ const DEV_TENANT_ID_KEY = 'dev_tenant_id'
 const SESSION_COOKIE_KEY = 'sakin-session'
 
 async function getToken(): Promise<string | null> {
+  if (!auth) return null
   const user = auth.currentUser
   if (!user) return null
   return user.getIdToken()

@@ -12,10 +12,10 @@ export class SiteService {
     return this.prisma.site.create({ data: { ...dto, tenantId } })
   }
 
-  async findAll(tenantId: string) {
+  async findAll(tenantId: string, includeInactive = false) {
     const db = this.prisma.forTenant(tenantId)
     return db.site.findMany({
-      where: { isActive: true },
+      where: includeInactive ? undefined : { isActive: true },
       include: { _count: { select: { units: true } } },
       orderBy: { name: 'asc' },
     })

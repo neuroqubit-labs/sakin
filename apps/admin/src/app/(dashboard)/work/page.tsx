@@ -98,11 +98,11 @@ export default function WorkQueuePage() {
         subtitle="Borç önceliğini yönetin, hızlı tahsilatla nakit akışını canlı tutun."
         actions={(
           <>
-            <Link href="/work/collections" className="px-3 py-2 rounded-md bg-[#e6e8ea] text-xs font-semibold text-[#0c1427]">
-              Tüm Tahsilatlar
+            <Link href="/work/payments" className="px-3 py-2 rounded-md bg-[#e6e8ea] text-xs font-semibold text-[#0c1427]">
+              Work Odemeler
             </Link>
-            <Link href="/work/dues" className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white">
-              Tahakkuk Yönet
+            <Link href="/work/residents" className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white">
+              Work Sakinler
             </Link>
           </>
         )}

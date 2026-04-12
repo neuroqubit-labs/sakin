@@ -56,7 +56,13 @@ export class AppModule implements NestModule {
     // iyzico callback ve auth/register hariç tüm route'lara tenant middleware uygula
     consumer
       .apply(TenantMiddleware)
-      .exclude('health', 'auth/register', 'auth/dev-bootstrap', 'payments/webhooks/iyzico')
+      .exclude(
+        'health',
+        'auth/register',
+        'auth/dev-bootstrap',
+        'payments/webhooks/iyzico',
+        'internal/v1/notifications/payment-confirmed',
+      )
       .forRoutes('*')
   }
 }

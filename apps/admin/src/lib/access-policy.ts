@@ -18,6 +18,8 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: '/work', label: 'Action Center', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: 'AC' },
   { href: '/work/portfolio', label: 'Portföy', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: 'PF' },
   { href: '/work/units', label: 'Daireler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: 'UN' },
+  { href: '/work/residents', label: 'Work Sakinler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: 'WR' },
+  { href: '/work/payments', label: 'Work Odemeler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: 'WP' },
   { href: '/work/dues', label: 'Aidat/Tahakkuk', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: 'TH' },
   { href: '/work/collections', label: 'Tahsilatlar', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: 'CL' },
 ]
@@ -33,6 +35,8 @@ export const ROLE_ROUTE_POLICY: RouteAccessPolicy = {
   '/work': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/work/portfolio': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/work/units': [UserRole.TENANT_ADMIN, UserRole.STAFF],
+  '/work/residents': [UserRole.TENANT_ADMIN, UserRole.STAFF],
+  '/work/payments': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/work/dues': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/work/collections': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/residents': [UserRole.TENANT_ADMIN, UserRole.STAFF],

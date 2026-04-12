@@ -9,8 +9,11 @@ import {
   CreateCheckoutSessionSchema,
   CreateManualBankTransferIntentSchema,
   CreateManualCollectionSchema,
+  PaymentExportFilterSchema,
   IyzicoWebhookSchema,
   PaymentFilterSchema,
+  PaymentReconciliationFilterSchema,
+  PaymentSuspiciousFilterSchema,
   UserRole,
   type TenantContext,
 } from '@sakin/shared'
@@ -85,6 +88,38 @@ export class PaymentController {
   findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = PaymentFilterSchema.parse(query)
     return this.paymentService.findAll(filter, ctx.tenantId!)
+  }
+
+  @Get('reconciliation-summary')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Ödeme mutabakat özeti (TENANT_ADMIN)' })
+  reconciliationSummary(@Query() query: unknown, @Tenant() ctx: TenantContext) {
+    const filter = PaymentReconciliationFilterSchema.parse(query)
+    return this.paymentService.reconciliationSummary(filter, ctx.tenantId!)
+  }
+
+  @Get('suspicious')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Şüpheli ödeme kuyruğu (TENANT_ADMIN)' })
+  suspicious(@Query() query: unknown, @Tenant() ctx: TenantContext) {
+    const filter = PaymentSuspiciousFilterSchema.parse(query)
+    return this.paymentService.suspiciousQueue(filter, ctx.tenantId!)
+  }
+
+  @Get('exports/receipt')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Receipt export (CSV)' })
+  receiptExport(@Query() query: unknown, @Tenant() ctx: TenantContext) {
+    const filter = PaymentExportFilterSchema.parse(query)
+    return this.paymentService.exportReceiptCsv(filter, ctx.tenantId!)
+  }
+
+  @Get('exports/audit')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Audit export (CSV)' })
+  auditExport(@Query() query: unknown, @Tenant() ctx: TenantContext) {
+    const filter = PaymentExportFilterSchema.parse(query)
+    return this.paymentService.exportAuditCsv(filter, ctx.tenantId!)
   }
 
   @Get(':id')

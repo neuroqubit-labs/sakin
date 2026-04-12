@@ -1,6 +1,9 @@
 import auth from '@react-native-firebase/auth'
 
-const BASE_URL = process.env['EXPO_PUBLIC_API_URL'] ?? 'http://localhost:3001/api/v1'
+const expoApiUrl = (
+  globalThis as { process?: { env?: Record<string, string | undefined> } }
+).process?.env?.EXPO_PUBLIC_API_URL
+const BASE_URL = expoApiUrl ?? 'http://localhost:3001/api/v1'
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>

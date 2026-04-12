@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
-import { NotificationChannel, NotificationStatus } from '@sakin/shared'
+import type { Prisma } from '@sakin/database'
+import {
+  NotificationChannel,
+  NotificationStatus,
+  type CreateNotificationBroadcastDto,
+  type NotificationBroadcastTarget,
+  type NotificationHistoryFilterDto,
+} from '@sakin/shared'
 
 @Injectable()
 export class NotificationService {
@@ -16,14 +23,30 @@ export class NotificationService {
     paymentId: string,
     unitId: string,
     amount: number,
-  ): Promise<void> {
+  ): Promise<{ notificationId: string; idempotentReplay: boolean }> {
+    const existing = await this.prisma.notification.findFirst({
+      where: {
+        tenantId,
+        templateKey: 'payment.confirmed',
+        payload: {
+          path: ['paymentId'],
+          equals: paymentId,
+        },
+      },
+      select: { id: true },
+    })
+
+    if (existing) {
+      return { notificationId: existing.id, idempotentReplay: true }
+    }
+
     // Resolve the resident linked to the primary occupancy of this unit
     const occupancy = await this.prisma.unitOccupancy.findFirst({
       where: { tenantId, unitId, isActive: true, isPrimaryResponsible: true },
       select: { residentId: true, resident: { select: { userId: true } } },
     })
 
-    await this.prisma.notification.create({
+    const created = await this.prisma.notification.create({
       data: {
         tenantId,
         unitId,
@@ -35,6 +58,8 @@ export class NotificationService {
         payload: { paymentId, amount, unitId },
       },
     })
+
+    return { notificationId: created.id, idempotentReplay: false }
   }
 
   async listForUser(userId: string, tenantId: string, limit = 20) {
@@ -58,5 +83,164 @@ export class NotificationService {
     return this.prisma.notification.count({
       where: { tenantId, userId, status: NotificationStatus.PENDING },
     })
+  }
+
+  async createBroadcast(dto: CreateNotificationBroadcastDto, tenantId: string, senderUserId: string) {
+    const recipients = await this.resolveRecipients(dto.target, tenantId, {
+      siteId: dto.siteId,
+      unitId: dto.unitId,
+      residentId: dto.residentId,
+    })
+
+    if (dto.dryRun) {
+      return {
+        dryRun: true,
+        recipientCount: recipients.length,
+        preview: recipients.slice(0, 10),
+      }
+    }
+
+    if (recipients.length === 0) {
+      return {
+        dryRun: false,
+        recipientCount: 0,
+        createdCount: 0,
+      }
+    }
+
+    const created = await this.prisma.$transaction(
+      recipients.map((recipient) =>
+        this.prisma.notification.create({
+          data: {
+            tenantId,
+            userId: recipient.userId,
+            residentId: recipient.residentId,
+            unitId: recipient.unitId,
+            channel: dto.channel,
+            status: NotificationStatus.SENT,
+            templateKey: dto.templateKey,
+            payload: {
+              title: dto.title,
+              message: dto.message,
+              target: dto.target,
+            },
+            sentByUserId: senderUserId,
+            sentAt: new Date(),
+          },
+        }),
+      ),
+    )
+
+    return {
+      dryRun: false,
+      recipientCount: recipients.length,
+      createdCount: created.length,
+    }
+  }
+
+  async listHistory(filter: NotificationHistoryFilterDto, tenantId: string) {
+    const where: Prisma.NotificationWhereInput = { tenantId }
+
+    if (filter.siteId || filter.unitId) {
+      where.unit = {
+        ...(filter.siteId ? { siteId: filter.siteId } : {}),
+        ...(filter.unitId ? { id: filter.unitId } : {}),
+      }
+    }
+    if (filter.residentId) where.residentId = filter.residentId
+    if (filter.channel) where.channel = filter.channel
+    if (filter.status) where.status = filter.status
+
+    if (filter.search) {
+      where.OR = [
+        { templateKey: { contains: filter.search, mode: 'insensitive' } },
+        {
+          resident: {
+            OR: [
+              { firstName: { contains: filter.search, mode: 'insensitive' } },
+              { lastName: { contains: filter.search, mode: 'insensitive' } },
+            ],
+          },
+        },
+      ]
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.notification.findMany({
+        where,
+        include: {
+          resident: {
+            select: {
+              firstName: true,
+              lastName: true,
+              phoneNumber: true,
+            },
+          },
+          unit: {
+            select: {
+              number: true,
+              site: { select: { name: true } },
+            },
+          },
+          sentByUser: {
+            select: {
+              displayName: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (filter.page - 1) * filter.limit,
+        take: filter.limit,
+      }),
+      this.prisma.notification.count({ where }),
+    ])
+
+    return {
+      data,
+      meta: {
+        total,
+        page: filter.page,
+        limit: filter.limit,
+        totalPages: Math.ceil(total / filter.limit),
+      },
+    }
+  }
+
+  private async resolveRecipients(
+    target: NotificationBroadcastTarget,
+    tenantId: string,
+    scope: { siteId?: string; unitId?: string; residentId?: string },
+  ) {
+    const occupancies = await this.prisma.unitOccupancy.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        ...(target === 'SITE' && scope.siteId ? { unit: { siteId: scope.siteId } } : {}),
+        ...(target === 'UNIT' && scope.unitId ? { unitId: scope.unitId } : {}),
+        ...(target === 'RESIDENT' && scope.residentId ? { residentId: scope.residentId } : {}),
+      },
+      select: {
+        residentId: true,
+        unitId: true,
+        resident: {
+          select: {
+            userId: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      distinct: ['residentId', 'unitId'],
+    })
+
+    return occupancies
+      .map((row) => ({
+        residentId: row.residentId,
+        unitId: row.unitId,
+        userId: row.resident.userId ?? null,
+        residentName: `${row.resident.firstName} ${row.resident.lastName}`.trim(),
+      }))
+      .filter((row) => row.residentId)
   }
 }

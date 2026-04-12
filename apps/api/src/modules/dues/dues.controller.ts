@@ -11,6 +11,11 @@ import {
   UpdateDuesSchema,
   UserRole,
   WaiveDuesSchema,
+  DuesPolicyFilterSchema,
+  CreateDuesPolicySchema,
+  UpdateDuesPolicySchema,
+  OpenDuesPeriodSchema,
+  CloseDuesPeriodSchema,
 } from '@sakin/shared'
 
 @ApiTags('dues')
@@ -42,6 +47,46 @@ export class DuesController {
   async findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = DuesFilterSchema.parse(query)
     return this.duesService.findAll(filter, this.getTenantId(ctx))
+  }
+
+  @Get('policies')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Aidat policy listesi (TENANT_ADMIN)' })
+  async listPolicies(@Query() query: unknown, @Tenant() ctx: TenantContext) {
+    const filter = DuesPolicyFilterSchema.parse(query)
+    return this.duesService.listPolicies(filter, this.getTenantId(ctx))
+  }
+
+  @Post('policies')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Aidat policy olustur (TENANT_ADMIN)' })
+  async createPolicy(@Body() body: unknown, @Tenant() ctx: TenantContext) {
+    const dto = CreateDuesPolicySchema.parse(body)
+    return this.duesService.createPolicy(dto, this.getTenantId(ctx))
+  }
+
+  @Patch('policies/:id')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Aidat policy guncelle (TENANT_ADMIN)' })
+  async updatePolicy(@Param('id') id: string, @Body() body: unknown, @Tenant() ctx: TenantContext) {
+    const dto = UpdateDuesPolicySchema.parse(body)
+    return this.duesService.updatePolicy(id, dto, this.getTenantId(ctx))
+  }
+
+  @Post('period/open')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Donem ac (TENANT_ADMIN)' })
+  async openPeriod(@Body() body: unknown, @Tenant() ctx: TenantContext) {
+    const dto = OpenDuesPeriodSchema.parse(body)
+    return this.duesService.openPeriod(dto, this.getTenantId(ctx), ctx.userId)
+  }
+
+  @Post('period/close')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Donem kapat (TENANT_ADMIN)' })
+  async closePeriod(@Body() body: unknown, @Tenant() ctx: TenantContext) {
+    const dto = CloseDuesPeriodSchema.parse(body)
+    return this.duesService.closePeriod(dto, this.getTenantId(ctx))
   }
 
   @Get(':id')

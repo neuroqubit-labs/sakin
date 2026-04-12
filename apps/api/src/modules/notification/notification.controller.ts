@@ -1,10 +1,14 @@
-import { Controller, Get, Query } from '@nestjs/common'
+import { Body, Controller, Get, Post, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { NotificationService } from './notification.service'
 import { Tenant } from '../../common/decorators/tenant.decorator'
 import { Roles } from '../../common/decorators/roles.decorator'
 import type { TenantContext } from '@sakin/shared'
-import { UserRole } from '@sakin/shared'
+import {
+  CreateNotificationBroadcastSchema,
+  NotificationHistoryFilterSchema,
+  UserRole,
+} from '@sakin/shared'
 
 @ApiTags('notifications')
 @ApiBearerAuth()
@@ -29,5 +33,21 @@ export class NotificationController {
   async unreadCount(@Tenant() ctx: TenantContext) {
     const count = await this.notificationService.countUnread(ctx.userId, ctx.tenantId!)
     return { count }
+  }
+
+  @Post('broadcast')
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @ApiOperation({ summary: 'Hedefli iletisim bildirimi olustur' })
+  broadcast(@Tenant() ctx: TenantContext, @Body() body: unknown) {
+    const dto = CreateNotificationBroadcastSchema.parse(body)
+    return this.notificationService.createBroadcast(dto, ctx.tenantId!, ctx.userId)
+  }
+
+  @Get('history')
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @ApiOperation({ summary: 'Iletisim gonderim gecmisi' })
+  history(@Tenant() ctx: TenantContext, @Query() query: unknown) {
+    const filter = NotificationHistoryFilterSchema.parse(query)
+    return this.notificationService.listHistory(filter, ctx.tenantId!)
   }
 }

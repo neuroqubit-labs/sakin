@@ -1,0 +1,28 @@
+{
+  "name": "@sakin/api-support",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Support service shell (S1-03 bootstrap)",
+  "scripts": {
+    "build": "node -e \"console.log('api-support bootstrap files ready. Full build runs after workspace dependency install in CI/S1-03 setup.')\"",
+    "dev": "node ../../scripts/start-service-shell.mjs --service api-support --port-env API_SUPPORT_PORT --default-port 3104",
+    "start": "node ../../scripts/start-service-shell.mjs --service api-support --port-env API_SUPPORT_PORT --default-port 3104",
+    "typecheck": "node -e \"console.log('api-support bootstrap typecheck placeholder. Full TS check enabled after shared toolchain setup.')\"",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/platform-fastify": "^11.0.1",
+    "@nestjs/swagger": "^11.0.3",
+    "@sakin/api-core": "workspace:*",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@types/node": "^22.10.7",
+    "typescript": "^5.7.3"
+  }
+}
