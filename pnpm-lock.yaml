@@ -25,7 +25,65 @@ importers:
         specifier: ^5.7.3
         version: 5.9.3
 
-  apps/admin:
+  api:
+    dependencies:
+      '@fastify/static':
+        specifier: ^9.0.0
+        version: 9.0.0
+      '@nestjs/common':
+        specifier: ^11.0.1
+        version: 11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/config':
+        specifier: ^4.0.0
+        version: 4.0.3(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)
+      '@nestjs/core':
+        specifier: ^11.0.1
+        version: 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/platform-fastify':
+        specifier: ^11.0.1
+        version: 11.1.18(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
+      '@nestjs/schedule':
+        specifier: ^5.0.0
+        version: 5.0.1(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
+      '@nestjs/swagger':
+        specifier: ^11.0.3
+        version: 11.2.6(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)
+      '@sakin/database':
+        specifier: workspace:*
+        version: link:../packages/database
+      '@sakin/shared':
+        specifier: workspace:*
+        version: link:../packages/shared
+      dotenv:
+        specifier: ^17.4.1
+        version: 17.4.1
+      firebase-admin:
+        specifier: ^13.1.0
+        version: 13.7.0
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: ^7.8.1
+        version: 7.8.2
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@nestjs/cli':
+        specifier: ^11.0.0
+        version: 11.0.17(@types/node@22.19.17)
+      '@nestjs/testing':
+        specifier: ^11.0.1
+        version: 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.17
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  client/admin:
     dependencies:
       '@sakin/shared':
         specifier: workspace:*
@@ -71,234 +129,7 @@ importers:
         specifier: ^5.7.3
         version: 5.9.3
 
-  apps/api:
-    dependencies:
-      '@fastify/static':
-        specifier: ^9.0.0
-        version: 9.0.0
-      '@nestjs/common':
-        specifier: ^11.0.1
-        version: 11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/config':
-        specifier: ^4.0.0
-        version: 4.0.3(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)
-      '@nestjs/core':
-        specifier: ^11.0.1
-        version: 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/platform-fastify':
-        specifier: ^11.0.1
-        version: 11.1.18(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
-      '@nestjs/schedule':
-        specifier: ^5.0.0
-        version: 5.0.1(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
-      '@nestjs/swagger':
-        specifier: ^11.0.3
-        version: 11.2.6(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)
-      '@sakin/database':
-        specifier: workspace:*
-        version: link:../../packages/database
-      '@sakin/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-      dotenv:
-        specifier: ^17.4.1
-        version: 17.4.1
-      firebase-admin:
-        specifier: ^13.1.0
-        version: 13.7.0
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
-      rxjs:
-        specifier: ^7.8.1
-        version: 7.8.2
-      zod:
-        specifier: ^3.24.1
-        version: 3.25.76
-    devDependencies:
-      '@nestjs/cli':
-        specifier: ^11.0.0
-        version: 11.0.17(@types/node@22.19.17)
-      '@nestjs/testing':
-        specifier: ^11.0.1
-        version: 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
-      '@types/node':
-        specifier: ^22.10.7
-        version: 22.19.17
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
-  apps/api-auth:
-    dependencies:
-      '@nestjs/common':
-        specifier: ^11.0.1
-        version: 11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/config':
-        specifier: ^4.0.0
-        version: 4.0.3(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)
-      '@nestjs/core':
-        specifier: ^11.0.1
-        version: 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/platform-fastify':
-        specifier: ^11.0.1
-        version: 11.1.18(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
-      '@nestjs/swagger':
-        specifier: ^11.0.3
-        version: 11.2.6(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)
-      '@sakin/api-core':
-        specifier: workspace:*
-        version: link:../../packages/api-core
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
-      rxjs:
-        specifier: ^7.8.1
-        version: 7.8.2
-    devDependencies:
-      '@nestjs/cli':
-        specifier: ^11.0.0
-        version: 11.0.17(@types/node@22.19.17)
-      '@types/node':
-        specifier: ^22.10.7
-        version: 22.19.17
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
-  apps/api-finance:
-    dependencies:
-      '@nestjs/common':
-        specifier: ^11.0.1
-        version: 11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/config':
-        specifier: ^4.0.0
-        version: 4.0.3(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)
-      '@nestjs/core':
-        specifier: ^11.0.1
-        version: 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/platform-fastify':
-        specifier: ^11.0.1
-        version: 11.1.18(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
-      '@nestjs/schedule':
-        specifier: ^5.0.0
-        version: 5.0.1(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
-      '@nestjs/swagger':
-        specifier: ^11.0.3
-        version: 11.2.6(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)
-      '@sakin/api-core':
-        specifier: workspace:*
-        version: link:../../packages/api-core
-      '@sakin/database':
-        specifier: workspace:*
-        version: link:../../packages/database
-      '@sakin/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
-      rxjs:
-        specifier: ^7.8.1
-        version: 7.8.2
-      zod:
-        specifier: ^3.24.1
-        version: 3.25.76
-    devDependencies:
-      '@nestjs/cli':
-        specifier: ^11.0.0
-        version: 11.0.17(@types/node@22.19.17)
-      '@types/node':
-        specifier: ^22.10.7
-        version: 22.19.17
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
-  apps/api-metadata:
-    dependencies:
-      '@nestjs/common':
-        specifier: ^11.0.1
-        version: 11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/config':
-        specifier: ^4.0.0
-        version: 4.0.3(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)
-      '@nestjs/core':
-        specifier: ^11.0.1
-        version: 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/platform-fastify':
-        specifier: ^11.0.1
-        version: 11.1.18(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
-      '@nestjs/swagger':
-        specifier: ^11.0.3
-        version: 11.2.6(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)
-      '@sakin/api-core':
-        specifier: workspace:*
-        version: link:../../packages/api-core
-      '@sakin/database':
-        specifier: workspace:*
-        version: link:../../packages/database
-      '@sakin/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
-      rxjs:
-        specifier: ^7.8.1
-        version: 7.8.2
-      zod:
-        specifier: ^3.24.1
-        version: 3.25.76
-    devDependencies:
-      '@nestjs/cli':
-        specifier: ^11.0.0
-        version: 11.0.17(@types/node@22.19.17)
-      '@types/node':
-        specifier: ^22.10.7
-        version: 22.19.17
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
-  apps/api-support:
-    dependencies:
-      '@nestjs/common':
-        specifier: ^11.0.1
-        version: 11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/config':
-        specifier: ^4.0.0
-        version: 4.0.3(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)
-      '@nestjs/core':
-        specifier: ^11.0.1
-        version: 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/platform-fastify':
-        specifier: ^11.0.1
-        version: 11.1.18(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
-      '@nestjs/swagger':
-        specifier: ^11.0.3
-        version: 11.2.6(@fastify/static@9.0.0)(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)
-      '@sakin/api-core':
-        specifier: workspace:*
-        version: link:../../packages/api-core
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
-      rxjs:
-        specifier: ^7.8.1
-        version: 7.8.2
-    devDependencies:
-      '@nestjs/cli':
-        specifier: ^11.0.0
-        version: 11.0.17(@types/node@22.19.17)
-      '@types/node':
-        specifier: ^22.10.7
-        version: 22.19.17
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
-  apps/mobile:
+  client/mobile:
     dependencies:
       '@expo/metro-runtime':
         specifier: ~4.0.1
@@ -359,7 +190,7 @@ importers:
         specifier: ^5.7.3
         version: 5.9.3
 
-  apps/platform:
+  client/platform:
     dependencies:
       '@sakin/shared':
         specifier: workspace:*
@@ -398,28 +229,6 @@ importers:
       tailwindcss:
         specifier: ^3.4.17
         version: 3.4.19
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
-  packages/api-core:
-    dependencies:
-      '@nestjs/common':
-        specifier: ^11.0.1
-        version: 11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/core':
-        specifier: ^11.0.1
-        version: 11.1.18(@nestjs/common@11.1.18(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@sakin/shared':
-        specifier: workspace:*
-        version: link:../shared
-      rxjs:
-        specifier: ^7.8.1
-        version: 7.8.2
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.7
-        version: 22.19.17
       typescript:
         specifier: ^5.7.3
         version: 5.9.3

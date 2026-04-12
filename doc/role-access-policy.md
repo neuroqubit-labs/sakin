@@ -10,8 +10,8 @@ Bu doküman API endpoint ve web route erişim politikasını özetler.
 
 ## Web Uygulamaları
 
-- `apps/platform`: Sadece `SUPER_ADMIN`.
-- `apps/admin`: Tenant scoped panel (`TENANT_ADMIN` + `STAFF`).
+- `client/platform`: Sadece `SUPER_ADMIN`.
+- `client/admin`: Tenant scoped panel (`TENANT_ADMIN` + `STAFF`).
 
 `apps/admin` route politikası:
 

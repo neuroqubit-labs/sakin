@@ -140,13 +140,16 @@ Bunları tartışmaya açmak bile zaman kaybı — odak korunmalı.
 ### Monorepo
 ```
 sakin/
-├── apps/api/          # NestJS 11 — REST API (port 3001)
-├── apps/admin/        # Next.js 15 App Router (port 3000)
-├── apps/mobile/       # Expo SDK 53, React Native
-├── packages/database/ # Prisma 6, PostgreSQL (@sakin/database)
-├── packages/shared/   # Zod şemaları, tipler, enum'lar (@sakin/shared)
-├── packages/ui/       # shadcn/ui bileşenler (@sakin/ui)
-└── doc/               # İş alanı dokümanları
+├── api/                  # NestJS 11 — REST API (port 3001)
+├── client/
+│   ├── admin/            # Next.js 15 App Router (port 3000)
+│   ├── mobile/           # Expo SDK 53, React Native
+│   └── platform/         # Next.js 15 — SUPER_ADMIN paneli
+├── packages/
+│   ├── database/         # Prisma 6, PostgreSQL (@sakin/database)
+│   ├── shared/           # Zod şemaları, tipler, enum'lar (@sakin/shared)
+│   └── ui/               # shadcn/ui bileşenler (@sakin/ui)
+└── doc/                  # İş alanı dokümanları
 ```
 
 **Build sırası**: shared → database → ui → api / admin / mobile
@@ -189,7 +192,7 @@ Request → TenantMiddleware (Firebase → tenantId+role) → Controller → Ser
 - Response: `{ "data": ... }` | Hata: `{ "statusCode", "message", "details" }`
 
 ### API Modülleri
-`auth`, `site`, `block`, `unit`, `resident`, `occupancy`, `dues`, `payment`, `ledger`, `expense`, `announcement`, `export`, `tenant`, `platform`, `notification`
+`auth`, `site`, `unit`, `resident`, `occupancy`, `dues`, `payment`, `ledger`, `expense`, `announcement`, `export`, `tenant`, `platform`, `notification`
 
 ---
 
@@ -241,6 +244,6 @@ pnpm dev                  # Hepsi paralel
 ```
 
 **Env dosyaları:**
-- `apps/api/.env.example` → `.env`
-- `apps/admin/.env.example` → `.env.local`
+- `api/.env.example` → `.env`
+- `client/admin/.env.example` → `.env.local`
 - `packages/database/.env.example` → `.env`
