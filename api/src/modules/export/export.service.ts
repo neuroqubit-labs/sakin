@@ -319,8 +319,8 @@ export class ExportService {
 
     return ledger.map((row) => ({
       date: row.effectiveAt.toISOString(),
-      site: row.unit.site.name,
-      unit: row.unit.number,
+      site: row.unit?.site.name ?? '',
+      unit: row.unit?.number ?? '',
       entryType: row.entryType,
       amount: Number(row.amount).toFixed(2),
       currency: row.currency,

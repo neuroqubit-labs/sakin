@@ -1,43 +1,131 @@
 import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from 'react-native'
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  RefreshControl,
+  TouchableOpacity,
+  Modal,
+  ScrollView,
+} from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { apiClient } from '@/lib/api'
 import { useAuthSession } from '@/contexts/auth-context'
 
-interface NotificationItem {
+// ─── Tipler ──────────────────────────────────────────────────────────────────
+
+interface Announcement {
   id: string
-  templateKey: string | null
-  payload: Record<string, unknown> | null
-  status: string
+  title: string
+  content: string
   createdAt: string
+  createdByUserId: string
 }
 
-const TEMPLATE_LABELS: Record<string, string> = {
-  'payment.confirmed': 'Ödeme Onaylandı',
+interface AnnouncementsResponse {
+  data: Announcement[]
+  meta: { total: number; page: number; limit: number }
 }
+
+// ─── Yardımcılar ─────────────────────────────────────────────────────────────
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleDateString('tr-TR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
-export default function NotificationsScreen() {
+function excerpt(text: string, max = 90): string {
+  if (text.length <= max) return text
+  return text.slice(0, max).trimEnd() + '…'
+}
+
+// ─── Duyuru Satırı ───────────────────────────────────────────────────────────
+
+function AnnouncementRow({
+  item,
+  onPress,
+}: {
+  item: Announcement
+  onPress: () => void
+}) {
+  return (
+    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.75}>
+      <View style={styles.rowIconWrap}>
+        <Text style={styles.rowIcon}>📢</Text>
+      </View>
+      <View style={styles.rowBody}>
+        <Text style={styles.rowTitle}>{item.title}</Text>
+        <Text style={styles.rowExcerpt}>{excerpt(item.content)}</Text>
+        <Text style={styles.rowDate}>{formatDate(item.createdAt)}</Text>
+      </View>
+      <Text style={styles.rowChevron}>›</Text>
+    </TouchableOpacity>
+  )
+}
+
+// ─── Detay Modal ─────────────────────────────────────────────────────────────
+
+function AnnouncementModal({
+  item,
+  onClose,
+}: {
+  item: Announcement | null
+  onClose: () => void
+}) {
+  return (
+    <Modal
+      visible={item !== null}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <LinearGradient colors={['#0D4F3C', '#1A7A5E', '#2BA87E']} style={{ flex: 1 }}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalHeaderTitle}>Duyuru</Text>
+          <TouchableOpacity onPress={onClose} style={styles.modalClose}>
+            <Text style={styles.modalCloseText}>Kapat</Text>
+          </TouchableOpacity>
+        </View>
+        {item && (
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            <Text style={styles.modalTitle}>{item.title}</Text>
+            <Text style={styles.modalDate}>{formatDate(item.createdAt)}</Text>
+            <View style={styles.modalDivider} />
+            <Text style={styles.modalBody}>{item.content}</Text>
+          </ScrollView>
+        )}
+      </LinearGradient>
+    </Modal>
+  )
+}
+
+// ─── Ana Ekran ───────────────────────────────────────────────────────────────
+
+export default function AnnouncementsScreen() {
   const { session } = useAuthSession()
-  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Announcement | null>(null)
 
   async function load() {
     if (!session) return
     setError(null)
     try {
-      const data = await apiClient<NotificationItem[]>(
-        '/notifications',
-        { params: { limit: 30 } },
+      const res = await apiClient<AnnouncementsResponse>(
+        '/announcements',
+        { params: { limit: 30, page: 1 } },
         session.tenantId,
       )
-      setNotifications(data)
+      setAnnouncements(res.data)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Bildirimler yüklenemedi')
+      setError(e instanceof Error ? e.message : 'Duyurular yüklenemedi')
     }
   }
 
@@ -52,55 +140,132 @@ export default function NotificationsScreen() {
     setRefreshing(false)
   }
 
-  if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#2563eb" /></View>
-  }
-
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} />}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Bildirimler</Text>
+    <LinearGradient colors={['#0D4F3C', '#1A7A5E', '#2BA87E']} style={styles.gradient}>
+      {/* Sayfa başlığı */}
+      <View style={styles.pageHeader}>
+        <Text style={styles.pageTitle}>Duyurular</Text>
       </View>
 
-      {error && <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>}
-
-      {!error && notifications.length === 0 && (
-        <View style={styles.center}><Text style={styles.emptyText}>Henüz bildirim yok.</Text></View>
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="rgba(255,255,255,0.8)" />
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={announcements}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <AnnouncementRow item={item} onPress={() => setSelected(item)} />
+          )}
+          contentContainerStyle={
+            announcements.length === 0 ? styles.emptyContainer : styles.listContainer
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void onRefresh()}
+              tintColor="rgba(255,255,255,0.8)"
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.center}>
+              <Text style={styles.emptyIcon}>📭</Text>
+              <Text style={styles.emptyTitle}>Duyuru yok</Text>
+              <Text style={styles.emptySub}>Yeni duyurular burada görünecek.</Text>
+            </View>
+          }
+        />
       )}
 
-      {notifications.map((item) => {
-        const label = item.templateKey ? (TEMPLATE_LABELS[item.templateKey] ?? item.templateKey) : 'Bildirim'
-        const amount = item.payload?.['amount'] as number | undefined
-        return (
-          <View key={item.id} style={styles.card}>
-            <View style={styles.cardRow}>
-              <Text style={styles.label}>{label}</Text>
-              <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
-            </View>
-            {amount !== undefined && (
-              <Text style={styles.amount}>₺{Number(amount).toLocaleString('tr-TR')}</Text>
-            )}
-          </View>
-        )
-      })}
-    </ScrollView>
+      <AnnouncementModal item={selected} onClose={() => setSelected(null)} />
+    </LinearGradient>
   )
 }
 
+// ─── Stiller ─────────────────────────────────────────────────────────────────
+
+const GLASS_BG = 'rgba(255, 255, 255, 0.12)'
+const GLASS_BORDER = 'rgba(255, 255, 255, 0.2)'
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 80 },
-  header: { padding: 20, paddingBottom: 8 },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#111827' },
-  card: { margin: 12, marginTop: 8, backgroundColor: '#fff', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  label: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  date: { fontSize: 11, color: '#6b7280' },
-  amount: { fontSize: 20, fontWeight: 'bold', color: '#10b981', marginTop: 4 },
-  errorBox: { margin: 16, padding: 12, backgroundColor: '#fef2f2', borderRadius: 8 },
-  errorText: { color: '#dc2626', fontSize: 14 },
-  emptyText: { color: '#6b7280', fontSize: 15 },
+  gradient: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+
+  pageHeader: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  pageTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.5,
+  },
+
+  listContainer: { padding: 16, paddingBottom: 40 },
+  emptyContainer: { flex: 1 },
+
+  // Satır
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: GLASS_BG,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    padding: 16,
+    marginBottom: 10,
+  },
+  rowIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    marginTop: 2,
+  },
+  rowIcon: { fontSize: 18 },
+  rowBody: { flex: 1 },
+  rowTitle: { fontSize: 15, fontWeight: '700', color: '#ffffff', marginBottom: 4 },
+  rowExcerpt: { fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 18 },
+  rowDate: { fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 6 },
+  rowChevron: { fontSize: 22, color: 'rgba(255,255,255,0.3)', marginLeft: 8, marginTop: 4 },
+
+  // Modal
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 56,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  modalHeaderTitle: { fontSize: 17, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
+  modalClose: { paddingVertical: 4, paddingHorizontal: 8 },
+  modalCloseText: { fontSize: 16, color: '#6ee7b7', fontWeight: '600' },
+  modalContent: { padding: 20, paddingBottom: 48 },
+  modalTitle: { fontSize: 24, fontWeight: '800', color: '#ffffff', lineHeight: 32 },
+  modalDate: { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 8 },
+  modalDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginVertical: 20,
+  },
+  modalBody: { fontSize: 16, color: 'rgba(255,255,255,0.85)', lineHeight: 26 },
+
+  // Boş durum
+  emptyIcon: { fontSize: 48, marginBottom: 16 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#ffffff', marginBottom: 8 },
+  emptySub: { fontSize: 14, color: 'rgba(255,255,255,0.55)', textAlign: 'center' },
+
+  // Hata
+  errorText: { color: '#fca5a5', fontSize: 15, textAlign: 'center' },
 })

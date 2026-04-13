@@ -150,12 +150,27 @@ export class TenantMiddleware implements NestMiddleware {
         }
       }
 
+      let unitId: string | null = null
+      if (selectedRole.role === UserRole.RESIDENT && selectedRole.tenantId) {
+        const occupancy = await this.prisma.unitOccupancy.findFirst({
+          where: {
+            tenantId: selectedRole.tenantId,
+            isActive: true,
+            resident: { userId: user.id },
+          },
+          orderBy: [{ isPrimaryResponsible: 'desc' }, { startDate: 'desc' }],
+          select: { unitId: true },
+        })
+        unitId = occupancy?.unitId ?? null
+      }
+
       req.tenantContext = {
         tenantId: selectedRole.tenantId ?? null,
         userId: user.id,
         role: selectedRole.role as TenantContext['role'],
         firebaseUid: decoded.uid,
         userTenantRoleId: selectedRole.id,
+        unitId,
       }
 
       next()

@@ -576,13 +576,11 @@ async function main() {
       const dueDate = new Date(period.year, period.month - 1, 10)
 
       // eslint-disable-next-line no-await-in-loop
-      let dues = await prisma.dues.findUnique({
+      let dues = await prisma.dues.findFirst({
         where: {
-          unitId_periodMonth_periodYear: {
-            unitId: unit.id,
-            periodMonth: period.month,
-            periodYear: period.year,
-          },
+          unitId: unit.id,
+          periodMonth: period.month,
+          periodYear: period.year,
         },
       })
 
@@ -716,13 +714,11 @@ async function main() {
   for (let idx = 0; idx < site2Units.length; idx += 1) {
     const unit = site2Units[idx]!
     // eslint-disable-next-line no-await-in-loop
-    let dues = await prisma.dues.findUnique({
+    let dues = await prisma.dues.findFirst({
       where: {
-        unitId_periodMonth_periodYear: {
-          unitId: unit.id,
-          periodMonth: currentPeriod.month,
-          periodYear: currentPeriod.year,
-        },
+        unitId: unit.id,
+        periodMonth: currentPeriod.month,
+        periodYear: currentPeriod.year,
       },
     })
 
@@ -807,13 +803,11 @@ async function main() {
   }
 
   const suspiciousUnit = site2Units[1]!
-  const suspiciousDues = await prisma.dues.findUnique({
+  const suspiciousDues = await prisma.dues.findFirst({
     where: {
-      unitId_periodMonth_periodYear: {
-        unitId: suspiciousUnit.id,
-        periodMonth: currentPeriod.month,
-        periodYear: currentPeriod.year,
-      },
+      unitId: suspiciousUnit.id,
+      periodMonth: currentPeriod.month,
+      periodYear: currentPeriod.year,
     },
   })
 
@@ -943,7 +937,6 @@ async function main() {
       siteId: site1.id,
       name: 'Site Kasası',
       type: CashAccountType.CASH,
-      balance: 3250,
       currency: 'TRY',
     },
   })
@@ -958,7 +951,6 @@ async function main() {
       type: CashAccountType.BANK,
       bankName: 'Halkbank',
       iban: 'TR330006100519786457841326',
-      balance: 12800,
       currency: 'TRY',
     },
   })

@@ -82,7 +82,9 @@ export class UnitService {
         })
       : []
     const ledgerMap = new Map<string, number>(
-      ledgerRows.map((row) => [row.unitId, toMoneyNumber(row._sum.amount)]),
+      ledgerRows
+        .filter((row): row is typeof row & { unitId: string } => row.unitId !== null)
+        .map((row) => [row.unitId, toMoneyNumber(row._sum.amount)]),
     )
 
     const mapped = data.map((unit) => {

@@ -1,17 +1,7 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { Tabs } from 'expo-router'
-import { View, Text, StyleSheet } from 'react-native'
 import { apiClient } from '@/lib/api'
 import { useAuthSession } from '@/contexts/auth-context'
-
-function UnreadBadge({ count }: { count: number }) {
-  if (count === 0) return null
-  return (
-    <View style={styles.badge}>
-      <Text style={styles.badgeText}>{count > 9 ? '9+' : count}</Text>
-    </View>
-  )
-}
 
 export default function TabsLayout() {
   const { session } = useAuthSession()
@@ -40,9 +30,15 @@ export default function TabsLayout() {
   return (
     <TabsNavigator
       screenOptions={{
-        tabBarActiveTintColor: '#2563eb',
+        tabBarActiveTintColor: '#059669',
         tabBarInactiveTintColor: '#9ca3af',
-        headerShown: true,
+        tabBarStyle: {
+          backgroundColor: '#ffffff',
+          borderTopColor: '#f3f4f6',
+          height: 64,
+          paddingBottom: 8,
+        },
+        headerShown: false,
       }}
     >
       <TabsNavigator.Screen
@@ -60,8 +56,8 @@ export default function TabsLayout() {
       <TabsNavigator.Screen
         name="announcements"
         options={{
-          title: 'Bildirimler',
-          tabBarLabel: 'Bildirimler',
+          title: 'Duyurular',
+          tabBarLabel: 'Duyurular',
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         }}
       />
@@ -69,7 +65,3 @@ export default function TabsLayout() {
   )
 }
 
-const styles = StyleSheet.create({
-  badge: { position: 'absolute', top: -4, right: -8, backgroundColor: '#ef4444', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
-})

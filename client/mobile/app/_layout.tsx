@@ -70,6 +70,16 @@ export default function RootLayout() {
       <StackNavigator screenOptions={{ headerShown: false }}>
         <StackNavigator.Screen name="(auth)" />
         <StackNavigator.Screen name="(tabs)" />
+        <StackNavigator.Screen
+          name="payment-history"
+          options={{
+            headerShown: true,
+            title: 'Ödeme Geçmişi',
+            headerStyle: { backgroundColor: '#0D4F3C' },
+            headerTintColor: '#ffffff',
+            headerTitleStyle: { fontWeight: '700' },
+          }}
+        />
       </StackNavigator>
     </AuthProvider>
   )

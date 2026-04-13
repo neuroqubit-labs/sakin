@@ -28,16 +28,16 @@ export class AnnouncementController {
   }
 
   @Get()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
-  @ApiOperation({ summary: 'Duyuru listesi (TENANT_ADMIN, STAFF)' })
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Duyuru listesi (TENANT_ADMIN, STAFF, RESIDENT)' })
   findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = AnnouncementFilterSchema.parse(query)
     return this.announcementService.findAll(filter, ctx.tenantId!)
   }
 
   @Get(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
-  @ApiOperation({ summary: 'Duyuru detayı (TENANT_ADMIN, STAFF)' })
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Duyuru detayı (TENANT_ADMIN, STAFF, RESIDENT)' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
     return this.announcementService.findOne(id, ctx.tenantId!)
   }

@@ -889,6 +889,35 @@ export class PaymentService {
     }
   }
 
+  async findForResident(unitId: string, tenantId: string, limit = 30) {
+    const db = this.prisma.forTenant(tenantId)
+
+    const data = await db.payment.findMany({
+      where: { unitId, status: PaymentStatus.CONFIRMED },
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        method: true,
+        status: true,
+        paidAt: true,
+        confirmedAt: true,
+        createdAt: true,
+        dues: {
+          select: {
+            periodMonth: true,
+            periodYear: true,
+            description: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 100),
+    })
+
+    return { data }
+  }
+
   async findOne(id: string, tenantId: string) {
     const db = this.prisma.forTenant(tenantId)
     const payment = await db.payment.findFirst({

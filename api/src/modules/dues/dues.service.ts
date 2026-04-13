@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
@@ -110,12 +111,14 @@ export class DuesService {
     }
   }
 
-  async findAll(filter: DuesFilterDto, tenantId: string) {
+  async findAll(filter: DuesFilterDto, tenantId: string, callerUnitId?: string) {
     const db = this.prisma.forTenant(tenantId)
 
     const where: Record<string, unknown> = {}
-    if (filter.siteId) where['unit'] = { siteId: filter.siteId }
-    if (filter.unitId) where['unitId'] = filter.unitId
+    // RESIDENT çağrısında callerUnitId zorunlu olarak override edilir — başka daire görülemez
+    const effectiveUnitId = callerUnitId ?? filter.unitId
+    if (filter.siteId && !callerUnitId) where['unit'] = { siteId: filter.siteId }
+    if (effectiveUnitId) where['unitId'] = effectiveUnitId
     if (filter.periodMonth) where['periodMonth'] = filter.periodMonth
     if (filter.periodYear) where['periodYear'] = filter.periodYear
     if (filter.status) where['status'] = filter.status
@@ -313,7 +316,7 @@ export class DuesService {
     return { updated: result.count, period: `${dto.periodMonth}/${dto.periodYear}` }
   }
 
-  async findOne(id: string, tenantId: string) {
+  async findOne(id: string, tenantId: string, callerUnitId?: string) {
     const db = this.prisma.forTenant(tenantId)
 
     const dues = await db.dues.findFirst({
@@ -327,6 +330,10 @@ export class DuesService {
     })
 
     if (!dues) throw new NotFoundException('Aidat kaydı bulunamadı')
+
+    if (callerUnitId && dues.unitId !== callerUnitId) {
+      throw new ForbiddenException('Bu aidat kaydına erişim yetkiniz yok')
+    }
 
     const paidAmount = dues.payments
       .filter((payment) => payment.status === PaymentStatus.CONFIRMED)

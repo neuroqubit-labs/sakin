@@ -90,6 +90,20 @@ export class PaymentController {
     return this.paymentService.findAll(filter, ctx.tenantId!)
   }
 
+  @Get('my')
+  @Roles(UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Sakin kendi ödeme geçmişi (RESIDENT)' })
+  findMine(
+    @Tenant() ctx: TenantContext,
+    @Query('limit') limitRaw?: string,
+  ) {
+    if (!ctx.unitId) {
+      return { data: [] }
+    }
+    const limit = Math.min(parseInt(limitRaw ?? '30', 10) || 30, 100)
+    return this.paymentService.findForResident(ctx.unitId, ctx.tenantId!, limit)
+  }
+
   @Get('reconciliation-summary')
   @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Ödeme mutabakat özeti (TENANT_ADMIN)' })

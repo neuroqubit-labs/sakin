@@ -42,11 +42,11 @@ export class DuesController {
   }
 
   @Get()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
-  @ApiOperation({ summary: 'Aidat listesi (TENANT_ADMIN, STAFF)' })
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Aidat listesi. RESIDENT: yalnızca kendi dairesini görür.' })
   async findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = DuesFilterSchema.parse(query)
-    return this.duesService.findAll(filter, this.getTenantId(ctx))
+    return this.duesService.findAll(filter, this.getTenantId(ctx), ctx.unitId ?? undefined)
   }
 
   @Get('policies')
@@ -90,10 +90,10 @@ export class DuesController {
   }
 
   @Get(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
-  @ApiOperation({ summary: 'Aidat detayı (TENANT_ADMIN, STAFF)' })
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Aidat detayı. RESIDENT: yalnızca kendi dairesine ait kaydı görebilir.' })
   async findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
-    return this.duesService.findOne(id, this.getTenantId(ctx))
+    return this.duesService.findOne(id, this.getTenantId(ctx), ctx.unitId ?? undefined)
   }
 
   @Patch(':id')
