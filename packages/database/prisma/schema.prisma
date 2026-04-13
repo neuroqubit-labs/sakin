@@ -668,7 +668,6 @@ model Ticket {
   reportedBy User?           @relation("TicketReportedBy", fields: [reportedById], references: [id])
   assignedTo SiteStaff?      @relation(fields: [assignedToId], references: [id])
   comments   TicketComment[]
-  documents  Document[]
 
   @@index([tenantId])
   @@index([tenantId, siteId, status])
@@ -724,7 +723,6 @@ model LegalCase {
   unit      Unit             @relation(fields: [unitId], references: [id])
   resident  Resident         @relation(fields: [residentId], references: [id])
   events    LegalCaseEvent[]
-  documents Document[]
 
   @@index([tenantId])
   @@index([tenantId, siteId, status])
@@ -773,10 +771,7 @@ model Document {
   tenant     Tenant @relation(fields: [tenantId], references: [id])
   uploadedBy User?  @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
 
-  // Prisma does not support polymorphic FK — ownerId integrity enforced at service layer
-  // Direct relations for query convenience where needed:
-  ticket    Ticket?    @relation(fields: [ownerId], references: [id], map: "documents_ticket_fk", onDelete: Cascade, onUpdate: NoAction)
-  legalCase LegalCase? @relation(fields: [ownerId], references: [id], map: "documents_legalcase_fk", onDelete: Cascade, onUpdate: NoAction)
+  // Polymorphic: ownerType + ownerId — no DB-level FK, integrity enforced at service layer
 
   @@index([tenantId])
   @@index([tenantId, ownerType, ownerId])

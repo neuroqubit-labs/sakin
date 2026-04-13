@@ -11,7 +11,8 @@ import {
 
 interface CreateLedgerEntryInput {
   tenantId: string
-  unitId: string
+  unitId?: string
+  siteId?: string
   amount: number
   currency?: string
   entryType: LedgerEntryType
@@ -31,12 +32,14 @@ export class LedgerService {
   async createEntry(input: CreateLedgerEntryInput, tx?: PrismaService) {
     const db = tx ?? this.prisma
 
-    const unit = await db.unit.findFirst({
-      where: { id: input.unitId, tenantId: input.tenantId },
-      select: { id: true },
-    })
-    if (!unit) {
-      throw new BadRequestException('Ledger unit/tenant eşleşmesi doğrulanamadı')
+    if (input.unitId) {
+      const unit = await db.unit.findFirst({
+        where: { id: input.unitId, tenantId: input.tenantId },
+        select: { id: true },
+      })
+      if (!unit) {
+        throw new BadRequestException('Ledger unit/tenant eşleşmesi doğrulanamadı')
+      }
     }
 
     if (
@@ -77,7 +80,8 @@ export class LedgerService {
     return db.ledgerEntry.create({
       data: {
         tenantId: input.tenantId,
-        unitId: input.unitId,
+        unitId: input.unitId ?? null,
+        siteId: input.siteId ?? null,
         amount: input.amount,
         currency: input.currency ?? 'TRY',
         entryType: input.entryType,

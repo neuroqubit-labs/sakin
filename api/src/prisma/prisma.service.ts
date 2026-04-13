@@ -2,26 +2,45 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common'
 import { PrismaClient } from '@sakin/database'
 
 const TENANT_SCOPED_MODELS = new Set([
+  // Organizasyon & Yapı
   'TenantPaymentGatewayConfig',
   'Site',
   'Block',
   'Unit',
   'Resident',
   'UnitOccupancy',
+  'SiteStaff',
+  // Finansal
   'DuesDefinition',
   'Dues',
   'Payment',
   'PaymentAttempt',
   'PaymentProviderEvent',
   'LedgerEntry',
-  'ExportBatch',
-  'Notification',
   'Expense',
-  'Announcement',
-  'AuditLog',
   'CashAccount',
   'CashTransaction',
-  'SiteStaff',
+  'Vendor',
+  // Talep & Hukuki
+  'Ticket',
+  'TicketComment',
+  'LegalCase',
+  'LegalCaseEvent',
+  // Belge & Sozlesme
+  'Document',
+  'Contract',
+  // Iletisim & Bildirim
+  'CommunicationLog',
+  'Notification',
+  'NotificationPreference',
+  'Announcement',
+  // Tesis & Toplanti
+  'Facility',
+  'Meeting',
+  'MeetingDecision',
+  // Sistem
+  'ExportBatch',
+  'AuditLog',
 ])
 
 @Injectable()

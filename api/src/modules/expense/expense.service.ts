@@ -1,10 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { LedgerEntryType, LedgerReferenceType } from '@sakin/shared'
 import type { CreateExpenseDto, UpdateExpenseDto, ExpenseFilterDto } from '@sakin/shared'
+import { LedgerService } from '../ledger/ledger.service'
 
 @Injectable()
 export class ExpenseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ledgerService: LedgerService,
+  ) {}
 
   async create(dto: CreateExpenseDto, tenantId: string, userId: string) {
     const db = this.prisma.forTenant(tenantId)
@@ -12,9 +17,30 @@ export class ExpenseService {
     const site = await db.site.findFirst({ where: { id: dto.siteId } })
     if (!site) throw new NotFoundException('Site bulunamadı')
 
-    return db.expense.create({
-      data: { ...dto, tenantId, createdById: userId },
-      include: { site: { select: { name: true } } },
+    return this.prisma.$transaction(async (tx) => {
+      const expense = await tx.expense.create({
+        data: { ...dto, tenantId, createdById: userId },
+        include: { site: { select: { name: true } } },
+      })
+
+      await this.ledgerService.createEntry(
+        {
+          tenantId,
+          siteId: dto.siteId,
+          amount: -Number(dto.amount),
+          currency: 'TRY',
+          entryType: LedgerEntryType.EXPENSE,
+          referenceType: LedgerReferenceType.EXPENSE,
+          referenceId: expense.id,
+          idempotencyKey: `expense-${expense.id}`,
+          effectiveAt: new Date(dto.date),
+          createdByUserId: userId,
+          note: dto.description,
+        },
+        tx as unknown as PrismaService,
+      )
+
+      return expense
     })
   }
 

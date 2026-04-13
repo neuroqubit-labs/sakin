@@ -37,7 +37,7 @@ export class CashAccountService {
     if (filter.type) where['type'] = filter.type
     if (filter.isActive !== undefined) where['isActive'] = filter.isActive
 
-    const [data, total] = await Promise.all([
+    const [accounts, total] = await Promise.all([
       db.cashAccount.findMany({
         where,
         include: { site: { select: { name: true } } },
@@ -47,6 +47,13 @@ export class CashAccountService {
       }),
       db.cashAccount.count({ where }),
     ])
+
+    const data = await Promise.all(
+      accounts.map(async (account) => ({
+        ...account,
+        balance: await this.getBalance(account.id, tenantId),
+      })),
+    )
 
     return {
       data,
@@ -61,7 +68,8 @@ export class CashAccountService {
       include: { site: { select: { name: true } } },
     })
     if (!account) throw new NotFoundException('Kasa/banka hesabı bulunamadı')
-    return account
+    const balance = await this.getBalance(id, tenantId)
+    return { ...account, balance }
   }
 
   async update(id: string, dto: UpdateCashAccountDto, tenantId: string) {
@@ -80,32 +88,43 @@ export class CashAccountService {
     tenantId: string,
     userId: string,
   ) {
-    const account = await this.findOne(cashAccountId, tenantId)
+    await this.findOne(cashAccountId, tenantId)
     const db = this.prisma.forTenant(tenantId)
 
-    const balanceChange = dto.type === 'EXPENSE' ? -dto.amount : dto.amount
+    return db.cashTransaction.create({
+      data: {
+        tenantId,
+        cashAccountId,
+        amount: dto.amount,
+        type: dto.type,
+        referenceType: dto.referenceType,
+        referenceId: dto.referenceId,
+        description: dto.description,
+        transactionDate: dto.transactionDate,
+        createdById: userId,
+      },
+    })
+  }
 
-    const [transaction] = await Promise.all([
-      db.cashTransaction.create({
-        data: {
-          tenantId,
-          cashAccountId,
-          amount: dto.amount,
-          type: dto.type,
-          referenceType: dto.referenceType,
-          referenceId: dto.referenceId,
-          description: dto.description,
-          transactionDate: dto.transactionDate,
-          createdById: userId,
-        },
-      }),
-      db.cashAccount.update({
-        where: { id: cashAccountId },
-        data: { balance: { increment: balanceChange } },
-      }),
-    ])
-
-    return transaction
+  async getBalance(cashAccountId: string, tenantId: string): Promise<number> {
+    const db = this.prisma.forTenant(tenantId)
+    const result = await db.cashTransaction.aggregate({
+      where: { cashAccountId },
+      _sum: { amount: true },
+    })
+    // EXPENSE transactions are stored as positive amounts but represent outflows
+    // To get correct balance, we need to sum by type
+    const transactions = await db.cashTransaction.groupBy({
+      by: ['type'],
+      where: { cashAccountId },
+      _sum: { amount: true },
+    })
+    let balance = 0
+    for (const row of transactions) {
+      const amount = Number(row._sum.amount ?? 0)
+      balance += row.type === 'EXPENSE' ? -amount : amount
+    }
+    return balance
   }
 
   async findTransactions(
