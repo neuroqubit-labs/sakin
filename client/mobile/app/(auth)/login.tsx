@@ -10,19 +10,30 @@ import {
   Platform,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth'
+import { useAuthSession } from '@/contexts/auth-context'
+import { getFirebaseAuth, isFirebaseNativeAvailable } from '@/lib/firebase-auth'
+import { getDevBootstrap } from '@/lib/api'
 
 export default function LoginScreen() {
+  const showDevBypass = __DEV__
+  const { setSession } = useAuthSession()
   const [phoneNumber, setPhoneNumber] = useState('')
   const [code, setCode] = useState('')
-  const [confirm, setConfirm] = useState<FirebaseAuthTypes.ConfirmationResult | null>(null)
+  const [confirm, setConfirm] = useState<{ confirm: (code: string) => Promise<unknown> } | null>(
+    null,
+  )
   const [loading, setLoading] = useState(false)
 
   async function sendCode() {
     if (!phoneNumber.trim()) return
+    const auth = getFirebaseAuth()
+    if (!auth || !isFirebaseNativeAvailable()) {
+      Alert.alert('Bilgi', 'Expo Go ile native Firebase çalışmaz. Development build kullanın.')
+      return
+    }
     setLoading(true)
     try {
-      const confirmation = await auth().signInWithPhoneNumber(phoneNumber)
+      const confirmation = await auth.signInWithPhoneNumber(phoneNumber)
       setConfirm(confirmation)
     } catch {
       Alert.alert('Hata', 'SMS gönderilemedi. Numarayı kontrol edin.')
@@ -38,6 +49,27 @@ export default function LoginScreen() {
       await confirm.confirm(code)
     } catch {
       Alert.alert('Hata', 'Yanlış kod. Tekrar deneyin.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function signInWithDevBypass() {
+    setLoading(true)
+    try {
+      const bootstrap = await getDevBootstrap()
+      if (!bootstrap.ready || !bootstrap.tenantId) {
+        Alert.alert('Hata', bootstrap.message ?? 'Test tenant bulunamadı.')
+        return
+      }
+      setSession({
+        userId: 'dev-user',
+        tenantId: bootstrap.tenantId,
+        role: 'TENANT_ADMIN',
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Dev giriş başarısız.'
+      Alert.alert('Hata', message)
     } finally {
       setLoading(false)
     }
@@ -79,6 +111,15 @@ export default function LoginScreen() {
                   {loading ? 'Gönderiliyor…' : 'SMS Kodu Gönder'}
                 </Text>
               </TouchableOpacity>
+              {showDevBypass && (
+                <TouchableOpacity
+                  style={[styles.devButton, loading && styles.buttonDisabled]}
+                  onPress={() => void signInWithDevBypass()}
+                  disabled={loading}
+                >
+                  <Text style={styles.devButtonText}>Firebase olmadan test giriş</Text>
+                </TouchableOpacity>
+              )}
             </>
           ) : (
             <>
@@ -218,5 +259,19 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: 'rgba(255,255,255,0.5)',
     fontSize: 13,
+  },
+  devButton: {
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.12)',
+  },
+  devButtonText: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: 14,
+    fontWeight: '600',
   },
 })

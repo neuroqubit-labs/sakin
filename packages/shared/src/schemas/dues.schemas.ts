@@ -29,7 +29,15 @@ export const DuesFilterSchema = z.object({
   unitId: z.string().uuid().optional(),
   periodMonth: z.coerce.number().int().min(1).max(12).optional(),
   periodYear: z.coerce.number().int().optional(),
-  status: z.nativeEnum(DuesStatus).optional(),
+  status: z
+    .preprocess(
+      (val) =>
+        typeof val === 'string' && val.includes(',')
+          ? val.split(',').map((s) => s.trim())
+          : val,
+      z.union([z.nativeEnum(DuesStatus), z.array(z.nativeEnum(DuesStatus))]),
+    )
+    .optional(),
   search: z.string().min(1).max(100).optional(),
   dateFrom: z.coerce.date().optional(),
   dateTo: z.coerce.date().optional(),

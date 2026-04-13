@@ -1,19 +1,27 @@
 import { useEffect, useState, useRef, type ComponentType } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { View, ActivityIndicator } from 'react-native'
-import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth'
 import { AuthProvider, type AuthSession } from '@/contexts/auth-context'
 import { registerUser } from '@/lib/api'
+import { getFirebaseAuth, isFirebaseNativeAvailable } from '@/lib/firebase-auth'
+
+type FirebaseUser = { uid: string } | null
 
 function useAuth() {
-  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null)
+  const [user, setUser] = useState<FirebaseUser>(null)
   const [session, setSession] = useState<AuthSession | null>(null)
   const [loading, setLoading] = useState(true)
   // Track last registered uid to avoid re-registering on token refresh
   const registeredUid = useRef<string | null>(null)
 
   useEffect(() => {
-    const unsubscribe = auth().onAuthStateChanged(async (u) => {
+    const auth = getFirebaseAuth()
+    if (!auth || !isFirebaseNativeAvailable()) {
+      setLoading(false)
+      return
+    }
+
+    const unsubscribe = auth.onAuthStateChanged(async (u) => {
       setUser(u)
 
       if (u && u.uid !== registeredUid.current) {
@@ -36,11 +44,11 @@ function useAuth() {
     return unsubscribe
   }, [])
 
-  return { user, session, loading }
+  return { user, session, setSession, loading }
 }
 
 export default function RootLayout() {
-  const { user, session, loading } = useAuth()
+  const { user, session, setSession, loading } = useAuth()
   const segments = useSegments()
   const router = useRouter()
   const StackNavigator = Stack as unknown as ComponentType<any> & { Screen: ComponentType<any> }
@@ -50,12 +58,14 @@ export default function RootLayout() {
 
     const inAuthGroup = segments[0] === '(auth)'
 
-    if (!user && !inAuthGroup) {
+    const isAuthenticated = Boolean(user) || Boolean(session)
+
+    if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/login')
-    } else if (user && inAuthGroup) {
+    } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)')
     }
-  }, [user, loading, segments, router])
+  }, [user, session, loading, segments, router])
 
   if (loading) {
     return (
@@ -66,9 +76,9 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider session={session}>
+    <AuthProvider session={session} setSession={setSession}>
       <StackNavigator screenOptions={{ headerShown: false }}>
-        <StackNavigator.Screen name="(auth)" />
+        <StackNavigator.Screen name="(auth)/login" />
         <StackNavigator.Screen name="(tabs)" />
         <StackNavigator.Screen
           name="payment-history"

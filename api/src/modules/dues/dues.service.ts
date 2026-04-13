@@ -121,7 +121,11 @@ export class DuesService {
     if (effectiveUnitId) where['unitId'] = effectiveUnitId
     if (filter.periodMonth) where['periodMonth'] = filter.periodMonth
     if (filter.periodYear) where['periodYear'] = filter.periodYear
-    if (filter.status) where['status'] = filter.status
+    if (filter.status) {
+      where['status'] = Array.isArray(filter.status)
+        ? { in: filter.status }
+        : filter.status
+    }
     if (filter.dateFrom || filter.dateTo) {
       where['dueDate'] = {
         ...(filter.dateFrom ? { gte: filter.dateFrom } : {}),

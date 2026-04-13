@@ -1,16 +1,41 @@
-import auth from '@react-native-firebase/auth'
+import { getFirebaseAuth } from '@/lib/firebase-auth'
+import { NativeModules } from 'react-native'
 
 const expoApiUrl = (
   globalThis as { process?: { env?: Record<string, string | undefined> } }
 ).process?.env?.EXPO_PUBLIC_API_URL
-const BASE_URL = expoApiUrl ?? 'http://localhost:3001/api/v1'
+
+function resolveBaseUrl() {
+  const configured = expoApiUrl ?? 'http://localhost:3001/api/v1'
+
+  // Physical devices cannot reach backend via localhost; swap host with Metro host.
+  if (!configured.includes('localhost') && !configured.includes('127.0.0.1')) {
+    return configured
+  }
+
+  try {
+    const scriptURL = (NativeModules as { SourceCode?: { scriptURL?: string } }).SourceCode
+      ?.scriptURL
+    if (!scriptURL) return configured
+
+    const metroUrl = new URL(scriptURL)
+    const backendUrl = new URL(configured)
+    backendUrl.hostname = metroUrl.hostname
+    return backendUrl.toString()
+  } catch {
+    return configured
+  }
+}
+
+const BASE_URL = resolveBaseUrl()
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>
 }
 
 async function getToken(): Promise<string | null> {
-  const user = auth().currentUser
+  const auth = getFirebaseAuth()
+  const user = auth?.currentUser ?? null
   if (!user) return null
   try {
     return await user.getIdToken()
@@ -48,6 +73,9 @@ export async function apiClient<T>(
     if (tenantId) {
       headers['x-tenant-id'] = tenantId
     }
+  } else if (tenantId) {
+    // Development-only bypass handled by backend middleware.
+    headers['x-dev-tenant-id'] = tenantId
   }
 
   const response = await fetch(url, { ...fetchOptions, headers })
@@ -67,8 +95,17 @@ export interface RegisterResponse {
   role: string
 }
 
+export interface DevBootstrapResponse {
+  ready: boolean
+  tenantId?: string
+  tenantName?: string
+  tenantSlug?: string
+  message?: string
+}
+
 export async function registerUser(): Promise<RegisterResponse | null> {
-  const user = auth().currentUser
+  const auth = getFirebaseAuth()
+  const user = auth?.currentUser ?? null
   if (!user) return null
   const token = await user.getIdToken()
 
@@ -81,4 +118,8 @@ export async function registerUser(): Promise<RegisterResponse | null> {
   if (!response.ok) return null
   const json = (await response.json()) as { data: RegisterResponse }
   return json.data
+}
+
+export async function getDevBootstrap(): Promise<DevBootstrapResponse> {
+  return apiClient<DevBootstrapResponse>('/auth/dev-bootstrap')
 }

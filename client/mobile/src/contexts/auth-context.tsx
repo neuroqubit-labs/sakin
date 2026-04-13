@@ -8,14 +8,26 @@ export interface AuthSession {
 
 interface AuthContextValue {
   session: AuthSession | null
+  setSession: (session: AuthSession | null) => void
 }
 
-export const AuthContext = createContext<AuthContextValue>({ session: null })
+export const AuthContext = createContext<AuthContextValue>({
+  session: null,
+  setSession: () => undefined,
+})
 
 export function useAuthSession() {
   return useContext(AuthContext)
 }
 
-export function AuthProvider({ session, children }: { session: AuthSession | null; children: ReactNode }) {
-  return <AuthContext.Provider value={{ session }}>{children}</AuthContext.Provider>
+export function AuthProvider({
+  session,
+  setSession,
+  children,
+}: {
+  session: AuthSession | null
+  setSession: (session: AuthSession | null) => void
+  children: ReactNode
+}) {
+  return <AuthContext.Provider value={{ session, setSession }}>{children}</AuthContext.Provider>
 }
