@@ -9,6 +9,10 @@ import {
   LedgerEntryType,
   LedgerReferenceType,
   UserRole,
+  CashAccountType,
+  CashTransactionType,
+  CashReferenceType,
+  SiteStaffRole,
 } from '@prisma/client'
 import { randomUUID } from 'node:crypto'
 
@@ -927,6 +931,115 @@ async function main() {
           residentSeedVersion: 'tenant-ui-s1-p0',
         },
       },
+    })
+  }
+
+  // ── CashAccount seed ──
+  const cashAccount1 = await prisma.cashAccount.upsert({
+    where: { tenantId_siteId_name: { tenantId: tenant.id, siteId: site1.id, name: 'Site Kasası' } },
+    update: {},
+    create: {
+      tenantId: tenant.id,
+      siteId: site1.id,
+      name: 'Site Kasası',
+      type: CashAccountType.CASH,
+      balance: 3250,
+      currency: 'TRY',
+    },
+  })
+
+  const cashAccount2 = await prisma.cashAccount.upsert({
+    where: { tenantId_siteId_name: { tenantId: tenant.id, siteId: site1.id, name: 'Halkbank Hesabı' } },
+    update: {},
+    create: {
+      tenantId: tenant.id,
+      siteId: site1.id,
+      name: 'Halkbank Hesabı',
+      type: CashAccountType.BANK,
+      bankName: 'Halkbank',
+      iban: 'TR330006100519786457841326',
+      balance: 12800,
+      currency: 'TRY',
+    },
+  })
+
+  const existingCashTx = await prisma.cashTransaction.findFirst({
+    where: { tenantId: tenant.id, cashAccountId: cashAccount1.id },
+  })
+  if (!existingCashTx) {
+    await prisma.cashTransaction.create({
+      data: {
+        tenantId: tenant.id,
+        cashAccountId: cashAccount1.id,
+        amount: 3250,
+        type: CashTransactionType.INCOME,
+        referenceType: CashReferenceType.PAYMENT,
+        description: 'Nakit aidat tahsilatları',
+        transactionDate: new Date(),
+        createdById: adminUser.id,
+      },
+    })
+    await prisma.cashTransaction.create({
+      data: {
+        tenantId: tenant.id,
+        cashAccountId: cashAccount2.id,
+        amount: 12800,
+        type: CashTransactionType.INCOME,
+        referenceType: CashReferenceType.PAYMENT,
+        description: 'Banka havalesi ile aidat tahsilatları',
+        transactionDate: new Date(),
+        createdById: adminUser.id,
+      },
+    })
+    await prisma.cashTransaction.create({
+      data: {
+        tenantId: tenant.id,
+        cashAccountId: cashAccount2.id,
+        amount: 2400,
+        type: CashTransactionType.EXPENSE,
+        referenceType: CashReferenceType.EXPENSE,
+        description: 'Asansör bakım faturası',
+        transactionDate: new Date(),
+        createdById: adminUser.id,
+      },
+    })
+  }
+
+  // ── SiteStaff seed ──
+  const existingStaff = await prisma.siteStaff.findFirst({
+    where: { tenantId: tenant.id, siteId: site1.id },
+  })
+  if (!existingStaff) {
+    await prisma.siteStaff.createMany({
+      data: [
+        {
+          tenantId: tenant.id,
+          siteId: site1.id,
+          firstName: 'Hasan',
+          lastName: 'Yıldırım',
+          phoneNumber: '05391112233',
+          role: SiteStaffRole.SECURITY,
+          startDate: new Date(2025, 0, 15),
+        },
+        {
+          tenantId: tenant.id,
+          siteId: site1.id,
+          firstName: 'Aysel',
+          lastName: 'Kara',
+          phoneNumber: '05392223344',
+          role: SiteStaffRole.CLEANING,
+          startDate: new Date(2025, 2, 1),
+        },
+        {
+          tenantId: tenant.id,
+          siteId: site2.id,
+          firstName: 'Osman',
+          lastName: 'Güneş',
+          phoneNumber: '05393334455',
+          role: SiteStaffRole.MAINTENANCE,
+          startDate: new Date(2025, 5, 1),
+        },
+      ],
     })
   }
 

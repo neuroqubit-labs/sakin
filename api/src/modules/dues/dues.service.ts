@@ -18,6 +18,7 @@ import type {
 import { DuesStatus, DuesType, LedgerEntryType, LedgerReferenceType, PaymentStatus } from '@sakin/shared'
 import { LedgerService } from '../ledger/ledger.service'
 import { calculateDuesStatus, toMoneyNumber } from '../../common/finance/finance.utils'
+import { mapDuesRemainingByLedger } from '../../common/finance/ledger-balance.util'
 
 @Injectable()
 export class DuesService {
@@ -170,7 +171,7 @@ export class DuesService {
         paidMap.set(row.duesId, Number(row._sum.amount ?? 0))
       }
     })
-    const ledgerRemainingMap = await this.mapDuesRemainingByLedger(db, tenantId, duesIds)
+    const ledgerRemainingMap = await mapDuesRemainingByLedger(db, tenantId, duesIds)
 
     const data = rows.map((dues) => {
       const paidAmount = paidMap.get(dues.id) ?? 0
@@ -330,7 +331,7 @@ export class DuesService {
     const paidAmount = dues.payments
       .filter((payment) => payment.status === PaymentStatus.CONFIRMED)
       .reduce((sum, payment) => sum + Number(payment.amount), 0)
-    const ledgerRemainingMap = await this.mapDuesRemainingByLedger(db, tenantId, [dues.id])
+    const ledgerRemainingMap = await mapDuesRemainingByLedger(db, tenantId, [dues.id])
     const remainingFromLedger = ledgerRemainingMap.get(dues.id)
 
     return {
@@ -379,7 +380,7 @@ export class DuesService {
         )
       }
 
-      const ledgerRemainingMap = await this.mapDuesRemainingByLedger(tx as unknown as PrismaService, tenantId, [id])
+      const ledgerRemainingMap = await mapDuesRemainingByLedger(tx as unknown as PrismaService, tenantId, [id])
       const remaining = Math.max(0, ledgerRemainingMap.get(id) ?? Number(dto.amount ?? existing.amount))
       const paidAmount = Math.max(0, Number(dto.amount ?? existing.amount) - remaining)
       const nextStatus = calculateDuesStatus(
@@ -417,7 +418,7 @@ export class DuesService {
       throw new BadRequestException('Aidat zaten silinmiş (WAIVED) durumda')
     }
 
-    const remainingMap = await this.mapDuesRemainingByLedger(db, tenantId, [dues.id])
+    const remainingMap = await mapDuesRemainingByLedger(db, tenantId, [dues.id])
     const remaining = Math.max(0, remainingMap.get(dues.id) ?? Number(dues.amount))
 
     return this.prisma.$transaction(async (tx) => {
@@ -468,69 +469,4 @@ export class DuesService {
     return { updated: result.count }
   }
 
-  private async mapDuesRemainingByLedger(
-    db: ReturnType<PrismaService['forTenant']> | PrismaService,
-    tenantId: string,
-    duesIds: string[],
-  ) {
-    const remainingMap = new Map<string, number>()
-    if (duesIds.length === 0) return remainingMap
-
-    const [duesLinkedPayments, duesEntries] = await Promise.all([
-      db.payment.findMany({
-        where: {
-          tenantId,
-          duesId: { in: duesIds },
-          status: PaymentStatus.CONFIRMED,
-        },
-        select: { id: true, duesId: true },
-      }),
-      db.ledgerEntry.findMany({
-        where: {
-          tenantId,
-          OR: [
-            { referenceType: LedgerReferenceType.DUES, referenceId: { in: duesIds } },
-            { referenceType: LedgerReferenceType.WAIVER, referenceId: { in: duesIds } },
-            { referenceType: LedgerReferenceType.ADJUSTMENT, referenceId: { in: duesIds } },
-          ],
-        },
-        select: { referenceId: true, amount: true },
-      }),
-    ])
-
-    for (const entry of duesEntries) {
-      remainingMap.set(
-        entry.referenceId,
-        (remainingMap.get(entry.referenceId) ?? 0) + toMoneyNumber(entry.amount),
-      )
-    }
-
-    const paymentIdToDuesId = new Map<string, string>()
-    const paymentIds: string[] = []
-
-    for (const payment of duesLinkedPayments) {
-      if (!payment.duesId) continue
-      paymentIds.push(payment.id)
-      paymentIdToDuesId.set(payment.id, payment.duesId)
-    }
-
-    if (paymentIds.length > 0) {
-      const paymentEntries = await db.ledgerEntry.findMany({
-        where: {
-          tenantId,
-          referenceType: LedgerReferenceType.PAYMENT,
-          referenceId: { in: paymentIds },
-        },
-        select: { referenceId: true, amount: true },
-      })
-
-      for (const entry of paymentEntries) {
-        const dueId = paymentIdToDuesId.get(entry.referenceId)
-        if (!dueId) continue
-        remainingMap.set(dueId, (remainingMap.get(dueId) ?? 0) + toMoneyNumber(entry.amount))
-      }
-    }
-
-    return remainingMap
-  }
 }

@@ -28,7 +28,7 @@ export class AnnouncementService {
   async findAll(filter: AnnouncementFilterDto, tenantId: string) {
     const db = this.prisma.forTenant(tenantId)
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { deletedAt: null }
     if (filter.siteId) where['siteId'] = filter.siteId
     if (filter.publishedOnly) {
       where['publishedAt'] = { lte: new Date() }
@@ -54,7 +54,7 @@ export class AnnouncementService {
   async findOne(id: string, tenantId: string) {
     const db = this.prisma.forTenant(tenantId)
     const announcement = await db.announcement.findFirst({
-      where: { id },
+      where: { id, deletedAt: null },
       include: { site: true },
     })
     if (!announcement) throw new NotFoundException('Duyuru bulunamadı')
@@ -70,6 +70,6 @@ export class AnnouncementService {
   async delete(id: string, tenantId: string) {
     await this.findOne(id, tenantId)
     const db = this.prisma.forTenant(tenantId)
-    return db.announcement.delete({ where: { id } })
+    return db.announcement.update({ where: { id }, data: { deletedAt: new Date() } })
   }
 }

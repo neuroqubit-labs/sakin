@@ -21,7 +21,7 @@ export class ExpenseService {
   async findAll(filter: ExpenseFilterDto, tenantId: string) {
     const db = this.prisma.forTenant(tenantId)
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { deletedAt: null }
     if (filter.siteId) where['siteId'] = filter.siteId
     if (filter.category) where['category'] = filter.category
     if (filter.dateFrom || filter.dateTo) {
@@ -51,7 +51,7 @@ export class ExpenseService {
   async findOne(id: string, tenantId: string) {
     const db = this.prisma.forTenant(tenantId)
     const expense = await db.expense.findFirst({
-      where: { id },
+      where: { id, deletedAt: null },
       include: { site: true },
     })
     if (!expense) throw new NotFoundException('Gider kaydı bulunamadı')
@@ -67,6 +67,6 @@ export class ExpenseService {
   async delete(id: string, tenantId: string) {
     await this.findOne(id, tenantId)
     const db = this.prisma.forTenant(tenantId)
-    return db.expense.delete({ where: { id } })
+    return db.expense.update({ where: { id }, data: { deletedAt: new Date() } })
   }
 }

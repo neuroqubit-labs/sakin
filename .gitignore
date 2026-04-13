@@ -57,3 +57,4 @@ packages/database/src/**/*.js.map
 
 # Prisma temp investigation scripts
 packages/database/prisma/.tmp-*
+.vercel

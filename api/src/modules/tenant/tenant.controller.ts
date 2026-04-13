@@ -13,6 +13,14 @@ import { UserRole } from '@sakin/shared'
 export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 
+  @Get('users')
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @ApiOperation({ summary: 'Tenant kullanıcılarını listele (TENANT_ADMIN, STAFF)' })
+  listUsers(@Tenant() ctx: TenantContext) {
+    if (!ctx.tenantId) throw new ForbiddenException('Bu endpoint tenant kullanıcıları içindir')
+    return this.tenantService.listUsers(ctx.tenantId)
+  }
+
   @Get('me')
   @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
   @ApiOperation({ summary: "Kendi tenant bilgilerini getir" })

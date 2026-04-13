@@ -147,8 +147,7 @@ sakin/
 │   └── platform/         # Next.js 15 — SUPER_ADMIN paneli
 ├── packages/
 │   ├── database/         # Prisma 6, PostgreSQL (@sakin/database)
-│   ├── shared/           # Zod şemaları, tipler, enum'lar (@sakin/shared)
-│   └── ui/               # shadcn/ui bileşenler (@sakin/ui)
+│   └── shared/           # Zod şemaları, tipler, enum'lar (@sakin/shared)
 └── doc/                  # İş alanı dokümanları
 ```
 
@@ -226,6 +225,27 @@ Request → TenantMiddleware (Firebase → tenantId+role) → Controller → Ser
 ### Faz 3
 - [ ] Raporlama (tahsilat oranı, aging, site bazlı mali durum)
 - [ ] Self-serve SaaS onboarding
+
+---
+
+## Dokümantasyon
+
+`doc/` altında 10 referans doküman bulunur. Geliştirme öncesi mutlaka okunmalı.
+
+| # | Doküman | Kapsam |
+|---|---------|--------|
+| 01 | MIMARI-GENEL-BAKIS | Sistem mimarisi, multi-tenant, request akışı |
+| 02 | KIMLIK-DOGRULAMA-VE-YETKILENDIRME | Auth, guard, rol matrisi |
+| 03 | VERITABANI-SEMASI | Domain modelleri, iş kuralları |
+| 04 | ODEME-SISTEMI | iyzico, ödeme akışları, ledger |
+| 05 | API-TASARIMI | Endpoint konvansiyonları, modül detayları |
+| 06 | FRONTEND-MIMARISI | Admin, platform, mobile yapıları |
+| 07 | TENANT-YASAM-DONGUSU | Onboarding, plan, konfigürasyon |
+| 08 | OZELLIK-YOL-HARITASI | Faz planı, müşteri eşleştirmesi |
+| 09 | ZAMANLANMIS-ISLER-VE-ENTEGRASYONLAR | Cron, webhook, dış servisler |
+| 10 | GELISTIRME-KILAVUZU | Setup, konvansiyonlar, deploy |
+
+Ek: `doc/role-access-policy.md` (rol erişim matrisi), `doc/customer-expectations/` (müşteri beklenti analizi)
 
 ---
 

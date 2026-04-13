@@ -2,52 +2,99 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import type { AdminNavItem } from '@/lib/access-policy'
+import { LogOut } from 'lucide-react'
+import type { AdminNavGroup, AdminNavItem } from '@/lib/access-policy'
+import { useAuth } from '@/providers/auth-provider'
 
 interface SidebarNavProps {
   title: string
-  items: AdminNavItem[]
+  mainGroups: AdminNavGroup[]
+  bottomItems: AdminNavItem[]
 }
 
-export function SidebarNav({ title, items }: SidebarNavProps) {
+export function SidebarNav({ title, mainGroups, bottomItems }: SidebarNavProps) {
   const pathname = usePathname()
+  const { signOut } = useAuth()
+
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`)
 
   return (
-    <aside className="hidden lg:flex w-72 ledger-sidebar flex-col">
-      <div className="px-6 pt-6 pb-5">
+    <aside className="hidden lg:flex w-64 flex-col border-r border-white/60 ledger-glass">
+      {/* Logo */}
+      <div className="px-5 pt-5 pb-4">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg ledger-gradient text-white text-sm font-bold grid place-items-center">SY</div>
+          <div className="h-8 w-8 rounded-lg bg-[#0c1427] text-white text-xs font-bold grid place-items-center">
+            S
+          </div>
           <div>
-            <h1 className="text-base font-bold tracking-tight text-[#0c1427] leading-tight">Sakin Yönetim</h1>
-            <p className="text-[11px] text-[#6e7882] mt-1 font-medium">{title}</p>
+            <h1 className="text-sm font-semibold text-[#0c1427] leading-tight">Sakin</h1>
+            <p className="text-[11px] text-[#6b7280] leading-tight">{title}</p>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 px-3 pb-4 space-y-1.5">
-        {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+      {/* Main navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 pb-2">
+        {mainGroups.map((group) => (
+          <div key={group.label ?? '_root'} className="mb-1">
+            {group.label && (
+              <p className="px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#9ca3af]">
+                {group.label}
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const active = isActive(item.href)
+                const Icon = item.icon
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                      active
+                        ? 'bg-[#0c1427] text-white'
+                        : 'text-[#4b5563] hover:bg-[#f0f0f0] hover:text-[#0c1427]'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      {/* Bottom section — settings, users, logout */}
+      <div className="border-t border-[#e5e7eb] px-3 py-3 space-y-0.5">
+        {bottomItems.map((item) => {
+          const active = isActive(item.href)
+          const Icon = item.icon
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`ledger-nav-item ${active ? 'ledger-nav-item-active' : ''}`}
+              className={`flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                active
+                  ? 'bg-[#0c1427] text-white'
+                  : 'text-[#4b5563] hover:bg-[#f0f0f0] hover:text-[#0c1427]'
+              }`}
             >
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-white/20 text-xs font-bold">
-                {item.icon ?? '--'}
-              </span>
+              <Icon className="h-4 w-4 shrink-0" />
               <span>{item.label}</span>
             </Link>
           )
         })}
-      </nav>
-
-      <div className="px-4 pb-4">
-        <div className="ledger-gradient-soft rounded-lg p-3 text-white shadow-[0_10px_22px_rgba(12,20,39,0.18)]">
-          <p className="text-[10px] uppercase tracking-[0.15em] opacity-75">Çalışma Modu</p>
-          <p className="text-xs font-semibold mt-1">Hızlı Tahsilat ve Operasyon</p>
-          <p className="text-[11px] opacity-80 mt-2">Yoğun finans takibi için optimize edildi.</p>
-        </div>
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="w-full flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] font-medium text-[#4b5563] hover:bg-[#fee2e2] hover:text-[#ba1a1a] transition-colors"
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          <span>Çıkış Yap</span>
+        </button>
       </div>
     </aside>
   )

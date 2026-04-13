@@ -9,12 +9,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const session = decodeSession(cookieStore.get('sakin-session')?.value ?? '')
   const role = (session?.role ?? null) as UserRoleType | null
 
-  if (!role) {
+  if (!role || role === UserRole.SUPER_ADMIN) {
     redirect('/login')
-  }
-
-  if (role === UserRole.SUPER_ADMIN) {
-    redirect(process.env['NEXT_PUBLIC_PLATFORM_URL'] ?? 'http://localhost:3002')
   }
 
   return <DashboardShell role={role}>{children}</DashboardShell>

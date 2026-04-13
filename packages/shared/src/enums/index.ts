@@ -145,3 +145,28 @@ export enum PlanType {
   PROFESSIONAL = 'PROFESSIONAL',
   ENTERPRISE = 'ENTERPRISE',
 }
+
+export enum CashAccountType {
+  CASH = 'CASH',
+  BANK = 'BANK',
+}
+
+export enum CashTransactionType {
+  INCOME = 'INCOME',
+  EXPENSE = 'EXPENSE',
+  TRANSFER = 'TRANSFER',
+}
+
+export enum CashReferenceType {
+  PAYMENT = 'PAYMENT',
+  EXPENSE = 'EXPENSE',
+  MANUAL = 'MANUAL',
+}
+
+export enum SiteStaffRole {
+  CLEANING = 'CLEANING',
+  SECURITY = 'SECURITY',
+  MAINTENANCE = 'MAINTENANCE',
+  MANAGEMENT = 'MANAGEMENT',
+  OTHER = 'OTHER',
+}

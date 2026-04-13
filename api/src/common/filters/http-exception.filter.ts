@@ -49,6 +49,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
       ...(details !== undefined && { details }),
     }
 
+    // Fastify + NestJS: httpAdapter.reply raw socket'e yazar ve Fastify hook header'larını kaybeder.
+    // CORS header'ları her error response'ta olması için raw response'a ekle.
+    const rawResponse = response?.raw ?? response
+    if (rawResponse && typeof rawResponse.setHeader === 'function') {
+      const allowedOrigin = process.env['CORS_ORIGIN'] ?? 'http://localhost:3000'
+      const reqOrigin = (request as unknown as { headers?: Record<string, string> }).headers?.['origin']
+      if (reqOrigin === allowedOrigin) {
+        rawResponse.setHeader('access-control-allow-origin', allowedOrigin)
+        rawResponse.setHeader('access-control-allow-credentials', 'true')
+      }
+    }
+
     this.httpAdapterHost.httpAdapter.reply(response, body, statusCode)
 
     this.logger.warn(`${request.method} ${request.url} → ${statusCode}`)

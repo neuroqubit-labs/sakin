@@ -29,14 +29,13 @@ export function middleware(request: NextRequest) {
     const session = JSON.parse(atob(sessionCookie.value)) as { role?: UserRole }
     const role = session.role ?? null
 
-    // SUPER_ADMIN yalnızca platform uygulamasına yönlendirilsin.
+    // SUPER_ADMIN bu panelde işlem yapamaz — login'e yönlendir
     if (role === UserRole.SUPER_ADMIN) {
-      return NextResponse.redirect(new URL(process.env['NEXT_PUBLIC_PLATFORM_URL'] ?? 'http://localhost:3002', request.url))
+      return NextResponse.redirect(new URL('/login', request.url))
     }
 
     if (!hasRouteAccess(pathname, role)) {
-      const fallback = role === UserRole.STAFF ? '/work' : '/dashboard'
-      return NextResponse.redirect(new URL(fallback, request.url))
+      return NextResponse.redirect(new URL('/dashboard', request.url))
     }
   } catch {
     return NextResponse.redirect(new URL('/login', request.url))

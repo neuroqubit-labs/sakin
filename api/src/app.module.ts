@@ -20,6 +20,8 @@ import { LedgerModule } from './modules/ledger/ledger.module'
 import { ExportModule } from './modules/export/export.module'
 import { OccupancyModule } from './modules/occupancy/occupancy.module'
 import { NotificationModule } from './modules/notification/notification.module'
+import { CashAccountModule } from './modules/cash-account/cash-account.module'
+import { SiteStaffModule } from './modules/site-staff/site-staff.module'
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { NotificationModule } from './modules/notification/notification.module'
     ExpenseModule,
     AnnouncementModule,
     NotificationModule,
+    CashAccountModule,
+    SiteStaffModule,
   ],
   providers: [
     {

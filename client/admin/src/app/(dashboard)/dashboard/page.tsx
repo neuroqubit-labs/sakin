@@ -1,13 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { apiClient } from '@/lib/api'
-import { useSiteContext } from '@/providers/site-provider'
-import { StaffKpiCard, StaffPageHeader, StaffStatusPill } from '@/components/staff-surface'
-import { duesStatusLabel, duesStatusTone, formatShortDate, formatTry, paymentMethodLabel } from '@/lib/work-presenters'
-import { workQuery } from '@/lib/work-query'
+import { AlertTriangle, ArrowRight, CheckCircle, ChevronRight, TrendingDown } from 'lucide-react'
 import { DuesStatus } from '@sakin/shared'
+import { useApiQuery } from '@/hooks/use-api'
+import { useSiteContext } from '@/providers/site-provider'
+import { KpiCard, PageHeader, StatusPill } from '@/components/surface'
+import { duesStatusLabel, duesStatusTone, formatShortDate, formatTry, paymentMethodLabel } from '@/lib/formatters'
+import { buildFilterParams } from '@/lib/query-params'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { PaymentCollectModal } from '@/components/payment-collect-modal'
+import type { LucideIcon } from 'lucide-react'
 
 interface WorkSummaryResponse {
   kpi: {
@@ -62,14 +67,7 @@ interface PortfolioResponse {
 }
 
 interface ReconciliationSummary {
-  totals: {
-    confirmedAmount: number
-  }
-}
-
-interface TrendWindow {
-  current: number
-  previous: number
+  totals: { confirmedAmount: number }
 }
 
 function trendDelta(current: number, previous: number): number {
@@ -77,221 +75,200 @@ function trendDelta(current: number, previous: number): number {
   return Math.round(((current - previous) / previous) * 100)
 }
 
+function getDateRange(daysAgo: number, daysEnd: number) {
+  const now = new Date()
+  const from = new Date(now)
+  from.setDate(now.getDate() - daysAgo)
+  const to = new Date(now)
+  to.setDate(now.getDate() - daysEnd)
+  return { from: from.toISOString(), to: to.toISOString() }
+}
+
+interface CollectTarget {
+  duesId: string
+  unitNumber: string
+  siteName: string
+  residentName: string | null
+  remainingAmount: number
+}
+
 export default function DashboardPage() {
   const { selectedSiteId, setSelectedSiteId, availableSites, hydrated, error: siteError } = useSiteContext()
-  const [summary, setSummary] = useState<WorkSummaryResponse | null>(null)
-  const [portfolio, setPortfolio] = useState<PortfolioResponse[]>([])
-  const [weeklyTrend, setWeeklyTrend] = useState<TrendWindow>({ current: 0, previous: 0 })
-  const [monthlyTrend, setMonthlyTrend] = useState<TrendWindow>({ current: 0, previous: 0 })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [collectTarget, setCollectTarget] = useState<CollectTarget | null>(null)
 
-  useEffect(() => {
-    if (!hydrated) return
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const now = new Date()
-        const weekStart = new Date(now)
-        weekStart.setDate(now.getDate() - 7)
-        const prevWeekStart = new Date(now)
-        prevWeekStart.setDate(now.getDate() - 14)
-        const prevWeekEnd = new Date(now)
-        prevWeekEnd.setDate(now.getDate() - 7)
+  const summaryParams = buildFilterParams({ siteId: selectedSiteId ?? undefined })
 
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-        const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-        const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1)
+  const { data: summary, isLoading: summaryLoading } = useApiQuery<WorkSummaryResponse>(
+    ['work-summary', { siteId: selectedSiteId }],
+    '/tenant/work-summary',
+    summaryParams,
+    { enabled: hydrated },
+  )
 
-        const [summaryData, portfolioData, weekCurrent, weekPrev, monthCurrent, monthPrev] = await Promise.all([
-          apiClient<WorkSummaryResponse>('/tenant/work-summary', {
-            params: workQuery({ siteId: selectedSiteId ?? undefined }),
-          }),
-          apiClient<PortfolioResponse[]>('/tenant/work-portfolio'),
-          apiClient<ReconciliationSummary>('/payments/reconciliation-summary', {
-            params: workQuery({
-              siteId: selectedSiteId ?? undefined,
-              dateFrom: weekStart.toISOString(),
-              dateTo: now.toISOString(),
-            }),
-          }),
-          apiClient<ReconciliationSummary>('/payments/reconciliation-summary', {
-            params: workQuery({
-              siteId: selectedSiteId ?? undefined,
-              dateFrom: prevWeekStart.toISOString(),
-              dateTo: prevWeekEnd.toISOString(),
-            }),
-          }),
-          apiClient<ReconciliationSummary>('/payments/reconciliation-summary', {
-            params: workQuery({
-              siteId: selectedSiteId ?? undefined,
-              dateFrom: monthStart.toISOString(),
-              dateTo: now.toISOString(),
-            }),
-          }),
-          apiClient<ReconciliationSummary>('/payments/reconciliation-summary', {
-            params: workQuery({
-              siteId: selectedSiteId ?? undefined,
-              dateFrom: prevMonthStart.toISOString(),
-              dateTo: prevMonthEnd.toISOString(),
-            }),
-          }),
-        ])
-        setSummary(summaryData)
-        setPortfolio(portfolioData)
-        setWeeklyTrend({
-          current: weekCurrent.totals.confirmedAmount,
-          previous: weekPrev.totals.confirmedAmount,
-        })
-        setMonthlyTrend({
-          current: monthCurrent.totals.confirmedAmount,
-          previous: monthPrev.totals.confirmedAmount,
-        })
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Veri yüklenemedi')
-      } finally {
-        setLoading(false)
-      }
+  const { data: portfolio = [] } = useApiQuery<PortfolioResponse[]>(
+    ['portfolio'],
+    '/tenant/work-portfolio',
+    undefined,
+    { enabled: hydrated },
+  )
+
+  // Weekly trend
+  const weekRange = getDateRange(7, 0)
+  const prevWeekRange = getDateRange(14, 7)
+
+  const { data: weekCurrent } = useApiQuery<ReconciliationSummary>(
+    ['reconciliation-week', { siteId: selectedSiteId }],
+    '/payments/reconciliation-summary',
+    buildFilterParams({ siteId: selectedSiteId ?? undefined, dateFrom: weekRange.from, dateTo: weekRange.to }),
+    { enabled: hydrated },
+  )
+
+  const { data: weekPrev } = useApiQuery<ReconciliationSummary>(
+    ['reconciliation-prev-week', { siteId: selectedSiteId }],
+    '/payments/reconciliation-summary',
+    buildFilterParams({ siteId: selectedSiteId ?? undefined, dateFrom: prevWeekRange.from, dateTo: prevWeekRange.to }),
+    { enabled: hydrated },
+  )
+
+  // Monthly trend
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
+  const prevMonthEnd = monthStart
+
+  const { data: monthCurrent } = useApiQuery<ReconciliationSummary>(
+    ['reconciliation-month', { siteId: selectedSiteId }],
+    '/payments/reconciliation-summary',
+    buildFilterParams({ siteId: selectedSiteId ?? undefined, dateFrom: monthStart, dateTo: now.toISOString() }),
+    { enabled: hydrated },
+  )
+
+  const { data: monthPrev } = useApiQuery<ReconciliationSummary>(
+    ['reconciliation-prev-month', { siteId: selectedSiteId }],
+    '/payments/reconciliation-summary',
+    buildFilterParams({ siteId: selectedSiteId ?? undefined, dateFrom: prevMonthStart, dateTo: prevMonthEnd }),
+    { enabled: hydrated },
+  )
+
+  const portfolioHighRisk = portfolio.filter((s) => s.riskLevel === 'HIGH')
+  const portfolioMediumRisk = portfolio.filter((s) => s.riskLevel === 'MEDIUM')
+  const topDebtors = (summary?.debtors ?? []).slice().sort((a, b) => b.remainingAmount - a.remainingAmount).slice(0, 6)
+
+  const weeklyDelta = trendDelta(weekCurrent?.totals.confirmedAmount ?? 0, weekPrev?.totals.confirmedAmount ?? 0)
+  const monthlyDelta = trendDelta(monthCurrent?.totals.confirmedAmount ?? 0, monthPrev?.totals.confirmedAmount ?? 0)
+
+  interface ActionSuggestion {
+    text: string
+    href: string
+    icon: LucideIcon
+    tone: 'danger' | 'warning' | 'neutral'
+  }
+
+  const actions = useMemo((): ActionSuggestion[] => {
+    if (!summary) return []
+    const items: ActionSuggestion[] = []
+    if (summary.kpi.overdueCount > 0) {
+      items.push({
+        text: `${summary.kpi.overdueCount} gecikmiş kayıt için tahsilat takibi başlatın.`,
+        href: '/dues?status=OVERDUE',
+        icon: AlertTriangle,
+        tone: 'danger',
+      })
     }
-    void load()
-  }, [hydrated, selectedSiteId])
+    if (portfolioHighRisk.length > 0) {
+      items.push({
+        text: `${portfolioHighRisk.length} site yüksek riskte, tahsilat ve politika gözden geçirmesi yapın.`,
+        href: '/sites',
+        icon: AlertTriangle,
+        tone: 'warning',
+      })
+    }
+    if (weeklyDelta < 0) {
+      items.push({
+        text: `Haftalık tahsilat ivmesi %${Math.abs(weeklyDelta)} düştü, ödeme kampanyası planlayın.`,
+        href: '/reports',
+        icon: TrendingDown,
+        tone: 'warning',
+      })
+    }
+    if (items.length === 0) {
+      items.push({
+        text: 'Kritik risk görünmüyor, politika ve rapor denetimini rutin takvimde sürdürün.',
+        href: '/reports',
+        icon: CheckCircle,
+        tone: 'neutral',
+      })
+    }
+    return items.slice(0, 3)
+  }, [summary, portfolioHighRisk.length, weeklyDelta])
 
   if (siteError) {
     return <p className="text-sm text-red-600">{siteError}</p>
   }
 
-  const portfolioHighRisk = useMemo(
-    () => portfolio.filter((site) => site.riskLevel === 'HIGH'),
-    [portfolio],
-  )
-  const portfolioMediumRisk = useMemo(
-    () => portfolio.filter((site) => site.riskLevel === 'MEDIUM'),
-    [portfolio],
-  )
-  const topDebtors = useMemo(
-    () => (summary?.debtors ?? []).slice().sort((a, b) => b.remainingAmount - a.remainingAmount).slice(0, 6),
-    [summary],
-  )
-  const weeklyDelta = trendDelta(weeklyTrend.current, weeklyTrend.previous)
-  const monthlyDelta = trendDelta(monthlyTrend.current, monthlyTrend.previous)
-
-  const actions = useMemo(() => {
-    if (!summary) return []
-    const items: string[] = []
-    if (summary.kpi.overdueCount > 0) {
-      items.push(`${summary.kpi.overdueCount} gecikmis kayit icin tahsilat follow-up baslatin.`)
-    }
-    if (portfolioHighRisk.length > 0) {
-      items.push(`${portfolioHighRisk.length} site yuksek riskte, tahsilat ve policy gozdencirmesi yapin.`)
-    }
-    if (weeklyDelta < 0) {
-      items.push(`Haftalik tahsilat ivmesi %${Math.abs(weeklyDelta)} dustu, odeme kampanyasi planlayin.`)
-    }
-    if (items.length === 0) {
-      items.push('Kritik risk gorunmuyor, policy ve rapor denetimini rutin takvimde surdurun.')
-    }
-    return items.slice(0, 3)
-  }, [summary, portfolioHighRisk.length, weeklyDelta])
-
   return (
     <div className="space-y-6">
-      <StaffPageHeader
-        title="Yönetim Dashboard"
-        subtitle="Tenant seviyesinde executive karar panosu."
-        actions={(
+      <PageHeader
+        title="Genel Bakış"
+        subtitle="Günlük durum özeti ve aksiyon takibi."
+        actions={
           <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={selectedSiteId ?? ''}
-              onChange={(e) => setSelectedSiteId(e.target.value)}
-              disabled={!hydrated || availableSites.length === 0}
-              className="ledger-input bg-white min-w-52"
-            >
-              {availableSites.length === 0 ? (
-                <option value="">Bina bulunamadi</option>
-              ) : (
-                availableSites.map((site) => (
-                  <option key={site.id} value={site.id}>
-                    {site.name} ({site.city})
-                  </option>
-                ))
-              )}
-            </select>
-            <Link href="/work" className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white">
-              İş Merkezi
+            <Link href="/payments">
+              <Button size="sm">Tahsilatlar</Button>
             </Link>
           </div>
-        )}
+        }
       />
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {loading && <p className="text-sm text-[#6b7280]">Yükleniyor...</p>}
-
-      {!loading && summary && (
+      {/* KPI Row 1 */}
+      {summaryLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          <StaffKpiCard
-            label="Site Sayısı"
-            value={portfolio.length || availableSites.length}
-          />
-          <StaffKpiCard
-            label="Toplam Açık Borç"
-            value={formatTry(summary.kpi.totalDebt)}
-          />
-          <StaffKpiCard
-            label="Tahsilat Oranı"
-            value={`%${summary.kpi.collectionRate}`}
-            railPercent={summary.kpi.collectionRate}
-          />
-          <StaffKpiCard
-            label="Gecikmiş Kayıt"
-            value={summary.kpi.overdueCount}
-          />
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
         </div>
-      )}
+      ) : summary ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <KpiCard label="Site Sayısı" value={portfolio.length || availableSites.length} />
+          <KpiCard label="Toplam Açık Borç" value={formatTry(summary.kpi.totalDebt)} />
+          <KpiCard label="Tahsilat Oranı" value={`%${summary.kpi.collectionRate}`} railPercent={summary.kpi.collectionRate} />
+          <KpiCard label="Gecikmiş Kayıt" value={summary.kpi.overdueCount} />
+        </div>
+      ) : null}
 
-      {!loading && summary && (
+      {/* KPI Row 2 - Trends */}
+      {summary && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <StaffKpiCard
-            label="Haftalik Tahsilat Trendi"
-            value={formatTry(weeklyTrend.current)}
-            hint={`Gecen haftaya gore ${weeklyDelta >= 0 ? '+' : ''}%${weeklyDelta}`}
-            railPercent={Math.min(100, Math.max(0, weeklyDelta >= 0 ? 50 + weeklyDelta : 50 - Math.abs(weeklyDelta)))}
+          <KpiCard
+            label="Haftalık Tahsilat"
+            value={formatTry(weekCurrent?.totals.confirmedAmount ?? 0)}
+            hint={`Geçen haftaya göre ${weeklyDelta >= 0 ? '+' : ''}%${weeklyDelta}`}
           />
-          <StaffKpiCard
-            label="Aylik Tahsilat Trendi"
-            value={formatTry(monthlyTrend.current)}
-            hint={`Gecen aya gore ${monthlyDelta >= 0 ? '+' : ''}%${monthlyDelta}`}
-            railPercent={Math.min(100, Math.max(0, monthlyDelta >= 0 ? 50 + monthlyDelta : 50 - Math.abs(monthlyDelta)))}
+          <KpiCard
+            label="Aylık Tahsilat"
+            value={formatTry(monthCurrent?.totals.confirmedAmount ?? 0)}
+            hint={`Geçen aya göre ${monthlyDelta >= 0 ? '+' : ''}%${monthlyDelta}`}
           />
-          <StaffKpiCard
-            label="Yuksek Riskli Site"
-            value={portfolioHighRisk.length}
-            hint={portfolioMediumRisk.length > 0 ? `${portfolioMediumRisk.length} orta riskli site var` : 'Orta riskli site yok'}
-          />
-          <StaffKpiCard
-            label="Acik Borc Islem Sayisi"
-            value={summary.alerts.openDebtItems}
-            hint={`${summary.alerts.highPriorityDebtors} yuksek oncelikli kayit`}
-          />
+          <KpiCard label="Yüksek Riskli Site" value={portfolioHighRisk.length} hint={`${portfolioMediumRisk.length} orta riskli`} />
+          <KpiCard label="Açık Borç İşlem" value={summary.alerts.openDebtItems} hint={`${summary.alerts.highPriorityDebtors} yüksek öncelikli`} />
         </div>
       )}
 
-      {!loading && portfolio.length > 0 && (
+      {/* Portfolio Risk Panel */}
+      {portfolio.length > 0 && (
         <div className="ledger-panel overflow-hidden">
           <div className="px-5 py-4 bg-[#f2f4f6]">
-            <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Portfoy Risk Paneli</h2>
+            <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Portföy Risk Paneli</h2>
           </div>
           <div className="ledger-divider">
             {portfolio.map((site) => (
               <div key={site.id} className="px-5 py-3 flex items-center justify-between ledger-table-row-hover">
                 <div>
                   <p className="text-sm font-semibold text-[#0c1427]">{site.name}</p>
-                  <p className="text-xs text-[#6b7280] mt-0.5">{site.city} • Tahsilat %{site.collectionRate} • {formatTry(site.totalDebt)} acik borc</p>
+                  <p className="text-xs text-[#6b7280] mt-0.5">{site.city} · Tahsilat %{site.collectionRate} · {formatTry(site.totalDebt)} açık borç</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-[#6b7280] tabular-nums">{site.totalUnits} daire</span>
-                  <StaffStatusPill
-                    label={site.riskLevel === 'HIGH' ? 'Yuksek Risk' : site.riskLevel === 'MEDIUM' ? 'Orta Risk' : 'Dusuk Risk'}
+                  <StatusPill
+                    label={site.riskLevel === 'HIGH' ? 'Yüksek Risk' : site.riskLevel === 'MEDIUM' ? 'Orta Risk' : 'Düşük Risk'}
                     tone={site.riskLevel === 'HIGH' ? 'danger' : site.riskLevel === 'MEDIUM' ? 'warning' : 'success'}
                   />
                 </div>
@@ -301,40 +278,71 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {!loading && summary && (
+      {/* Bottom Grid: Debtors + Actions + Recent Payments */}
+      {summary && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="ledger-panel overflow-hidden">
             <div className="px-5 py-4 bg-[#f2f4f6]">
-              <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Top Borclu Liste</h2>
+              <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">En Borçlu Daireler</h2>
             </div>
             <div className="ledger-divider">
               {topDebtors.map((row) => (
                 <div key={row.id} className="px-5 py-3 flex items-center justify-between ledger-table-row-hover">
-                  <div>
+                  <Link href={`/units/${row.id}`} className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-[#0c1427]">{row.siteName} / {row.unitNumber}</p>
                     <p className="text-xs text-[#6b7280] mt-0.5">
-                      {row.residentName ?? 'Sorumlu atanmamis'} • Vade: {formatShortDate(row.dueDate)} • {row.overdueDays} gun
+                      {row.residentName ?? 'Sorumlu atanmamış'} · Vade: {formatShortDate(row.dueDate)} · {row.overdueDays} gün
                     </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-[#0c1427]">{formatTry(row.remainingAmount)}</p>
-                    <StaffStatusPill label={duesStatusLabel(row.status)} tone={duesStatusTone(row.status)} />
+                  </Link>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-[#0c1427]">{formatTry(row.remainingAmount)}</p>
+                      <StatusPill label={duesStatusLabel(row.status)} tone={duesStatusTone(row.status)} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCollectTarget({
+                        duesId: row.duesId,
+                        unitNumber: row.unitNumber,
+                        siteName: row.siteName,
+                        residentName: row.residentName,
+                        remainingAmount: row.remainingAmount,
+                      })}
+                      className="px-2.5 py-1.5 rounded-md bg-[#006e2d] text-white text-[11px] font-bold uppercase tracking-tight hover:bg-[#005a24] transition-colors"
+                    >
+                      Tahsil Et
+                    </button>
                   </div>
                 </div>
               ))}
-              {topDebtors.length === 0 && <p className="px-5 py-5 text-sm text-[#6b7280]">Acik borc kaydi bulunamadi.</p>}
+              {topDebtors.length === 0 && <p className="px-5 py-5 text-sm text-[#6b7280]">Açık borç kaydı bulunamadı.</p>}
             </div>
           </div>
 
           <div className="space-y-4">
             <div className="ledger-panel overflow-hidden">
               <div className="px-5 py-4 bg-[#f2f4f6]">
-                <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Aksiyon Onerileri</h2>
+                <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Aksiyon Önerileri</h2>
               </div>
-              <div className="p-4 space-y-2">
-                {actions.map((item) => (
-                  <div key={item} className="rounded-md bg-[#f8f9fb] px-3 py-2 text-sm text-[#0c1427]">{item}</div>
-                ))}
+              <div className="p-3 space-y-1.5">
+                {actions.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <Link
+                      key={item.text}
+                      href={item.href}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[#0c1427] hover:bg-[#f2f4f6] transition-colors group"
+                    >
+                      <Icon className={`h-4 w-4 shrink-0 ${
+                        item.tone === 'danger' ? 'text-[#ba1a1a]' :
+                        item.tone === 'warning' ? 'text-[#8a4b00]' :
+                        'text-[#006e2d]'
+                      }`} />
+                      <span className="flex-1">{item.text}</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-[#9ca3af] group-hover:text-[#0c1427] transition-colors" />
+                    </Link>
+                  )
+                })}
               </div>
             </div>
 
@@ -347,7 +355,7 @@ export default function DashboardPage() {
                   <div key={payment.id} className="px-5 py-3 flex items-center justify-between ledger-table-row-hover">
                     <div>
                       <p className="text-sm font-semibold text-[#0c1427]">{payment.siteName} / {payment.unitNumber}</p>
-                      <p className="text-xs text-[#6b7280] mt-0.5">{payment.residentName ?? 'Bilinmeyen'} • {paymentMethodLabel(payment.method)}</p>
+                      <p className="text-xs text-[#6b7280] mt-0.5">{payment.residentName ?? 'Bilinmeyen'} · {paymentMethodLabel(payment.method)}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-[#0c1427]">{formatTry(payment.amount)}</p>
@@ -355,12 +363,25 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
-                {summary.recentPayments.length === 0 && <p className="px-5 py-5 text-sm text-[#6b7280]">Tahsilat kaydi yok.</p>}
+                {summary.recentPayments.length === 0 && <p className="px-5 py-5 text-sm text-[#6b7280]">Tahsilat kaydı yok.</p>}
               </div>
             </div>
           </div>
         </div>
       )}
+
+      <PaymentCollectModal
+        open={!!collectTarget}
+        onClose={() => setCollectTarget(null)}
+        initialDuesId={collectTarget?.duesId}
+        presetAmount={collectTarget?.remainingAmount}
+        context={collectTarget ? {
+          unitNumber: collectTarget.unitNumber,
+          siteName: collectTarget.siteName,
+          residentName: collectTarget.residentName ?? undefined,
+          totalDebt: collectTarget.remainingAmount,
+        } : undefined}
+      />
     </div>
   )
 }

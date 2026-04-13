@@ -17,20 +17,35 @@ import { initializeFirebase } from './modules/auth/firebase.init'
 async function bootstrap() {
   initializeFirebase()
 
+  const corsOrigin = process.env['CORS_ORIGIN'] ?? 'http://localhost:3000'
+
+  const adapter = new FastifyAdapter({ logger: process.env['NODE_ENV'] !== 'production' })
+
+  // Fastify hook ile tüm response'lara CORS header ekle
+  // NestJS middleware exception'ları dahil — hiçbir response CORS header'sız çıkmaz
+  adapter.getInstance().addHook('onRequest', async (request, reply) => {
+    const origin = request.headers['origin']
+    if (origin === corsOrigin) {
+      reply.header('access-control-allow-origin', corsOrigin)
+      reply.header('access-control-allow-credentials', 'true')
+    }
+
+    // Preflight
+    if (request.method === 'OPTIONS') {
+      reply.header('access-control-allow-methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS')
+      reply.header('access-control-allow-headers', request.headers['access-control-request-headers'] ?? '*')
+      reply.status(204).send()
+    }
+  })
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: process.env['NODE_ENV'] !== 'production' }),
+    adapter,
     { rawBody: true },
   )
 
   // Global prefix
   app.setGlobalPrefix('api/v1')
-
-  // CORS
-  app.enableCors({
-    origin: process.env['CORS_ORIGIN'] ?? 'http://localhost:3000',
-    credentials: true,
-  })
 
   // Global filters & interceptors
   const httpAdapterHost = app.get(HttpAdapterHost)

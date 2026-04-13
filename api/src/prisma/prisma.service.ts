@@ -19,6 +19,9 @@ const TENANT_SCOPED_MODELS = new Set([
   'Expense',
   'Announcement',
   'AuditLog',
+  'CashAccount',
+  'CashTransaction',
+  'SiteStaff',
 ])
 
 @Injectable()

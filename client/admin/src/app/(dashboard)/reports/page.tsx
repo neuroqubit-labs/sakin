@@ -1,12 +1,17 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { FileDown } from 'lucide-react'
+import { ExportType, ExportStatus, PaymentMethod, PaymentStatus } from '@sakin/shared'
+import { useApiQuery, useApiMutation } from '@/hooks/use-api'
 import { apiClient } from '@/lib/api'
+import { toastSuccess, toastError } from '@/lib/toast'
 import { useSiteContext } from '@/providers/site-provider'
 import { useAuth } from '@/providers/auth-provider'
-import { ExportType, ExportStatus, PaymentMethod, PaymentStatus } from '@sakin/shared'
-import { StaffPageHeader } from '@/components/staff-surface'
-import { formatDateTime } from '@/lib/work-presenters'
+import { PageHeader } from '@/components/surface'
+import { EmptyState } from '@/components/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
+import { formatDateTime } from '@/lib/formatters'
 
 const EXPORT_TYPE_LABELS: Record<ExportType, string> = {
   [ExportType.COLLECTIONS]: 'Tahsilat',
@@ -68,7 +73,7 @@ interface ReportPreset {
   build: (siteId: string | null) => Omit<SavedFilter, 'id' | 'name'>
 }
 
-function downloadCsv(csv: string, filename: string) {
+function triggerCsvDownload(csv: string, filename: string) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -91,16 +96,8 @@ export default function ReportsPage() {
   const [filterSiteId, setFilterSiteId] = useState<string>('')
   const [status, setStatus] = useState<'' | PaymentStatus>('')
   const [method, setMethod] = useState<'' | PaymentMethod>('')
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
 
-  // History state
-  const [batches, setBatches] = useState<ExportBatch[]>([])
-  const [historyLoading, setHistoryLoading] = useState(true)
-  const [historyError, setHistoryError] = useState<string | null>(null)
-
-  // Saved filters
+  // Saved filters (localStorage)
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([])
   const [saveName, setSaveName] = useState('')
 
@@ -108,6 +105,29 @@ export default function ReportsPage() {
     () => `reports_saved_filters:${tenantId ?? 'anonymous'}`,
     [tenantId],
   )
+
+  // Batch history via React Query
+  const { data: batchesResponse, isLoading: historyLoading, refetch: refetchHistory } = useApiQuery<BatchListResponse>(
+    ['export-batches'],
+    '/exports/batches',
+    undefined,
+    { enabled: hydrated },
+  )
+  const batches = batchesResponse?.data ?? []
+
+  // Create export mutation
+  const exportMutation = useApiMutation<CreateBatchResponse, { type: ExportType; filters: Record<string, string> }>('/exports/batches', {
+    invalidateKeys: [['export-batches']],
+    onSuccess: async (batch) => {
+      try {
+        const download = await apiClient<DownloadResponse>(`/exports/batches/${batch.id}/download`)
+        triggerCsvDownload(download.csv, download.filename)
+        toastSuccess(`${download.rowCount} kayıt dışa aktarıldı.`)
+      } catch (err) {
+        toastError(err instanceof Error ? err : 'CSV indirme başarısız')
+      }
+    },
+  })
 
   const presets = useMemo<ReportPreset[]>(() => {
     const now = new Date()
@@ -121,8 +141,8 @@ export default function ReportsPage() {
     return [
       {
         id: 'collections-month',
-        label: 'Aylik Tahsilat',
-        description: 'Bu ay onayli tahsilat odakli rapor',
+        label: 'Aylık Tahsilat',
+        description: 'Bu ay onaylı tahsilat odaklı rapor',
         type: ExportType.COLLECTIONS,
         build: (siteId) => ({
           type: ExportType.COLLECTIONS,
@@ -135,8 +155,8 @@ export default function ReportsPage() {
       },
       {
         id: 'collections-week-overdue',
-        label: '7 Gunluk Bekleyen',
-        description: 'Son 7 gun bekleyen banka transferleri',
+        label: '7 Günlük Bekleyen',
+        description: 'Son 7 gün bekleyen banka transferleri',
         type: ExportType.COLLECTIONS,
         build: (siteId) => ({
           type: ExportType.COLLECTIONS,
@@ -149,8 +169,8 @@ export default function ReportsPage() {
       },
       {
         id: 'collections-prev-month',
-        label: 'Gecen Ay Tahsilat',
-        description: 'Gecen ay kapanis mutabakati',
+        label: 'Geçen Ay Tahsilat',
+        description: 'Geçen ay kapanış mutabakatı',
         type: ExportType.COLLECTIONS,
         build: (siteId) => ({
           type: ExportType.COLLECTIONS,
@@ -163,8 +183,8 @@ export default function ReportsPage() {
       },
       {
         id: 'dues-month',
-        label: 'Aylik Aidat Tahakkuk',
-        description: 'Bu ay aidat/tahakkuk gorunumu',
+        label: 'Aylık Aidat Tahakkuk',
+        description: 'Bu ay aidat/tahakkuk görünümü',
         type: ExportType.DUES,
         build: (siteId) => ({
           type: ExportType.DUES,
@@ -178,11 +198,7 @@ export default function ReportsPage() {
     ]
   }, [])
 
-  useEffect(() => {
-    if (!hydrated) return
-    void loadHistory()
-  }, [hydrated])
-
+  // localStorage persistence for saved filters
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
@@ -200,63 +216,29 @@ export default function ReportsPage() {
     localStorage.setItem(storageKey, JSON.stringify(savedFilters))
   }, [storageKey, savedFilters])
 
-  async function loadHistory() {
-    setHistoryLoading(true)
-    setHistoryError(null)
-    try {
-      const data = await apiClient<BatchListResponse>('/exports/batches')
-      setBatches(data.data)
-    } catch (e) {
-      setHistoryError(e instanceof Error ? e.message : 'Export geçmişi yüklenemedi')
-    } finally {
-      setHistoryLoading(false)
-    }
-  }
+  // Pre-fill site from context
+  useEffect(() => {
+    if (selectedSiteId && !filterSiteId) setFilterSiteId(selectedSiteId)
+  }, [selectedSiteId, filterSiteId])
 
-  async function handleExport() {
-    setCreating(true)
-    setCreateError(null)
-    setMessage(null)
-    try {
-      const filters: Record<string, string> = {}
-      if (filterSiteId) filters['siteId'] = filterSiteId
-      if (dateFrom) filters['dateFrom'] = dateFrom
-      if (dateTo) filters['dateTo'] = dateTo
-      if (status && type === ExportType.COLLECTIONS) filters['status'] = status
-      if (method && type === ExportType.COLLECTIONS) filters['method'] = method
-
-      const batch = await apiClient<CreateBatchResponse>('/exports/batches', {
-        method: 'POST',
-        body: JSON.stringify({ type, filters }),
-      })
-
-      // Immediately download the generated CSV
-      const download = await apiClient<DownloadResponse>(`/exports/batches/${batch.id}/download`)
-      downloadCsv(download.csv, download.filename)
-      setMessage(`${download.rowCount} kayit export edildi.`)
-
-      // Refresh history
-      void loadHistory()
-    } catch (e) {
-      setCreateError(e instanceof Error ? e.message : 'Export oluşturulamadı')
-    } finally {
-      setCreating(false)
-    }
+  function handleExport() {
+    const filters: Record<string, string> = {}
+    if (filterSiteId) filters['siteId'] = filterSiteId
+    if (dateFrom) filters['dateFrom'] = dateFrom
+    if (dateTo) filters['dateTo'] = dateTo
+    if (status && type === ExportType.COLLECTIONS) filters['status'] = status
+    if (method && type === ExportType.COLLECTIONS) filters['method'] = method
+    exportMutation.mutate({ type, filters })
   }
 
   async function handleDownload(batchId: string, filename: string) {
     try {
       const download = await apiClient<DownloadResponse>(`/exports/batches/${batchId}/download`)
-      downloadCsv(download.csv, filename ?? download.filename)
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'İndirme başarısız')
+      triggerCsvDownload(download.csv, filename ?? download.filename)
+    } catch (err) {
+      toastError(err instanceof Error ? err : 'İndirme başarısız')
     }
   }
-
-  // Pre-fill site selector with current context
-  useEffect(() => {
-    if (selectedSiteId && !filterSiteId) setFilterSiteId(selectedSiteId)
-  }, [selectedSiteId])
 
   function applyFilter(filter: Omit<SavedFilter, 'id' | 'name'> | SavedFilter) {
     setType(filter.type)
@@ -282,7 +264,7 @@ export default function ReportsPage() {
     }
     setSavedFilters((prev) => [next, ...prev].slice(0, 20))
     setSaveName('')
-    setMessage(`Filtre kaydedildi: ${name}`)
+    toastSuccess(`Filtre kaydedildi: ${name}`)
   }
 
   function removeSavedFilter(id: string) {
@@ -291,20 +273,20 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <StaffPageHeader
-        title="Raporlar & Export"
-        subtitle="Preset paketleri, kaydedilmis filtreler ve export yonetimi."
+      <PageHeader
+        title="Raporlar"
+        subtitle="Hazır şablonlar, kaydedilmiş filtreler ve dışa aktarım yönetimi."
       />
 
       <div className="ledger-panel p-5 space-y-4">
-        <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Hazir Preset Paketleri</h2>
+        <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Hazır Şablonlar</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
           {presets.map((preset) => (
             <button
               key={preset.id}
               type="button"
               onClick={() => applyFilter(preset.build(selectedSiteId))}
-              className="text-left rounded-md bg-[#f2f4f6] px-3 py-3 hover:bg-[#e6e8ea]"
+              className="text-left rounded-md bg-[#f2f4f6] px-3 py-3 hover:bg-[#e6e8ea] transition-colors"
             >
               <p className="text-sm font-semibold text-[#0c1427]">{preset.label}</p>
               <p className="text-xs text-[#6b7280] mt-1">{preset.description}</p>
@@ -315,105 +297,69 @@ export default function ReportsPage() {
 
       {/* Export Form */}
       <div className="ledger-panel p-5 space-y-4">
-        <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Yeni Export</h2>
+        <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Yeni Dışa Aktarım</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="space-y-1">
-            <label className="ledger-label">Export Türü</label>
-            <select
-              className="ledger-input w-full"
-              value={type}
-              onChange={(e) => setType(e.target.value as ExportType)}
-            >
+            <label className="ledger-label">Rapor Türü</label>
+            <select className="ledger-input w-full" value={type} onChange={(e) => setType(e.target.value as ExportType)}>
               {Object.values(ExportType).map((t) => (
                 <option key={t} value={t}>{EXPORT_TYPE_LABELS[t]}</option>
               ))}
             </select>
           </div>
-
           <div className="space-y-1">
             <label className="ledger-label">Başlangıç Tarihi</label>
-            <input
-              type="date"
-              className="ledger-input w-full"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
+            <input type="date" className="ledger-input w-full" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           </div>
-
           <div className="space-y-1">
             <label className="ledger-label">Bitiş Tarihi</label>
-            <input
-              type="date"
-              className="ledger-input w-full"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
+            <input type="date" className="ledger-input w-full" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </div>
-
           <div className="space-y-1">
             <label className="ledger-label">Site (opsiyonel)</label>
-            <select
-              className="ledger-input w-full"
-              value={filterSiteId}
-              onChange={(e) => setFilterSiteId(e.target.value)}
-            >
+            <select className="ledger-input w-full" value={filterSiteId} onChange={(e) => setFilterSiteId(e.target.value)}>
               <option value="">Tüm Siteler</option>
               {availableSites.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           </div>
-
           <div className="space-y-1">
-            <label className="ledger-label">Odeme Durumu (Collections)</label>
-            <select
-              className="ledger-input w-full"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as '' | PaymentStatus)}
-              disabled={type !== ExportType.COLLECTIONS}
-            >
-              <option value="">Tum Durumlar</option>
-              <option value={PaymentStatus.PENDING}>PENDING</option>
-              <option value={PaymentStatus.CONFIRMED}>CONFIRMED</option>
-              <option value={PaymentStatus.FAILED}>FAILED</option>
-              <option value={PaymentStatus.CANCELLED}>CANCELLED</option>
-              <option value={PaymentStatus.REFUNDED}>REFUNDED</option>
+            <label className="ledger-label">Ödeme Durumu (Tahsilat)</label>
+            <select className="ledger-input w-full" value={status} onChange={(e) => setStatus(e.target.value as '' | PaymentStatus)} disabled={type !== ExportType.COLLECTIONS}>
+              <option value="">Tüm Durumlar</option>
+              <option value={PaymentStatus.PENDING}>Bekliyor</option>
+              <option value={PaymentStatus.CONFIRMED}>Onaylandı</option>
+              <option value={PaymentStatus.FAILED}>Başarısız</option>
+              <option value={PaymentStatus.CANCELLED}>İptal Edildi</option>
+              <option value={PaymentStatus.REFUNDED}>İade Edildi</option>
             </select>
           </div>
-
           <div className="space-y-1">
-            <label className="ledger-label">Odeme Yontemi (Collections)</label>
-            <select
-              className="ledger-input w-full"
-              value={method}
-              onChange={(e) => setMethod(e.target.value as '' | PaymentMethod)}
-              disabled={type !== ExportType.COLLECTIONS}
-            >
-              <option value="">Tum Yontemler</option>
-              <option value={PaymentMethod.ONLINE_CARD}>ONLINE_CARD</option>
-              <option value={PaymentMethod.BANK_TRANSFER}>BANK_TRANSFER</option>
-              <option value={PaymentMethod.CASH}>CASH</option>
+            <label className="ledger-label">Ödeme Yöntemi (Tahsilat)</label>
+            <select className="ledger-input w-full" value={method} onChange={(e) => setMethod(e.target.value as '' | PaymentMethod)} disabled={type !== ExportType.COLLECTIONS}>
+              <option value="">Tüm Yöntemler</option>
+              <option value={PaymentMethod.ONLINE_CARD}>Online Kart</option>
+              <option value={PaymentMethod.BANK_TRANSFER}>Banka Transferi</option>
+              <option value={PaymentMethod.CASH}>Nakit</option>
               <option value={PaymentMethod.POS}>POS</option>
             </select>
           </div>
         </div>
 
-        {createError && <p className="text-sm text-red-600">{createError}</p>}
-        {message && <p className="text-sm text-green-700">{message}</p>}
-
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => void handleExport()}
-            disabled={creating}
+            onClick={handleExport}
+            disabled={exportMutation.isPending}
             className="px-4 py-2 rounded-md ledger-gradient text-white text-sm font-semibold disabled:opacity-50"
           >
-            {creating ? 'Hazırlanıyor...' : 'CSV Dışa Aktar'}
+            {exportMutation.isPending ? 'Hazırlanıyor...' : 'CSV Dışa Aktar'}
           </button>
           <input
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
-            placeholder="Filtre adi (ornek: Haftalik Tahsilat)"
+            placeholder="Filtre adı (örnek: Haftalık Tahsilat)"
             className="ledger-input min-w-72 bg-white"
           />
           <button
@@ -428,9 +374,9 @@ export default function ReportsPage() {
       </div>
 
       <div className="ledger-panel p-5 space-y-3">
-        <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Kaydedilmis Filtreler</h2>
+        <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Kaydedilmiş Filtreler</h2>
         {savedFilters.length === 0 && (
-          <p className="text-sm text-[#6b7280]">Henuz kaydedilmis filtre yok.</p>
+          <p className="text-sm text-[#6b7280]">Henüz kaydedilmiş filtre yok.</p>
         )}
         {savedFilters.length > 0 && (
           <div className="space-y-2">
@@ -439,7 +385,7 @@ export default function ReportsPage() {
                 <div>
                   <p className="text-sm font-semibold text-[#0c1427]">{item.name}</p>
                   <p className="text-xs text-[#6b7280]">
-                    {EXPORT_TYPE_LABELS[item.type]} • {item.dateFrom || '-'} / {item.dateTo || '-'} • {item.filterSiteId ? 'Site filtreli' : 'Tum siteler'}
+                    {EXPORT_TYPE_LABELS[item.type]} • {item.dateFrom || '-'} / {item.dateTo || '-'} • {item.filterSiteId ? 'Site filtreli' : 'Tüm siteler'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -467,20 +413,25 @@ export default function ReportsPage() {
       {/* Export History */}
       <div className="ledger-panel overflow-hidden">
         <div className="px-5 py-4 bg-[#f2f4f6] flex items-center justify-between">
-          <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Export Geçmişi</h2>
+          <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Dışa Aktarım Geçmişi</h2>
           <button
-            onClick={() => void loadHistory()}
+            onClick={() => void refetchHistory()}
             className="text-xs text-[#6b7280] hover:text-[#0c1427]"
           >
             Yenile
           </button>
         </div>
 
-        {historyError && <p className="p-4 text-sm text-red-600">{historyError}</p>}
-        {historyLoading && <p className="p-4 text-sm text-[#6b7280]">Yükleniyor...</p>}
+        {historyLoading && Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="px-5 py-3"><Skeleton className="h-10 w-full" /></div>
+        ))}
 
         {!historyLoading && batches.length === 0 && (
-          <p className="p-5 text-sm text-[#6b7280]">Henüz export yapılmamış.</p>
+          <EmptyState
+            icon={FileDown}
+            title="Henüz dışa aktarım yok"
+            description="İlk raporunuzu yukarıdaki formdan oluşturun."
+          />
         )}
 
         {!historyLoading && batches.length > 0 && (

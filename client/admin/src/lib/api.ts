@@ -1,6 +1,13 @@
 import { auth } from './firebase'
 
-const BASE_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001/api/v1'
+export const BASE_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001/api/v1'
+
+export class ApiError extends Error {
+  constructor(message: string, public readonly statusCode: number) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
 const DEV_TENANT_ID_KEY = 'dev_tenant_id'
 const SESSION_COOKIE_KEY = 'sakin-session'
 
@@ -25,8 +32,7 @@ function getDevTenantIdFromSessionCookie(): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE_KEY}=([^;]+)`))
   if (!match?.[1]) return null
   try {
-    const parsed = JSON.parse(atob(match[1])) as { tenantId?: string | null; role?: string }
-    if (parsed.role === 'SUPER_ADMIN') return 'super'
+    const parsed = JSON.parse(atob(match[1])) as { tenantId?: string | null }
     return parsed.tenantId ?? null
   } catch {
     return null
@@ -69,7 +75,7 @@ export async function apiClient<T>(
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
   } else if (isDevBypassEnabled() && devTenantId) {
-    if (typeof window !== 'undefined' && getDevTenantId() !== devTenantId && devTenantId !== 'super') {
+    if (typeof window !== 'undefined' && getDevTenantId() !== devTenantId) {
       setDevTenantId(devTenantId)
     }
     headers['x-dev-tenant-id'] = devTenantId
@@ -78,8 +84,16 @@ export async function apiClient<T>(
   const response = await fetch(url, { ...fetchOptions, headers })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Bilinmeyen hata' }))
-    throw new Error((error as { message: string }).message ?? 'API hatası')
+    // 401 → session geçersiz, login'e yönlendir
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.location.href = '/login'
+      return undefined as never
+    }
+
+    const body = await response.json().catch(() => ({ message: 'Bilinmeyen hata' }))
+    const message = (body as { message: string }).message ?? 'API hatası'
+    const error = new ApiError(message, response.status)
+    throw error
   }
 
   const json = await response.json() as { data: T }

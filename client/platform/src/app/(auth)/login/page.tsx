@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-import { Button } from '@sakin/ui'
+import { Button } from '@/components/ui/button'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')

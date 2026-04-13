@@ -3,10 +3,40 @@ import { PrismaService } from '../../prisma/prisma.service'
 import type { UpdateTenantDto, UpsertTenantGatewayConfigDto } from '@sakin/shared'
 import { DuesStatus, LedgerEntryType, LedgerReferenceType, PaymentStatus } from '@sakin/shared'
 import { normalizeDebt, toMoneyNumber } from '../../common/finance/finance.utils'
+import { mapDuesRemainingByLedger } from '../../common/finance/ledger-balance.util'
 
 @Injectable()
 export class TenantService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async listUsers(tenantId: string) {
+    const roles = await this.prisma.userTenantRole.findMany({
+      where: { tenantId, isActive: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            phoneNumber: true,
+            displayName: true,
+            isActive: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    return roles.map((r) => ({
+      id: r.user.id,
+      email: r.user.email,
+      phoneNumber: r.user.phoneNumber,
+      displayName: r.user.displayName,
+      isActive: r.user.isActive,
+      role: r.role,
+      createdAt: r.user.createdAt,
+    }))
+  }
 
   async findMe(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({
@@ -17,7 +47,19 @@ export class TenantService {
       },
     })
     if (!tenant) throw new NotFoundException('Tenant bulunamadı')
-    return tenant
+
+    const unitCount = await this.prisma.site.aggregate({
+      where: { tenantId },
+      _sum: { totalUnits: true },
+    })
+
+    return {
+      ...tenant,
+      _count: {
+        ...tenant._count,
+        units: unitCount._sum.totalUnits ?? 0,
+      },
+    }
   }
 
   async updateMe(tenantId: string, dto: UpdateTenantDto) {
@@ -173,7 +215,8 @@ export class TenantService {
     const collectionRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0
 
     const nowMs = Date.now()
-    const ledgerRemainingMap = await this.mapDuesRemainingByLedger(
+    const ledgerRemainingMap = await mapDuesRemainingByLedger(
+      this.prisma,
       tenantId,
       debtors.map((due) => due.id),
     )
@@ -366,66 +409,4 @@ export class TenantService {
     return rows
   }
 
-  private async mapDuesRemainingByLedger(tenantId: string, duesIds: string[]) {
-    const remainingMap = new Map<string, number>()
-    if (duesIds.length === 0) return remainingMap
-
-    const [duesEntries, duesPayments] = await Promise.all([
-      this.prisma.ledgerEntry.findMany({
-        where: {
-          tenantId,
-          OR: [
-            { referenceType: LedgerReferenceType.DUES, referenceId: { in: duesIds } },
-            { referenceType: LedgerReferenceType.WAIVER, referenceId: { in: duesIds } },
-            { referenceType: LedgerReferenceType.ADJUSTMENT, referenceId: { in: duesIds } },
-          ],
-        },
-        select: { referenceId: true, amount: true },
-      }),
-      this.prisma.payment.findMany({
-        where: {
-          tenantId,
-          duesId: { in: duesIds },
-          status: PaymentStatus.CONFIRMED,
-        },
-        select: { id: true, duesId: true },
-      }),
-    ])
-
-    for (const entry of duesEntries) {
-      remainingMap.set(
-        entry.referenceId,
-        (remainingMap.get(entry.referenceId) ?? 0) + toMoneyNumber(entry.amount),
-      )
-    }
-
-    if (duesPayments.length === 0) return remainingMap
-
-    const paymentIdToDuesId = new Map<string, string>()
-    const paymentIds: string[] = []
-    for (const payment of duesPayments) {
-      if (!payment.duesId) continue
-      paymentIdToDuesId.set(payment.id, payment.duesId)
-      paymentIds.push(payment.id)
-    }
-
-    if (paymentIds.length === 0) return remainingMap
-
-    const paymentEntries = await this.prisma.ledgerEntry.findMany({
-      where: {
-        tenantId,
-        referenceType: LedgerReferenceType.PAYMENT,
-        referenceId: { in: paymentIds },
-      },
-      select: { referenceId: true, amount: true },
-    })
-
-    for (const entry of paymentEntries) {
-      const dueId = paymentIdToDuesId.get(entry.referenceId)
-      if (!dueId) continue
-      remainingMap.set(dueId, (remainingMap.get(dueId) ?? 0) + toMoneyNumber(entry.amount))
-    }
-
-    return remainingMap
-  }
 }

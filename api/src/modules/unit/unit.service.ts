@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import type { CreateUnitDto, UpdateUnitDto, UnitFilterDto, CreateBlockDto } from '@sakin/shared'
 import { DuesStatus, LedgerReferenceType, PaymentStatus } from '@sakin/shared'
 import { toMoneyNumber } from '../../common/finance/finance.utils'
+import { mapDuesRemainingByLedger } from '../../common/finance/ledger-balance.util'
 
 @Injectable()
 export class UnitService {
@@ -174,7 +175,7 @@ export class UnitService {
         where: { unitId: id },
         _sum: { amount: true },
       }),
-      this.mapDuesRemainingByLedger(
+      mapDuesRemainingByLedger(
         db,
         tenantId,
         unit.dues.map((dues) => dues.id),
@@ -209,10 +210,10 @@ export class UnitService {
   async softDelete(id: string, tenantId: string) {
     await this.findOne(id, tenantId)
 
-    const openDues = await this.prisma.dues.count({
+    const db = this.prisma.forTenant(tenantId)
+    const openDues = await db.dues.count({
       where: {
         unitId: id,
-        tenantId,
         status: { in: [DuesStatus.PENDING, DuesStatus.OVERDUE, DuesStatus.PARTIALLY_PAID] },
       },
     })
@@ -220,7 +221,6 @@ export class UnitService {
       throw new ConflictException(`Bu dairenin ${openDues} adet açık aidatı var. Silmeden önce kapatın.`)
     }
 
-    const db = this.prisma.forTenant(tenantId)
     return db.unit.update({ where: { id }, data: { isActive: false } })
   }
 
@@ -254,69 +254,4 @@ export class UnitService {
     })
   }
 
-  private async mapDuesRemainingByLedger(
-    db: ReturnType<PrismaService['forTenant']>,
-    tenantId: string,
-    duesIds: string[],
-  ) {
-    const remainingMap = new Map<string, number>()
-    if (duesIds.length === 0) return remainingMap
-
-    const [duesLinkedPayments, duesEntries] = await Promise.all([
-      db.payment.findMany({
-        where: {
-          tenantId,
-          duesId: { in: duesIds },
-          status: PaymentStatus.CONFIRMED,
-        },
-        select: { id: true, duesId: true },
-      }),
-      db.ledgerEntry.findMany({
-        where: {
-          tenantId,
-          OR: [
-            { referenceType: LedgerReferenceType.DUES, referenceId: { in: duesIds } },
-            { referenceType: LedgerReferenceType.WAIVER, referenceId: { in: duesIds } },
-            { referenceType: LedgerReferenceType.ADJUSTMENT, referenceId: { in: duesIds } },
-          ],
-        },
-        select: { referenceId: true, amount: true },
-      }),
-    ])
-
-    for (const entry of duesEntries) {
-      remainingMap.set(
-        entry.referenceId,
-        (remainingMap.get(entry.referenceId) ?? 0) + toMoneyNumber(entry.amount),
-      )
-    }
-
-    const paymentIdToDuesId = new Map<string, string>()
-    const paymentIds: string[] = []
-
-    for (const payment of duesLinkedPayments) {
-      if (!payment.duesId) continue
-      paymentIds.push(payment.id)
-      paymentIdToDuesId.set(payment.id, payment.duesId)
-    }
-
-    if (paymentIds.length > 0) {
-      const paymentEntries = await db.ledgerEntry.findMany({
-        where: {
-          tenantId,
-          referenceType: LedgerReferenceType.PAYMENT,
-          referenceId: { in: paymentIds },
-        },
-        select: { referenceId: true, amount: true },
-      })
-
-      for (const entry of paymentEntries) {
-        const dueId = paymentIdToDuesId.get(entry.referenceId)
-        if (!dueId) continue
-        remainingMap.set(dueId, (remainingMap.get(dueId) ?? 0) + toMoneyNumber(entry.amount))
-      }
-    }
-
-    return remainingMap
-  }
 }

@@ -12,11 +12,14 @@
   },
   "dependencies": {
     "@sakin/shared": "workspace:*",
-    "@sakin/ui": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "firebase": "^11.2.0",
+    "lucide-react": "^0.474.0",
     "next": "^15.1.6",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",

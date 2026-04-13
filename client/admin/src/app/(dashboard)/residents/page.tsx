@@ -1,11 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { StaffPageHeader } from '@/components/staff-surface'
+import { useMemo, useState } from 'react'
+import { Users } from 'lucide-react'
+import { ResidentType, UserRole } from '@sakin/shared'
+import { useApiQuery, useApiMutation } from '@/hooks/use-api'
 import { apiClient } from '@/lib/api'
+import { toastSuccess, toastError } from '@/lib/toast'
 import { useSiteContext } from '@/providers/site-provider'
 import { useAuth } from '@/providers/auth-provider'
-import { ResidentType, UserRole } from '@sakin/shared'
+import { PageHeader } from '@/components/surface'
+import { EmptyState } from '@/components/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface ResidentItem {
   id: string
@@ -51,11 +56,7 @@ interface DryRunRow {
 }
 
 interface DryRunResponse {
-  summary: {
-    totalRows: number
-    validRows: number
-    invalidRows: number
-  }
+  summary: { totalRows: number; validRows: number; invalidRows: number }
   preview: DryRunRow[]
   exceededPreviewLimit: boolean
 }
@@ -65,65 +66,74 @@ export default function ResidentsPage() {
   const { role } = useAuth()
   const isTenantAdmin = role === UserRole.TENANT_ADMIN
 
-  const [items, setItems] = useState<ResidentItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
+  // Filter state
   const [search, setSearch] = useState('')
+  const [committedSearch, setCommittedSearch] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'passive'>('all')
   const [typeFilter, setTypeFilter] = useState<'all' | ResidentType>('all')
   const [page, setPage] = useState(1)
-  const [meta, setMeta] = useState<ResidentListResponse['meta'] | null>(null)
 
+  // Selection state
   const [selected, setSelected] = useState<string[]>([])
+
+  // Bulk update form
   const [bulkIsActive, setBulkIsActive] = useState<'none' | 'active' | 'passive'>('none')
   const [bulkEmail, setBulkEmail] = useState('')
   const [bulkPhone, setBulkPhone] = useState('')
   const [bulkType, setBulkType] = useState<'none' | ResidentType>('none')
-  const [bulkRunning, setBulkRunning] = useState(false)
 
+  // CSV import
   const [csvText, setCsvText] = useState('')
   const [dryRun, setDryRun] = useState<DryRunResponse | null>(null)
-  const [importRunning, setImportRunning] = useState(false)
+
+  const queryParams = {
+    page,
+    limit: 20,
+    siteId: selectedSiteId ?? undefined,
+    search: committedSearch.trim() || undefined,
+    type: typeFilter === 'all' ? undefined : typeFilter,
+    isActive: activeFilter === 'all' ? undefined : activeFilter === 'active' ? true : false,
+  }
+
+  const { data: residentsResponse, isLoading, refetch } = useApiQuery<ResidentListResponse>(
+    ['residents', queryParams],
+    '/residents',
+    queryParams,
+    { enabled: hydrated && !!selectedSiteId },
+  )
+  const items = residentsResponse?.data ?? []
+  const meta = residentsResponse?.meta ?? null
 
   const selectedSet = useMemo(() => new Set(selected), [selected])
 
-  const loadResidents = async () => {
-    if (!hydrated) return
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await apiClient<ResidentListResponse>('/residents', {
-        params: {
-          page,
-          limit: 20,
-          siteId: selectedSiteId ?? undefined,
-          search: search.trim() || undefined,
-          type: typeFilter === 'all' ? undefined : typeFilter,
-          isActive:
-            activeFilter === 'all' ? undefined : activeFilter === 'active' ? true : false,
-        },
-      })
-      setItems(data.data)
-      setMeta(data.meta)
-      setSelected((prev) => prev.filter((id) => data.data.some((item) => item.id === id)))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sakin listesi alinamadi')
-      setItems([])
-      setMeta(null)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const bulkMutation = useApiMutation<{ updatedCount: number }, Record<string, unknown>>('/residents/bulk-update', {
+    invalidateKeys: [['residents']],
+    onSuccess: () => {
+      toastSuccess('Toplu güncelleme tamamlandı')
+      setBulkEmail('')
+      setBulkPhone('')
+      setBulkType('none')
+      setBulkIsActive('none')
+      setSelected([])
+    },
+  })
 
-  useEffect(() => {
-    void loadResidents()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, selectedSiteId, page, activeFilter, typeFilter])
+  const dryRunMutation = useApiMutation<DryRunResponse, { csv: string }>('/residents/import/dry-run', {
+    onSuccess: (data) => setDryRun(data),
+  })
 
-  const runSearch = async () => {
+  const importMutation = useApiMutation<unknown, { csv: string; skipInvalid: boolean }>('/residents/import/commit', {
+    invalidateKeys: [['residents']],
+    onSuccess: () => {
+      toastSuccess('Aktarım tamamlandı')
+      setCsvText('')
+      setDryRun(null)
+    },
+  })
+
+  const handleFilter = () => {
     setPage(1)
-    await loadResidents()
+    setCommittedSearch(search)
   }
 
   const toggleSelect = (id: string) => {
@@ -140,84 +150,28 @@ export default function ResidentsPage() {
     setSelected((prev) => Array.from(new Set([...prev, ...allCurrentIds])))
   }
 
-  const runBulkUpdate = async () => {
+  const runBulkUpdate = () => {
     if (!isTenantAdmin || selected.length === 0) return
-    setBulkRunning(true)
-    setError(null)
-    try {
-      await apiClient<{ updatedCount: number }>('/residents/bulk-update', {
-        method: 'POST',
-        body: JSON.stringify({
-          residentIds: selected,
-          isActive:
-            bulkIsActive === 'none' ? undefined : bulkIsActive === 'active',
-          email: bulkEmail.trim() || undefined,
-          phoneNumber: bulkPhone.trim() || undefined,
-          type: bulkType === 'none' ? undefined : bulkType,
-        }),
-      })
-      setBulkEmail('')
-      setBulkPhone('')
-      setBulkType('none')
-      setBulkIsActive('none')
-      await loadResidents()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bulk update basarisiz')
-    } finally {
-      setBulkRunning(false)
-    }
-  }
-
-  const runDryRun = async () => {
-    if (!isTenantAdmin || !csvText.trim()) return
-    setImportRunning(true)
-    setError(null)
-    try {
-      const result = await apiClient<DryRunResponse>('/residents/import/dry-run', {
-        method: 'POST',
-        body: JSON.stringify({ csv: csvText }),
-      })
-      setDryRun(result)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Dry-run basarisiz')
-    } finally {
-      setImportRunning(false)
-    }
-  }
-
-  const runImportCommit = async () => {
-    if (!isTenantAdmin || !csvText.trim()) return
-    setImportRunning(true)
-    setError(null)
-    try {
-      await apiClient('/residents/import/commit', {
-        method: 'POST',
-        body: JSON.stringify({ csv: csvText, skipInvalid: true }),
-      })
-      setCsvText('')
-      setDryRun(null)
-      await loadResidents()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import commit basarisiz')
-    } finally {
-      setImportRunning(false)
-    }
+    bulkMutation.mutate({
+      residentIds: selected,
+      isActive: bulkIsActive === 'none' ? undefined : bulkIsActive === 'active',
+      email: bulkEmail.trim() || undefined,
+      phoneNumber: bulkPhone.trim() || undefined,
+      type: bulkType === 'none' ? undefined : bulkType,
+    })
   }
 
   const exportCsv = async () => {
     if (!isTenantAdmin) return
-    setError(null)
     try {
       const payload = await apiClient<{ fileName: string; csv: string }>('/residents/export', {
         params: {
           siteId: selectedSiteId ?? undefined,
-          search: search.trim() || undefined,
+          search: committedSearch.trim() || undefined,
           type: typeFilter === 'all' ? undefined : typeFilter,
-          isActive:
-            activeFilter === 'all' ? undefined : activeFilter === 'active' ? true : false,
+          isActive: activeFilter === 'all' ? undefined : activeFilter === 'active' ? true : false,
         },
       })
-
       const blob = new Blob([payload.csv], { type: 'text/csv;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -227,30 +181,31 @@ export default function ResidentsPage() {
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
+      toastSuccess('CSV indirildi')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'CSV export basarisiz')
+      toastError(err instanceof Error ? err : 'CSV dışa aktarım başarısız')
     }
   }
 
   return (
     <div className="space-y-6">
-      <StaffPageHeader
+      <PageHeader
         title="Sakinler"
-        subtitle="Tenant çapında sakin kayıtları ve ilişkilendirildiği daire bilgileri."
+        subtitle="Sakin kayıtları ve bağlı oldukları daire bilgileri."
         actions={
           <div className="flex items-center gap-2">
             {isTenantAdmin && (
               <button
                 type="button"
-                onClick={exportCsv}
+                onClick={() => void exportCsv()}
                 className="px-3 py-2 rounded-md bg-[#e6e8ea] text-xs font-semibold text-[#0c1427]"
               >
-                CSV Export
+                CSV Dışa Aktar
               </button>
             )}
             <button
               type="button"
-              onClick={() => void loadResidents()}
+              onClick={() => void refetch()}
               className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white"
             >
               Yenile
@@ -259,58 +214,73 @@ export default function ResidentsPage() {
         }
       />
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
       <div className="ledger-panel p-4 space-y-3">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-2">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleFilter() }}
             placeholder="Ad, soyad, telefon ara..."
             className="ledger-input bg-white lg:col-span-2"
           />
           <select
             value={activeFilter}
-            onChange={(e) => setActiveFilter(e.target.value as typeof activeFilter)}
+            onChange={(e) => { setActiveFilter(e.target.value as typeof activeFilter); setPage(1) }}
             className="ledger-input bg-white"
           >
-            <option value="all">Tum Durumlar</option>
+            <option value="all">Tüm Durumlar</option>
             <option value="active">Aktif</option>
             <option value="passive">Pasif</option>
           </select>
           <select
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
+            onChange={(e) => { setTypeFilter(e.target.value as typeof typeFilter); setPage(1) }}
             className="ledger-input bg-white"
           >
-            <option value="all">Tum Tipler</option>
-            <option value={ResidentType.OWNER}>OWNER</option>
-            <option value={ResidentType.TENANT}>TENANT</option>
-            <option value={ResidentType.CONTACT}>CONTACT</option>
+            <option value="all">Tüm Tipler</option>
+            <option value={ResidentType.OWNER}>Ev Sahibi</option>
+            <option value={ResidentType.TENANT}>Kiracı</option>
+            <option value={ResidentType.CONTACT}>İletişim Kişisi</option>
           </select>
-          <button type="button" onClick={() => void runSearch()} className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white">
+          <button type="button" onClick={handleFilter} className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white">
             Filtrele
           </button>
         </div>
       </div>
 
-      <div className="ledger-panel overflow-hidden">
+      <div className="ledger-panel overflow-x-auto">
+        <div className="min-w-[800px]">
         <div className="grid grid-cols-12 px-5 py-3 ledger-table-head">
           <span className="col-span-1">
             <input type="checkbox" checked={items.length > 0 && items.every((i) => selectedSet.has(i.id))} onChange={toggleSelectAllCurrentPage} />
           </span>
           <span className="col-span-3">Sakin</span>
-          <span className="col-span-2">Iletisim</span>
+          <span className="col-span-2">İletişim</span>
           <span className="col-span-2">Tip</span>
           <span className="col-span-2">Site/Daire</span>
           <span className="col-span-2 text-right">Durum</span>
         </div>
 
         <div className="ledger-divider">
-          {loading && <p className="px-5 py-4 text-sm text-[#6b7280]">Yukleniyor...</p>}
-          {!loading && items.length === 0 && <p className="px-5 py-4 text-sm text-[#6b7280]">Kriterlere uygun sakin bulunamadi.</p>}
-          {!loading &&
+          {isLoading && Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="grid grid-cols-12 px-5 py-3 gap-3">
+              <Skeleton className="col-span-1 h-4 w-4" />
+              <Skeleton className="col-span-3 h-5" />
+              <Skeleton className="col-span-2 h-5" />
+              <Skeleton className="col-span-2 h-5" />
+              <Skeleton className="col-span-2 h-5" />
+              <Skeleton className="col-span-2 h-5" />
+            </div>
+          ))}
+          {!isLoading && items.length === 0 && (
+            <EmptyState
+              icon={Users}
+              title="Sakin bulunamadı"
+              description="Kriterlere uygun sakin kaydı yok."
+            />
+          )}
+          {!isLoading &&
             items.map((resident) => {
               const siteName = resident.occupancies[0]?.unit.site.name ?? '-'
               const unitNumber = resident.occupancies[0]?.unit.number ?? '-'
@@ -324,7 +294,7 @@ export default function ResidentsPage() {
                     <p className="text-xs text-[#6b7280]">{resident.email ?? '-'}</p>
                   </div>
                   <p className="col-span-2 text-sm text-[#0c1427]">{resident.phoneNumber}</p>
-                  <p className="col-span-2 text-sm text-[#0c1427]">{resident.type}</p>
+                  <p className="col-span-2 text-sm text-[#0c1427]">{resident.type === 'OWNER' ? 'Ev Sahibi' : resident.type === 'TENANT' ? 'Kiracı' : 'İletişim Kişisi'}</p>
                   <p className="col-span-2 text-sm text-[#0c1427]">{siteName} / {unitNumber}</p>
                   <p className="col-span-2 text-right text-xs font-semibold">
                     <span className={resident.isActive ? 'text-[#006e2d]' : 'text-[#ba1a1a]'}>
@@ -335,12 +305,13 @@ export default function ResidentsPage() {
               )
             })}
         </div>
+        </div>
       </div>
 
       {meta && (
         <div className="flex items-center justify-between text-xs text-[#6b7280]">
           <span>
-            Toplam {meta.total} kayit • Sayfa {meta.page}/{Math.max(meta.totalPages, 1)}
+            Toplam {meta.total} kayıt • Sayfa {meta.page}/{Math.max(meta.totalPages, 1)}
           </span>
           <div className="flex gap-2">
             <button
@@ -349,7 +320,7 @@ export default function ResidentsPage() {
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               className="px-2 py-1 rounded bg-[#e6e8ea] disabled:opacity-50"
             >
-              Onceki
+              Önceki
             </button>
             <button
               type="button"
@@ -366,15 +337,15 @@ export default function ResidentsPage() {
       {isTenantAdmin && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="ledger-panel p-4 space-y-3">
-            <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4b5968]">Bulk Update</p>
-            <p className="text-xs text-[#6b7280]">Secili kayit: {selected.length}</p>
+            <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4b5968]">Toplu Güncelleme</p>
+            <p className="text-xs text-[#6b7280]">Seçili kayıt: {selected.length}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <select
                 value={bulkIsActive}
                 onChange={(e) => setBulkIsActive(e.target.value as typeof bulkIsActive)}
                 className="ledger-input bg-white"
               >
-                <option value="none">Durum Degistirme</option>
+                <option value="none">Durum Değiştirme</option>
                 <option value="active">Aktif Yap</option>
                 <option value="passive">Pasif Yap</option>
               </select>
@@ -383,10 +354,10 @@ export default function ResidentsPage() {
                 onChange={(e) => setBulkType(e.target.value as typeof bulkType)}
                 className="ledger-input bg-white"
               >
-                <option value="none">Tip Degistirme</option>
-                <option value={ResidentType.OWNER}>OWNER</option>
-                <option value={ResidentType.TENANT}>TENANT</option>
-                <option value={ResidentType.CONTACT}>CONTACT</option>
+                <option value="none">Tip Değiştirme</option>
+                <option value={ResidentType.OWNER}>Ev Sahibi</option>
+                <option value={ResidentType.TENANT}>Kiracı</option>
+                <option value={ResidentType.CONTACT}>İletişim Kişisi</option>
               </select>
               <input
                 value={bulkEmail}
@@ -403,16 +374,16 @@ export default function ResidentsPage() {
             </div>
             <button
               type="button"
-              disabled={bulkRunning || selected.length === 0}
-              onClick={() => void runBulkUpdate()}
+              disabled={bulkMutation.isPending || selected.length === 0}
+              onClick={runBulkUpdate}
               className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white disabled:opacity-50"
             >
-              {bulkRunning ? 'Calisiyor...' : 'Bulk Update Uygula'}
+              {bulkMutation.isPending ? 'İşleniyor...' : 'Toplu Güncelle'}
             </button>
           </div>
 
           <div className="ledger-panel p-4 space-y-3">
-            <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4b5968]">CSV Import</p>
+            <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4b5968]">CSV Aktarım</p>
             <textarea
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
@@ -423,30 +394,30 @@ export default function ResidentsPage() {
             <div className="flex gap-2">
               <button
                 type="button"
-                disabled={importRunning || !csvText.trim()}
-                onClick={() => void runDryRun()}
+                disabled={dryRunMutation.isPending || importMutation.isPending || !csvText.trim()}
+                onClick={() => dryRunMutation.mutate({ csv: csvText })}
                 className="px-3 py-2 rounded-md bg-[#e6e8ea] text-xs font-semibold text-[#0c1427] disabled:opacity-50"
               >
-                Dry-Run
+                {dryRunMutation.isPending ? 'Kontrol ediliyor...' : 'Önizleme'}
               </button>
               <button
                 type="button"
-                disabled={importRunning || !csvText.trim()}
-                onClick={() => void runImportCommit()}
+                disabled={dryRunMutation.isPending || importMutation.isPending || !csvText.trim()}
+                onClick={() => importMutation.mutate({ csv: csvText, skipInvalid: true })}
                 className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white disabled:opacity-50"
               >
-                Commit
+                {importMutation.isPending ? 'Aktarılıyor...' : 'Uygula'}
               </button>
             </div>
             {dryRun && (
               <div className="rounded-md bg-[#f8f9fb] p-3 text-xs text-[#445266] space-y-2">
                 <p>
-                  Toplam: {dryRun.summary.totalRows} • Gecerli: {dryRun.summary.validRows} • Hatali: {dryRun.summary.invalidRows}
+                  Toplam: {dryRun.summary.totalRows} • Geçerli: {dryRun.summary.validRows} • Hatalı: {dryRun.summary.invalidRows}
                 </p>
                 <div className="max-h-40 overflow-auto space-y-1">
                   {dryRun.preview.map((row) => (
                     <p key={row.rowIndex} className={row.valid ? 'text-[#006e2d]' : 'text-[#ba1a1a]'}>
-                      Satir {row.rowIndex}: {row.valid ? 'OK' : row.errors.join(' | ')}
+                      Satır {row.rowIndex}: {row.valid ? 'Geçerli' : row.errors.join(' | ')}
                     </p>
                   ))}
                 </div>
@@ -458,7 +429,7 @@ export default function ResidentsPage() {
 
       {!isTenantAdmin && (
         <div className="ledger-panel p-4">
-          <p className="text-sm text-[#6b7280]">STAFF rolu bu ekranda listeleme yapabilir. Import/export ve bulk update sadece TENANT_ADMIN icindir.</p>
+          <p className="text-sm text-[#6b7280]">Personel rolü bu ekranda listeleme yapabilir. CSV aktarım ve toplu güncelleme yalnızca yönetici yetkisiyle kullanılır.</p>
         </div>
       )}
     </div>

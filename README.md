@@ -6,16 +6,15 @@ Kayseri / Konya gibi iç Anadolu şehirlerinde bina yönetim hizmetleri veren ş
 
 ```
 sakin/
-├── apps/
-│   ├── api/        # NestJS 11 + Fastify — REST API (port 3001)
+├── api/            # NestJS 11 + Fastify — REST API (port 3001)
+├── client/
 │   ├── admin/      # Next.js 15 App Router — Yönetim paneli (port 3000)
 │   ├── mobile/     # Expo SDK 53 + React Native — Sakin uygulaması
-│   └── platform/   # Next.js — Super admin paneli (port 3002)
+│   ├── platform/   # Next.js — Super admin paneli (port 3002)
+│   └── web/        # Next.js 15 — Kurumsal web sitesi (port 3003)
 ├── packages/
 │   ├── database/   # Prisma 6 + PostgreSQL (@sakin/database)
-│   ├── api-core/   # Ortak API middleware/guard/filter/interceptor katmanı (@sakin/api-core)
-│   ├── shared/     # Zod şemaları, tipler, enum'lar (@sakin/shared)
-│   └── ui/         # shadcn/ui bileşenler (@sakin/ui)
+│   └── shared/     # Zod şemaları, tipler, enum'lar (@sakin/shared)
 └── doc/            # Mimari ve iş alanı dokümanları
 ```
 
@@ -37,8 +36,9 @@ pnpm install
 ### 2. Ortam Değişkenlerini Ayarla
 
 ```bash
-cp apps/api/.env.example apps/api/.env
-cp apps/admin/.env.example apps/admin/.env.local
+cp api/.env.example api/.env
+cp client/admin/.env.example client/admin/.env.local
+cp client/web/.env.example client/web/.env.local
 cp packages/database/.env.example packages/database/.env
 ```
 
@@ -70,6 +70,7 @@ Veya tek tek:
 ```bash
 pnpm --filter=@sakin/api dev
 pnpm --filter=@sakin/admin dev
+pnpm --filter=@sakin/web dev
 pnpm --filter=@sakin/mobile dev
 ```
 
@@ -81,6 +82,7 @@ pnpm --filter=@sakin/mobile dev
 | API | http://localhost:3001/api/v1 |
 | Swagger | http://localhost:3001/api/docs |
 | Platform | http://localhost:3002 |
+| Kurumsal Web | http://localhost:3003 |
 
 ## Temel Komutlar
 
@@ -110,7 +112,7 @@ Request → TenantMiddleware → Controller → Service.forTenant() → DB
 
 ## Ortam Değişkenleri
 
-### `apps/api/.env`
+### `api/.env`
 
 ```env
 DATABASE_URL=postgresql://sakin:sakin_dev_pass@localhost:5432/sakin_dev
@@ -122,13 +124,20 @@ IYZICO_SECRET_KEY=sandbox-...
 IYZICO_BASE_URL=https://sandbox-api.iyzipay.com
 ```
 
-### `apps/admin/.env.local`
+### `client/admin/.env.local`
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
 NEXT_PUBLIC_FIREBASE_API_KEY=...
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
+```
+
+### `client/web/.env.local`
+
+```env
+NEXT_PUBLIC_SITE_URL=http://localhost:3003
+NEXT_PUBLIC_ADMIN_URL=https://admin.sakinyonetim.tr
 ```
 
 ## Dokümanlar

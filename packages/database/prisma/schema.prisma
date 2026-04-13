@@ -7,6 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ──────────────────────────────────────────
+// Organizasyon
+// ──────────────────────────────────────────
+
 model Tenant {
   id           String   @id @default(uuid())
   name         String
@@ -21,6 +25,8 @@ model Tenant {
 
   users                 UserTenantRole[]
   sites                 Site[]
+  blocks                Block[]
+  units                 Unit[]
   residents             Resident[]
   occupancies           UnitOccupancy[]
   duesDefinitions       DuesDefinition[]
@@ -35,6 +41,21 @@ model Tenant {
   expenses              Expense[]
   announcements         Announcement[]
   plan                  TenantPlan?
+  cashAccounts          CashAccount[]
+  cashTransactions      CashTransaction[]
+  siteStaff             SiteStaff[]
+  vendors               Vendor[]
+  tickets               Ticket[]
+  ticketComments        TicketComment[]
+  legalCases            LegalCase[]
+  legalCaseEvents       LegalCaseEvent[]
+  documents             Document[]
+  contracts             Contract[]
+  communicationLogs     CommunicationLog[]
+  facilities            Facility[]
+  meetings              Meeting[]
+  meetingDecisions      MeetingDecision[]
+  notificationPreferences NotificationPreference[]
 
   @@index([slug])
   @@map("tenants")
@@ -51,15 +72,27 @@ model User {
   updatedAt   DateTime @updatedAt
 
   tenantRoles              UserTenantRole[]
-  residentProfile          Resident?
-  initiatedPaymentAttempts PaymentAttempt[] @relation("PaymentAttemptInitiatedBy")
-  paymentsPaid             Payment[]        @relation("PaymentPaidByUser")
-  paymentsApproved         Payment[]        @relation("PaymentApprovedByUser")
-  ledgerEntriesCreated     LedgerEntry[]    @relation("LedgerEntryCreatedBy")
-  occupanciesCreated       UnitOccupancy[]  @relation("UnitOccupancyCreatedBy")
-  exportsRequested         ExportBatch[]    @relation("ExportBatchRequestedBy")
-  notificationsSent        Notification[]   @relation("NotificationSentByUser")
+  residentProfiles         Resident[]
+  initiatedPaymentAttempts PaymentAttempt[]     @relation("PaymentAttemptInitiatedBy")
+  paymentsPaid             Payment[]            @relation("PaymentPaidByUser")
+  paymentsApproved         Payment[]            @relation("PaymentApprovedByUser")
+  ledgerEntriesCreated     LedgerEntry[]        @relation("LedgerEntryCreatedBy")
+  occupanciesCreated       UnitOccupancy[]      @relation("UnitOccupancyCreatedBy")
+  exportsRequested         ExportBatch[]        @relation("ExportBatchRequestedBy")
+  notificationsSent        Notification[]       @relation("NotificationSentByUser")
   notifications            Notification[]
+  announcementsCreated     Announcement[]       @relation("AnnouncementCreatedBy")
+  expensesCreated          Expense[]            @relation("ExpenseCreatedBy")
+  cashTransactionsCreated  CashTransaction[]    @relation("CashTransactionCreatedBy")
+  siteStaffProfiles        SiteStaff[]
+  ticketsReported          Ticket[]             @relation("TicketReportedBy")
+  ticketComments           TicketComment[]      @relation("TicketCommentAuthor")
+  legalCaseEvents          LegalCaseEvent[]     @relation("LegalCaseEventCreatedBy")
+  documentsUploaded        Document[]           @relation("DocumentUploadedBy")
+  contractsCreated         Contract[]           @relation("ContractCreatedBy")
+  communicationLogsSent    CommunicationLog[]   @relation("CommunicationLogSentBy")
+  meetingsCreated          Meeting[]            @relation("MeetingCreatedBy")
+  notificationPreferences  NotificationPreference[]
 
   @@index([firebaseUid])
   @@index([phoneNumber])
@@ -106,6 +139,10 @@ model TenantPaymentGatewayConfig {
   @@map("tenant_payment_gateway_configs")
 }
 
+// ──────────────────────────────────────────
+// Fiziksel Yapi
+// ──────────────────────────────────────────
+
 model Site {
   id         String   @id @default(uuid())
   tenantId   String
@@ -119,12 +156,21 @@ model Site {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  tenant          Tenant           @relation(fields: [tenantId], references: [id])
-  blocks          Block[]
-  units           Unit[]
-  duesDefinitions DuesDefinition[]
-  expenses        Expense[]
-  announcements   Announcement[]
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
+  blocks            Block[]
+  units             Unit[]
+  duesDefinitions   DuesDefinition[]
+  expenses          Expense[]
+  announcements     Announcement[]
+  cashAccounts      CashAccount[]
+  siteStaff         SiteStaff[]
+  ledgerEntries     LedgerEntry[]
+  tickets           Ticket[]
+  legalCases        LegalCase[]
+  contracts         Contract[]
+  communicationLogs CommunicationLog[]
+  facilities        Facility[]
+  meetings          Meeting[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -140,12 +186,14 @@ model Block {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  site  Site   @relation(fields: [siteId], references: [id])
-  units Unit[]
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  site   Site   @relation(fields: [siteId], references: [id])
+  units  Unit[]
 
   @@unique([siteId, name])
   @@index([tenantId])
   @@index([siteId])
+  @@index([tenantId, siteId])
   @@map("blocks")
 }
 
@@ -163,6 +211,7 @@ model Unit {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
   site            Site             @relation(fields: [siteId], references: [id])
   block           Block?           @relation(fields: [blockId], references: [id])
   occupancies     UnitOccupancy[]
@@ -171,6 +220,8 @@ model Unit {
   paymentAttempts PaymentAttempt[]
   ledgerEntries   LedgerEntry[]
   notifications   Notification[]
+  tickets         Ticket[]
+  legalCases      LegalCase[]
 
   @@unique([siteId, blockId, number])
   @@index([tenantId])
@@ -179,10 +230,14 @@ model Unit {
   @@map("units")
 }
 
+// ──────────────────────────────────────────
+// Kisiler
+// ──────────────────────────────────────────
+
 model Resident {
   id          String       @id @default(uuid())
   tenantId    String
-  userId      String?      @unique
+  userId      String?
   firstName   String
   lastName    String
   email       String?
@@ -193,12 +248,15 @@ model Resident {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  tenant        Tenant          @relation(fields: [tenantId], references: [id])
-  user          User?           @relation(fields: [userId], references: [id])
-  occupancies   UnitOccupancy[]
-  payments      Payment[]
-  notifications Notification[]
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
+  user              User?              @relation(fields: [userId], references: [id])
+  occupancies       UnitOccupancy[]
+  payments          Payment[]
+  notifications     Notification[]
+  legalCases        LegalCase[]
+  communicationLogs CommunicationLog[]
 
+  @@unique([userId, tenantId])
   @@index([tenantId])
   @@index([phoneNumber])
   @@map("residents")
@@ -222,14 +280,19 @@ model UnitOccupancy {
   tenant        Tenant   @relation(fields: [tenantId], references: [id])
   unit          Unit     @relation(fields: [unitId], references: [id])
   resident      Resident @relation(fields: [residentId], references: [id])
-  createdByUser User?    @relation("UnitOccupancyCreatedBy", fields: [createdByUserId], references: [id])
+  createdByUser User?    @relation("UnitOccupancyCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([unitId, isActive])
   @@index([residentId, isActive])
+  @@index([residentId, isActive, startDate])
   @@index([tenantId, unitId, isPrimaryResponsible, isActive])
   @@map("unit_occupancies")
 }
+
+// ──────────────────────────────────────────
+// Finansal — Aidat & Borc
+// ──────────────────────────────────────────
 
 model DuesDefinition {
   id          String   @id @default(uuid())
@@ -275,13 +338,20 @@ model Dues {
   payments        Payment[]
   paymentAttempts PaymentAttempt[]
 
-  @@unique([unitId, periodMonth, periodYear])
+  // Unique constraint enforced by raw SQL partial indexes in migration:
+  // - dues_unit_def_period_uq (WHERE duesDefinitionId IS NOT NULL)
+  // - dues_unit_adhoc_period_uq (WHERE duesDefinitionId IS NULL)
+
   @@index([tenantId])
   @@index([unitId])
   @@index([status])
   @@index([dueDate])
   @@map("dues")
 }
+
+// ──────────────────────────────────────────
+// Finansal — Odeme
+// ──────────────────────────────────────────
 
 model Payment {
   id                String          @id @default(uuid())
@@ -297,6 +367,7 @@ model Payment {
   channel           PaymentChannel
   provider          PaymentProvider @default(MANUAL)
   status            PaymentStatus   @default(PENDING)
+  purpose           PaymentPurpose  @default(DUES)
   providerPaymentId String?
   conversationId    String?
   providerToken     String?
@@ -366,6 +437,7 @@ model PaymentAttempt {
   @@index([paymentId])
   @@index([unitId])
   @@index([status])
+  @@index([tenantId, unitId, status])
   @@map("payment_attempts")
 }
 
@@ -397,10 +469,15 @@ model PaymentProviderEvent {
   @@map("payment_provider_events")
 }
 
+// ──────────────────────────────────────────
+// Finansal — Muhasebe
+// ──────────────────────────────────────────
+
 model LedgerEntry {
   id              String              @id @default(uuid())
   tenantId        String
-  unitId          String
+  unitId          String?
+  siteId          String?
   amount          Decimal             @db.Decimal(12, 2)
   currency        String              @default("TRY")
   entryType       LedgerEntryType
@@ -414,34 +491,450 @@ model LedgerEntry {
   createdAt       DateTime            @default(now())
 
   tenant        Tenant @relation(fields: [tenantId], references: [id])
-  unit          Unit   @relation(fields: [unitId], references: [id])
-  createdByUser User?  @relation("LedgerEntryCreatedBy", fields: [createdByUserId], references: [id])
+  unit          Unit?  @relation(fields: [unitId], references: [id])
+  site          Site?  @relation(fields: [siteId], references: [id])
+  createdByUser User?  @relation("LedgerEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId])
   @@index([tenantId, unitId, effectiveAt])
+  @@index([tenantId, siteId, effectiveAt])
   @@index([tenantId, referenceType, referenceId])
   @@map("ledger_entries")
 }
 
-model ExportBatch {
-  id                String       @id @default(uuid())
-  tenantId          String
-  type              ExportType
-  status            ExportStatus @default(PENDING)
-  filters           Json?
-  fileUrl           String?
-  requestedByUserId String?
-  rowCount          Int?
-  createdAt         DateTime     @default(now())
-  completedAt       DateTime?
+model Expense {
+  id          String          @id @default(uuid())
+  tenantId    String
+  siteId      String
+  vendorId    String?
+  contractId  String?
+  amount      Decimal         @db.Decimal(12, 2)
+  category    ExpenseCategory
+  description String
+  date        DateTime
+  receiptUrl  String?
+  createdById String
+  deletedAt   DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
-  tenant          Tenant @relation(fields: [tenantId], references: [id])
-  requestedByUser User?  @relation("ExportBatchRequestedBy", fields: [requestedByUserId], references: [id])
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  site      Site      @relation(fields: [siteId], references: [id])
+  vendor    Vendor?   @relation(fields: [vendorId], references: [id])
+  contract  Contract? @relation(fields: [contractId], references: [id])
+  createdBy User      @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
 
-  @@index([tenantId, type, status])
-  @@map("export_batches")
+  @@index([tenantId])
+  @@index([siteId])
+  @@index([date])
+  @@index([vendorId])
+  @@map("expenses")
 }
+
+// ──────────────────────────────────────────
+// Kasa & Banka
+// ──────────────────────────────────────────
+
+model CashAccount {
+  id        String          @id @default(uuid())
+  tenantId  String
+  siteId    String
+  name      String
+  type      CashAccountType
+  bankName  String?
+  iban      String?
+  currency  String          @default("TRY")
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id])
+  site         Site              @relation(fields: [siteId], references: [id])
+  transactions CashTransaction[]
+
+  @@unique([tenantId, siteId, name])
+  @@index([tenantId, siteId])
+  @@map("cash_accounts")
+}
+
+model CashTransaction {
+  id              String              @id @default(uuid())
+  tenantId        String
+  cashAccountId   String
+  amount          Decimal             @db.Decimal(12, 2)
+  type            CashTransactionType
+  referenceType   CashReferenceType?
+  referenceId     String?
+  description     String
+  transactionDate DateTime
+  createdById     String
+  createdAt       DateTime            @default(now())
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  cashAccount CashAccount @relation(fields: [cashAccountId], references: [id])
+  createdBy   User        @relation("CashTransactionCreatedBy", fields: [createdById], references: [id])
+
+  @@index([tenantId, cashAccountId, transactionDate])
+  @@map("cash_transactions")
+}
+
+// ──────────────────────────────────────────
+// Tedarikci
+// ──────────────────────────────────────────
+
+model Vendor {
+  id          String           @id @default(uuid())
+  tenantId    String
+  name        String
+  taxNumber   String?
+  phone       String?
+  email       String?
+  address     String?
+  category    ExpenseCategory?
+  iban        String?
+  contactName String?
+  isActive    Boolean          @default(true)
+  note        String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  expenses  Expense[]
+  contracts Contract[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("vendors")
+}
+
+// ──────────────────────────────────────────
+// Bina Personeli
+// ──────────────────────────────────────────
+
+model SiteStaff {
+  id          String        @id @default(uuid())
+  tenantId    String
+  siteId      String
+  userId      String?
+  firstName   String
+  lastName    String
+  phoneNumber String
+  role        SiteStaffRole
+  isActive    Boolean       @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  note        String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  site    Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id])
+  tickets Ticket[]
+
+  @@unique([userId, siteId])
+  @@index([tenantId, siteId])
+  @@map("site_staff")
+}
+
+// ──────────────────────────────────────────
+// Talep / Ariza Yonetimi
+// ──────────────────────────────────────────
+
+model Ticket {
+  id              String         @id @default(uuid())
+  tenantId        String
+  siteId          String
+  unitId          String?
+  reportedById    String?
+  assignedToId    String?
+  category        TicketCategory
+  priority        TicketPriority @default(MEDIUM)
+  status          TicketStatus   @default(OPEN)
+  title           String         @db.VarChar(200)
+  description     String
+  resolution      String?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  dueDate         DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  site       Site            @relation(fields: [siteId], references: [id])
+  unit       Unit?           @relation(fields: [unitId], references: [id])
+  reportedBy User?           @relation("TicketReportedBy", fields: [reportedById], references: [id])
+  assignedTo SiteStaff?      @relation(fields: [assignedToId], references: [id])
+  comments   TicketComment[]
+  documents  Document[]
+
+  @@index([tenantId])
+  @@index([tenantId, siteId, status])
+  @@index([tenantId, assignedToId, status])
+  @@map("tickets")
+}
+
+model TicketComment {
+  id         String   @id @default(uuid())
+  tenantId   String
+  ticketId   String
+  authorId   String
+  body       String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation("TicketCommentAuthor", fields: [authorId], references: [id])
+
+  @@index([tenantId, ticketId])
+  @@map("ticket_comments")
+}
+
+// ──────────────────────────────────────────
+// Hukuki Takip / Icra
+// ──────────────────────────────────────────
+
+model LegalCase {
+  id              String          @id @default(uuid())
+  tenantId        String
+  siteId          String
+  unitId          String
+  residentId      String
+  stage           LegalCaseStage  @default(WARNING_SENT)
+  status          LegalCaseStatus @default(ACTIVE)
+  totalDebt       Decimal         @db.Decimal(12, 2)
+  interestRate    Decimal?        @db.Decimal(5, 2)
+  collectedAmount Decimal         @db.Decimal(12, 2) @default(0)
+  lawyerName      String?
+  lawyerPhone     String?
+  caseNumber      String?
+  courtName       String?
+  filedAt         DateTime?
+  settledAt       DateTime?
+  note            String?
+  deletedAt       DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  site      Site             @relation(fields: [siteId], references: [id])
+  unit      Unit             @relation(fields: [unitId], references: [id])
+  resident  Resident         @relation(fields: [residentId], references: [id])
+  events    LegalCaseEvent[]
+  documents Document[]
+
+  @@index([tenantId])
+  @@index([tenantId, siteId, status])
+  @@index([tenantId, residentId])
+  @@index([status])
+  @@map("legal_cases")
+}
+
+model LegalCaseEvent {
+  id          String         @id @default(uuid())
+  tenantId    String
+  legalCaseId String
+  stage       LegalCaseStage
+  description String
+  eventDate   DateTime
+  createdById String?
+  createdAt   DateTime       @default(now())
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  legalCase LegalCase @relation(fields: [legalCaseId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("LegalCaseEventCreatedBy", fields: [createdById], references: [id])
+
+  @@index([tenantId, legalCaseId])
+  @@map("legal_case_events")
+}
+
+// ──────────────────────────────────────────
+// Belge Yonetimi (Polymorphic)
+// ──────────────────────────────────────────
+
+model Document {
+  id           String            @id @default(uuid())
+  tenantId     String
+  ownerType    DocumentOwnerType
+  ownerId      String
+  type         DocumentType      @default(OTHER)
+  fileName     String
+  fileUrl      String
+  fileSize     Int?
+  mimeType     String?
+  description  String?
+  uploadedById String?
+  deletedAt    DateTime?
+  createdAt    DateTime          @default(now())
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id])
+  uploadedBy User?  @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+
+  // Prisma does not support polymorphic FK — ownerId integrity enforced at service layer
+  // Direct relations for query convenience where needed:
+  ticket    Ticket?    @relation(fields: [ownerId], references: [id], map: "documents_ticket_fk", onDelete: Cascade, onUpdate: NoAction)
+  legalCase LegalCase? @relation(fields: [ownerId], references: [id], map: "documents_legalcase_fk", onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tenantId])
+  @@index([tenantId, ownerType, ownerId])
+  @@map("documents")
+}
+
+// ──────────────────────────────────────────
+// Sozlesme Yonetimi
+// ──────────────────────────────────────────
+
+model Contract {
+  id           String         @id @default(uuid())
+  tenantId     String
+  siteId       String
+  vendorId     String?
+  title        String         @db.VarChar(200)
+  description  String?
+  status       ContractStatus @default(DRAFT)
+  startDate    DateTime
+  endDate      DateTime
+  amount       Decimal?       @db.Decimal(12, 2)
+  currency     String         @default("TRY")
+  renewalDate  DateTime?
+  autoRenew    Boolean        @default(false)
+  createdById  String?
+  deletedAt    DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  site      Site      @relation(fields: [siteId], references: [id])
+  vendor    Vendor?   @relation(fields: [vendorId], references: [id])
+  createdBy User?     @relation("ContractCreatedBy", fields: [createdById], references: [id])
+  expenses  Expense[]
+
+  @@index([tenantId])
+  @@index([tenantId, siteId, status])
+  @@index([endDate])
+  @@map("contracts")
+}
+
+// ──────────────────────────────────────────
+// Iletisim Kaydi
+// ──────────────────────────────────────────
+
+model CommunicationLog {
+  id             String               @id @default(uuid())
+  tenantId       String
+  siteId         String?
+  recipientPhone String?
+  recipientEmail String?
+  residentId     String?
+  channel        CommunicationChannel
+  status         CommunicationStatus  @default(QUEUED)
+  templateKey    String?
+  subject        String?
+  body           String
+  providerMsgId  String?
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  failedAt       DateTime?
+  errorMessage   String?
+  metadata       Json?
+  sentByUserId   String?
+  createdAt      DateTime             @default(now())
+
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  site       Site?     @relation(fields: [siteId], references: [id])
+  resident   Resident? @relation(fields: [residentId], references: [id])
+  sentByUser User?     @relation("CommunicationLogSentBy", fields: [sentByUserId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, channel, status])
+  @@index([tenantId, residentId])
+  @@index([sentAt])
+  @@map("communication_logs")
+}
+
+// ──────────────────────────────────────────
+// Ortak Alan / Tesis
+// ──────────────────────────────────────────
+
+model Facility {
+  id          String       @id @default(uuid())
+  tenantId    String
+  siteId      String
+  name        String
+  type        FacilityType
+  description String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  site   Site   @relation(fields: [siteId], references: [id])
+
+  @@unique([tenantId, siteId, name])
+  @@index([tenantId, siteId])
+  @@map("facilities")
+}
+
+// ──────────────────────────────────────────
+// Kat Malikleri Toplantisi
+// ──────────────────────────────────────────
+
+model Meeting {
+  id            String        @id @default(uuid())
+  tenantId      String
+  siteId        String
+  type          MeetingType
+  status        MeetingStatus @default(PLANNED)
+  title         String        @db.VarChar(200)
+  agenda        String?
+  date          DateTime
+  location      String?
+  quorumMet     Boolean?
+  attendeeCount Int?
+  totalUnits    Int?
+  minutesUrl    String?
+  createdById   String?
+  deletedAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id])
+  site      Site              @relation(fields: [siteId], references: [id])
+  createdBy User?             @relation("MeetingCreatedBy", fields: [createdById], references: [id])
+  decisions MeetingDecision[]
+
+  @@index([tenantId])
+  @@index([tenantId, siteId, date])
+  @@map("meetings")
+}
+
+model MeetingDecision {
+  id           String         @id @default(uuid())
+  tenantId     String
+  meetingId    String
+  orderNumber  Int
+  subject      String
+  description  String?
+  result       DecisionResult
+  votesFor     Int?
+  votesAgainst Int?
+  votesAbstain Int?
+  createdAt    DateTime       @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, orderNumber])
+  @@index([tenantId, meetingId])
+  @@map("meeting_decisions")
+}
+
+// ──────────────────────────────────────────
+// Bildirim & Duyuru
+// ──────────────────────────────────────────
 
 model Notification {
   id           String              @id @default(uuid())
@@ -452,22 +945,44 @@ model Notification {
   channel      NotificationChannel
   status       NotificationStatus  @default(PENDING)
   templateKey  String?
+  title        String?
+  body         String?
   payload      Json?
   sentByUserId String?
   sentAt       DateTime?
   failedAt     DateTime?
   errorMessage String?
+  readAt       DateTime?
   createdAt    DateTime            @default(now())
 
   tenant     Tenant    @relation(fields: [tenantId], references: [id])
   user       User?     @relation(fields: [userId], references: [id])
   resident   Resident? @relation(fields: [residentId], references: [id])
   unit       Unit?     @relation(fields: [unitId], references: [id])
-  sentByUser User?     @relation("NotificationSentByUser", fields: [sentByUserId], references: [id])
+  sentByUser User?     @relation("NotificationSentByUser", fields: [sentByUserId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([status])
+  @@index([tenantId, userId, readAt])
   @@map("notifications")
+}
+
+model NotificationPreference {
+  id        String              @id @default(uuid())
+  tenantId  String
+  userId    String
+  channel   NotificationChannel
+  category  String
+  enabled   Boolean             @default(true)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([userId, tenantId, channel, category])
+  @@index([tenantId, userId])
+  @@map("notification_preferences")
 }
 
 model Announcement {
@@ -478,17 +993,24 @@ model Announcement {
   body        String
   publishedAt DateTime?
   createdById String
+  deletedAt   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  site   Site?  @relation(fields: [siteId], references: [id])
+  tenant    Tenant @relation(fields: [tenantId], references: [id])
+  site      Site?  @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  createdBy User   @relation("AnnouncementCreatedBy", fields: [createdById], references: [id])
 
   @@index([tenantId])
   @@index([siteId])
   @@index([publishedAt])
+  @@index([tenantId, publishedAt])
   @@map("announcements")
 }
+
+// ──────────────────────────────────────────
+// Platform & Sistem
+// ──────────────────────────────────────────
 
 model TenantPlan {
   id         String    @id @default(uuid())
@@ -525,27 +1047,28 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-model Expense {
-  id          String          @id @default(uuid())
-  tenantId    String
-  siteId      String
-  amount      Decimal         @db.Decimal(12, 2)
-  category    ExpenseCategory
-  description String
-  date        DateTime
-  receiptUrl  String?
-  createdById String
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+model ExportBatch {
+  id                String       @id @default(uuid())
+  tenantId          String
+  type              ExportType
+  status            ExportStatus @default(PENDING)
+  filters           Json?
+  fileUrl           String?
+  requestedByUserId String?
+  rowCount          Int?
+  createdAt         DateTime     @default(now())
+  completedAt       DateTime?
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  site   Site   @relation(fields: [siteId], references: [id])
+  tenant          Tenant @relation(fields: [tenantId], references: [id])
+  requestedByUser User?  @relation("ExportBatchRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
 
-  @@index([tenantId])
-  @@index([siteId])
-  @@index([date])
-  @@map("expenses")
+  @@index([tenantId, type, status])
+  @@map("export_batches")
 }
+
+// ──────────────────────────────────────────
+// Enum Tanimlari
+// ──────────────────────────────────────────
 
 enum UserRole {
   SUPER_ADMIN
@@ -572,11 +1095,23 @@ enum UnitType {
   COMMERCIAL
   STORAGE
   PARKING
+  GARDEN_FLOOR
+  PENTHOUSE
+  DUPLEX
+  OFFICE
 }
 
 enum DuesType {
   AIDAT
   EXTRA
+  YAKACAK
+  ASANSOR
+  ONARIM
+  ISLETME
+  OTOPARK
+  ORTAK_ALAN
+  AIDAT_FARKI
+  DIGER
 }
 
 enum DuesStatus {
@@ -614,6 +1149,14 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum PaymentPurpose {
+  DUES
+  ADVANCE
+  OVERPAYMENT
+  LEGAL
+  OTHER
+}
+
 enum PaymentAttemptStatus {
   INITIATED
   PENDING
@@ -636,6 +1179,7 @@ enum LedgerEntryType {
   ADJUSTMENT
   WAIVER
   REFUND
+  EXPENSE
 }
 
 enum LedgerReferenceType {
@@ -645,6 +1189,7 @@ enum LedgerReferenceType {
   WAIVER
   REFUND
   MANUAL
+  EXPENSE
 }
 
 enum ExportType {
@@ -686,6 +1231,20 @@ enum ExpenseCategory {
   INSURANCE
   MANAGEMENT_FEE
   OTHER
+  ELEVATOR
+  HEATING_FUEL
+  WATER
+  ELECTRICITY
+  NATURAL_GAS
+  GARDEN
+  PEST_CONTROL
+  POOL
+  LEGAL
+  TAXES
+  STAFF_SALARY
+  RENOVATION
+  EQUIPMENT
+  COMMUNICATION
 }
 
 enum PlanType {
@@ -693,4 +1252,181 @@ enum PlanType {
   STARTER
   PROFESSIONAL
   ENTERPRISE
+}
+
+enum CashAccountType {
+  CASH
+  BANK
+}
+
+enum CashTransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum CashReferenceType {
+  PAYMENT
+  EXPENSE
+  MANUAL
+}
+
+enum SiteStaffRole {
+  CLEANING
+  SECURITY
+  MAINTENANCE
+  MANAGEMENT
+  OTHER
+}
+
+// ──────────────────────────────────────────
+// Yeni Enum'lar — Talep/Ariza
+// ──────────────────────────────────────────
+
+enum TicketCategory {
+  ELEVATOR
+  PLUMBING
+  ELECTRICAL
+  CLEANING
+  HEATING
+  SECURITY
+  PARKING
+  GARDEN
+  COMMON_AREA
+  NOISE
+  PEST
+  OTHER
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+
+// ──────────────────────────────────────────
+// Yeni Enum'lar — Hukuki Takip
+// ──────────────────────────────────────────
+
+enum LegalCaseStage {
+  WARNING_SENT
+  LEGAL_NOTICE
+  LAWSUIT_FILED
+  JUDGMENT
+  ENFORCEMENT
+  SETTLED
+  CANCELLED
+}
+
+enum LegalCaseStatus {
+  ACTIVE
+  SETTLED
+  CANCELLED
+}
+
+// ──────────────────────────────────────────
+// Yeni Enum'lar — Belge
+// ──────────────────────────────────────────
+
+enum DocumentOwnerType {
+  SITE
+  UNIT
+  TICKET
+  CONTRACT
+  LEGAL_CASE
+  EXPENSE
+  MEETING
+}
+
+enum DocumentType {
+  RECEIPT
+  INVOICE
+  CONTRACT
+  INSURANCE
+  MEETING_MINUTES
+  PHOTO
+  REPORT
+  LEGAL
+  OTHER
+}
+
+// ──────────────────────────────────────────
+// Yeni Enum'lar — Sozlesme
+// ──────────────────────────────────────────
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  RENEWED
+}
+
+// ──────────────────────────────────────────
+// Yeni Enum'lar — Iletisim
+// ──────────────────────────────────────────
+
+enum CommunicationChannel {
+  SMS
+  WHATSAPP
+  EMAIL
+}
+
+enum CommunicationStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  BOUNCED
+}
+
+// ──────────────────────────────────────────
+// Yeni Enum'lar — Tesis
+// ──────────────────────────────────────────
+
+enum FacilityType {
+  POOL
+  GYM
+  PARKING_LOT
+  GENERATOR
+  PLAYGROUND
+  MEETING_ROOM
+  SAUNA
+  GARDEN
+  ELEVATOR
+  SECURITY_BOOTH
+  OTHER
+}
+
+// ──────────────────────────────────────────
+// Yeni Enum'lar — Toplanti
+// ──────────────────────────────────────────
+
+enum MeetingType {
+  ORDINARY
+  EXTRAORDINARY
+}
+
+enum MeetingStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum DecisionResult {
+  APPROVED
+  REJECTED
+  POSTPONED
 }

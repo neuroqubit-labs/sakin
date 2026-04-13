@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@sakin/ui'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { apiClient } from '@/lib/api'
 
 interface PlatformStats {

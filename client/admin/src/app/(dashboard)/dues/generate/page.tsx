@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@sakin/ui'
+import { Button } from '@/components/ui/button'
 import { apiClient } from '@/lib/api'
 import { DuesType, type GenerateDuesDto } from '@sakin/shared'
 
@@ -46,7 +46,7 @@ export default function GenerateDuesPage() {
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Site ID</label>
+          <label className="block text-sm font-medium text-gray-700">Site Kodu</label>
           <input name="siteId" required className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" />
         </div>
         <div className="grid grid-cols-2 gap-4">

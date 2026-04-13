@@ -4,7 +4,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --concurrency=20",
-    "dev:web": "turbo run dev --filter=@sakin/api --filter=@sakin/admin --concurrency=4",
+    "dev:web": "turbo run dev --filter=@sakin/api --filter=@sakin/admin --filter=@sakin/web --concurrency=6",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
