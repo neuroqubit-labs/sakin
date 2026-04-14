@@ -20,8 +20,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "ts-node --esm prisma/seed.ts",
-    "db:cutover": "ts-node --esm prisma/cutover.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:cutover": "tsx prisma/cutover.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1"
@@ -30,10 +30,11 @@
     "@types/node": "^22.10.7",
     "prisma": "^6.2.1",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.3"
   },
   "prisma": {
     "schema": "prisma/schema.prisma",
-    "seed": "ts-node --esm prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts"
   }
 }

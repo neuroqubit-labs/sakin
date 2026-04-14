@@ -13,6 +13,15 @@ import {
   CashTransactionType,
   CashReferenceType,
   SiteStaffRole,
+  ExpenseCategory,
+  FacilityType,
+  MeetingType,
+  MeetingStatus,
+  DecisionResult,
+  TicketCategory,
+  TicketPriority,
+  TicketStatus,
+  ContractStatus,
 } from '@prisma/client'
 import { randomUUID } from 'node:crypto'
 
@@ -1030,6 +1039,173 @@ async function main() {
           phoneNumber: '05393334455',
           role: SiteStaffRole.MAINTENANCE,
           startDate: new Date(2025, 5, 1),
+        },
+      ],
+    })
+  }
+
+  // ─── Vendor ─────────────────────────────────────────────────────────────────
+  console.log('Tedarikçiler oluşturuluyor...')
+  const existingVendor = await prisma.vendor.findFirst({ where: { tenantId: tenant.id } })
+  let vendor1: { id: string }
+  if (!existingVendor) {
+    vendor1 = await prisma.vendor.create({
+      data: {
+        tenantId: tenant.id,
+        name: 'Kaya Asansör Bakım A.Ş.',
+        taxNumber: '1234567890',
+        phone: '05321112233',
+        email: 'info@kayaasansor.com',
+        category: ExpenseCategory.ELEVATOR,
+        contactName: 'Mehmet Kaya',
+      },
+    })
+    await prisma.vendor.createMany({
+      data: [
+        {
+          tenantId: tenant.id,
+          name: 'Temizsan Temizlik Hizmetleri',
+          phone: '05322223344',
+          category: ExpenseCategory.CLEANING,
+        },
+        {
+          tenantId: tenant.id,
+          name: 'Güvenli Koruma Güvenlik',
+          phone: '05323334455',
+          category: ExpenseCategory.SECURITY,
+        },
+      ],
+    })
+  } else {
+    vendor1 = existingVendor
+  }
+
+  // ─── Facility ────────────────────────────────────────────────────────────────
+  console.log('Tesisler oluşturuluyor...')
+  const existingFacility = await prisma.facility.findFirst({ where: { tenantId: tenant.id } })
+  if (!existingFacility) {
+    await prisma.facility.createMany({
+      data: [
+        {
+          tenantId: tenant.id,
+          siteId: site1.id,
+          name: 'Kapalı Otopark',
+          type: FacilityType.PARKING_LOT,
+        },
+        {
+          tenantId: tenant.id,
+          siteId: site1.id,
+          name: 'Asansör No:1',
+          type: FacilityType.ELEVATOR,
+        },
+        {
+          tenantId: tenant.id,
+          siteId: site2.id,
+          name: 'Yüzme Havuzu',
+          type: FacilityType.POOL,
+          description: 'Mayıs-Eylül açık',
+        },
+        {
+          tenantId: tenant.id,
+          siteId: site2.id,
+          name: 'Çocuk Oyun Alanı',
+          type: FacilityType.PLAYGROUND,
+        },
+      ],
+    })
+  }
+
+  // ─── Contract ────────────────────────────────────────────────────────────────
+  console.log('Sözleşmeler oluşturuluyor...')
+  const existingContract = await prisma.contract.findFirst({ where: { tenantId: tenant.id } })
+  if (!existingContract) {
+    await prisma.contract.createMany({
+      data: [
+        {
+          tenantId: tenant.id,
+          siteId: site1.id,
+          vendorId: vendor1.id,
+          title: 'Asansör Bakım Sözleşmesi 2026',
+          status: ContractStatus.ACTIVE,
+          startDate: new Date('2026-01-01'),
+          endDate: new Date('2026-12-31'),
+          amount: 18000,
+          currency: 'TRY',
+          renewalDate: new Date('2026-11-01'),
+        },
+      ],
+    })
+  }
+
+  // ─── Meeting ─────────────────────────────────────────────────────────────────
+  console.log('Toplantılar oluşturuluyor...')
+  const existingMeeting = await prisma.meeting.findFirst({ where: { tenantId: tenant.id } })
+  if (!existingMeeting) {
+    const meeting = await prisma.meeting.create({
+      data: {
+        tenantId: tenant.id,
+        siteId: site1.id,
+        type: MeetingType.ORDINARY,
+        status: MeetingStatus.COMPLETED,
+        title: '2026 Olağan Kat Malikleri Kurulu',
+        agenda: '1- Yıllık gelir-gider raporu\n2- 2026 aidat belirlenmesi\n3- Dilek ve temenniler',
+        date: new Date('2026-03-15T10:00:00'),
+        location: 'Apartman toplantı salonu',
+        quorumMet: true,
+        attendeeCount: 14,
+        totalUnits: 24,
+      },
+    })
+    await prisma.meetingDecision.createMany({
+      data: [
+        {
+          tenantId: tenant.id,
+          meetingId: meeting.id,
+          orderNumber: 1,
+          subject: '2025 Yıllık Gelir-Gider Raporunun Onayı',
+          result: DecisionResult.APPROVED,
+          votesFor: 14,
+          votesAgainst: 0,
+          votesAbstain: 0,
+        },
+        {
+          tenantId: tenant.id,
+          meetingId: meeting.id,
+          orderNumber: 2,
+          subject: '2026 Aylık Aidat Belirlenmesi (₺600)',
+          result: DecisionResult.APPROVED,
+          votesFor: 12,
+          votesAgainst: 1,
+          votesAbstain: 1,
+        },
+      ],
+    })
+  }
+
+  // ─── Ticket ──────────────────────────────────────────────────────────────────
+  console.log('Talepler oluşturuluyor...')
+  const existingTicket = await prisma.ticket.findFirst({ where: { tenantId: tenant.id } })
+  if (!existingTicket) {
+    await prisma.ticket.createMany({
+      data: [
+        {
+          tenantId: tenant.id,
+          siteId: site1.id,
+          category: TicketCategory.ELEVATOR,
+          priority: TicketPriority.HIGH,
+          status: TicketStatus.OPEN,
+          title: 'Asansör arızası — 2. kat',
+          description: '2. kat asansör kapısı tam kapanmıyor, tehlikeli durum.',
+        },
+        {
+          tenantId: tenant.id,
+          siteId: site1.id,
+          category: TicketCategory.CLEANING,
+          priority: TicketPriority.LOW,
+          status: TicketStatus.RESOLVED,
+          title: 'Bodrum kat temizlik talebi',
+          description: 'Bodrum kat ortak alan temizlenmesi gerekiyor.',
+          resolvedAt: new Date('2026-04-10'),
         },
       ],
     })
