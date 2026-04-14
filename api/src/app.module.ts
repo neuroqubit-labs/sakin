@@ -22,6 +22,14 @@ import { OccupancyModule } from './modules/occupancy/occupancy.module'
 import { NotificationModule } from './modules/notification/notification.module'
 import { CashAccountModule } from './modules/cash-account/cash-account.module'
 import { SiteStaffModule } from './modules/site-staff/site-staff.module'
+import { VendorModule } from './modules/vendor/vendor.module'
+import { TicketModule } from './modules/ticket/ticket.module'
+import { LegalCaseModule } from './modules/legal-case/legal-case.module'
+import { DocumentModule } from './modules/document/document.module'
+import { ContractModule } from './modules/contract/contract.module'
+import { CommunicationModule } from './modules/communication/communication.module'
+import { FacilityModule } from './modules/facility/facility.module'
+import { MeetingModule } from './modules/meeting/meeting.module'
 
 @Module({
   imports: [
@@ -47,6 +55,14 @@ import { SiteStaffModule } from './modules/site-staff/site-staff.module'
     NotificationModule,
     CashAccountModule,
     SiteStaffModule,
+    VendorModule,
+    TicketModule,
+    LegalCaseModule,
+    DocumentModule,
+    ContractModule,
+    CommunicationModule,
+    FacilityModule,
+    MeetingModule,
   ],
   providers: [
     {

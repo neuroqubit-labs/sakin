@@ -1,0 +1,110 @@
+import { Injectable, NotFoundException } from '@nestjs/common'
+import { PrismaService } from '../../prisma/prisma.service'
+import type { CreateTicketDto, UpdateTicketDto, TicketFilterDto, CreateTicketCommentDto } from '@sakin/shared'
+
+@Injectable()
+export class TicketService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(dto: CreateTicketDto, tenantId: string, userId?: string) {
+    const db = this.prisma.forTenant(tenantId)
+    const site = await db.site.findFirst({ where: { id: dto.siteId } })
+    if (!site) throw new NotFoundException('Site bulunamadı')
+    return db.ticket.create({
+      data: { ...dto, tenantId, reportedById: userId ?? null },
+      include: {
+        site: { select: { name: true } },
+        unit: { select: { number: true } },
+        assignedTo: { select: { firstName: true, lastName: true } },
+      },
+    })
+  }
+
+  async findAll(filter: TicketFilterDto, tenantId: string) {
+    const db = this.prisma.forTenant(tenantId)
+
+    const where: Record<string, unknown> = { deletedAt: null }
+    if (filter.siteId) where['siteId'] = filter.siteId
+    if (filter.unitId) where['unitId'] = filter.unitId
+    if (filter.category) where['category'] = filter.category
+    if (filter.priority) where['priority'] = filter.priority
+    if (filter.status) where['status'] = filter.status
+    if (filter.assignedToId) where['assignedToId'] = filter.assignedToId
+
+    const [data, total] = await Promise.all([
+      db.ticket.findMany({
+        where,
+        include: {
+          site: { select: { name: true } },
+          unit: { select: { number: true } },
+          assignedTo: { select: { firstName: true, lastName: true } },
+        },
+        orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+        skip: (filter.page - 1) * filter.limit,
+        take: filter.limit,
+      }),
+      db.ticket.count({ where }),
+    ])
+
+    return {
+      data,
+      meta: { total, page: filter.page, limit: filter.limit, totalPages: Math.ceil(total / filter.limit) },
+    }
+  }
+
+  async findOne(id: string, tenantId: string) {
+    const db = this.prisma.forTenant(tenantId)
+    const ticket = await db.ticket.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        site: { select: { name: true } },
+        unit: { select: { number: true } },
+        assignedTo: { select: { firstName: true, lastName: true } },
+        comments: {
+          orderBy: { createdAt: 'asc' },
+          include: { author: { select: { displayName: true } } },
+        },
+      },
+    })
+    if (!ticket) throw new NotFoundException('Talep bulunamadı')
+    return ticket
+  }
+
+  async update(id: string, dto: UpdateTicketDto, tenantId: string) {
+    const ticket = await this.findOne(id, tenantId)
+    const db = this.prisma.forTenant(tenantId)
+
+    const updateData: Record<string, unknown> = { ...dto }
+    if (dto.status === 'RESOLVED' && !ticket.resolvedAt) {
+      updateData['resolvedAt'] = new Date()
+    }
+    if (dto.status === 'CLOSED' && !ticket.closedAt) {
+      updateData['closedAt'] = new Date()
+    }
+
+    return db.ticket.update({
+      where: { id },
+      data: updateData,
+      include: {
+        site: { select: { name: true } },
+        unit: { select: { number: true } },
+        assignedTo: { select: { firstName: true, lastName: true } },
+      },
+    })
+  }
+
+  async delete(id: string, tenantId: string) {
+    await this.findOne(id, tenantId)
+    const db = this.prisma.forTenant(tenantId)
+    return db.ticket.update({ where: { id }, data: { deletedAt: new Date() } })
+  }
+
+  async addComment(ticketId: string, dto: CreateTicketCommentDto, tenantId: string, userId: string) {
+    await this.findOne(ticketId, tenantId)
+    const db = this.prisma.forTenant(tenantId)
+    return db.ticketComment.create({
+      data: { ...dto, ticketId, tenantId, authorId: userId },
+      include: { author: { select: { displayName: true } } },
+    })
+  }
+}
