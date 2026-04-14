@@ -48,7 +48,8 @@ export default function WorkUnitsPage() {
   const queryParams = {
     siteId: selectedSiteId ?? undefined,
     page: 1,
-    limit: 300,
+    // Backend UnitFilterSchema currently caps limit at 100.
+    limit: 100,
     isActive: true,
     search: search.trim() || undefined,
     financialStatus: status === 'ALL' ? undefined : status,
@@ -56,7 +57,7 @@ export default function WorkUnitsPage() {
     floor: floor.trim() ? Number(floor) : undefined,
   }
 
-  const { data: unitsResponse, isLoading } = useApiQuery<UnitsResponse>(
+  const { data: unitsResponse, isLoading, error: unitsError } = useApiQuery<UnitsResponse>(
     ['units', queryParams],
     '/units',
     queryParams,
@@ -150,6 +151,12 @@ export default function WorkUnitsPage() {
             {siteError
               ? `Site verisi alınamadı: ${siteError}`
               : 'Aktif bina seçimi bulunamadı. Üst bardan bir bina seçin.'}
+          </p>
+        </div>
+      ) : unitsError ? (
+        <div className="ledger-panel p-5">
+          <p className="text-sm text-red-600">
+            Daire listesi yüklenemedi: {unitsError.message}
           </p>
         </div>
       ) : (
