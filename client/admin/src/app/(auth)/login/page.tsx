@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
+import { BrandLockup } from '@/components/brand-lockup'
 import { setSessionCookie } from '@/lib/session'
 import { getDevTenantId, setDevTenantId, BASE_URL } from '@/lib/api'
 import { UserRole } from '@sakin/shared'
@@ -122,102 +123,121 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
-        <div>
-          <h1 className="text-3xl font-bold text-center text-gray-900">Sakin</h1>
-          <p className="mt-2 text-center text-sm text-gray-600">Yönetim Paneli</p>
-        </div>
-
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                E-posta
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Şifre
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-              />
-            </div>
+    <div className="relative min-h-screen overflow-hidden ledger-mesh-bg px-4 py-10">
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-16 top-10 h-72 w-72 rounded-full bg-[#4f7df7]/12 blur-3xl" />
+        <div className="absolute right-0 top-0 h-80 w-80 rounded-full bg-[#3bd1ff]/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-[#17345a]/6 blur-3xl" />
+      </div>
+      <div className="relative mx-auto max-w-md">
+        <div className="ledger-panel space-y-8 p-8">
+          <div className="flex justify-center">
+            <BrandLockup subtitle="Yönetim Paneli" compact />
           </div>
 
-          {error && (
-            <p className="text-sm text-red-600 text-center">{error}</p>
-          )}
+          <div className="text-center">
+            <p className="ledger-label">Admin Access</p>
+            <p className="mt-2 text-sm leading-6 text-[#64758b]">
+              Wafra Software tarafından sunulan Sakin Yönetim yönetim yüzeyine giriş yapın.
+            </p>
+          </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
-          </Button>
-        </form>
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  E-posta
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                />
+              </div>
 
-        {isDevBypassEnabled && (
-          <form className="pt-6 border-t border-gray-200 space-y-3" onSubmit={handleDevLogin}>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Dev Hızlı Giriş</p>
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Şifre
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+                />
+              </div>
+            </div>
 
-            <div className="rounded-md bg-gray-50 border border-gray-200 p-3 space-y-2">
-              <p className="text-[11px] font-semibold text-gray-700 uppercase tracking-wide">Demo Bootstrap</p>
-              {bootstrapLoading && <p className="text-xs text-gray-500">Demo verisi kontrol ediliyor...</p>}
-              {bootstrapError && <p className="text-xs text-red-600">{bootstrapError}</p>}
-              {bootstrap && !bootstrap.ready && (
-                <p className="text-xs text-red-600">{bootstrap.message ?? 'Demo verisi hazır değil.'}</p>
-              )}
-              {bootstrap?.ready && (
-                <>
-                  <p className="text-xs text-gray-700">
-                    {bootstrap.tenantName} ({bootstrap.tenantSlug})
-                  </p>
-                  {bootstrap.stats && (
-                    <p className="text-[11px] text-gray-600">
-                      Site: {bootstrap.stats.siteCount} · Daire: {bootstrap.stats.unitCount} ·
-                      Sakin: {bootstrap.stats.residentCount} · Aidat: {bootstrap.stats.duesCount} ·
-                      Tahsilat: {bootstrap.stats.paymentCount}
+            {error && (
+              <p className="text-sm text-red-600 text-center">{error}</p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
+            </Button>
+          </form>
+
+          {isDevBypassEnabled && (
+            <form className="space-y-4 border-t border-[#dbe4ef] pt-6" onSubmit={handleDevLogin}>
+              <div>
+                <p className="ledger-label">Dev Hızlı Giriş</p>
+                <p className="mt-2 text-xs leading-5 text-[#6b7280]">Demo tenant ve rol ile panele kısa yoldan erişim.</p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/80 bg-white/70 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#71829a]">Demo Bootstrap</p>
+                {bootstrapLoading && <p className="mt-2 text-xs text-gray-500">Demo verisi kontrol ediliyor...</p>}
+                {bootstrapError && <p className="mt-2 text-xs text-red-600">{bootstrapError}</p>}
+                {bootstrap && !bootstrap.ready && (
+                  <p className="mt-2 text-xs text-red-600">{bootstrap.message ?? 'Demo verisi hazır değil.'}</p>
+                )}
+                {bootstrap?.ready && (
+                  <>
+                    <p className="mt-2 text-xs text-gray-700">
+                      {bootstrap.tenantName} ({bootstrap.tenantSlug})
                     </p>
-                  )}
-                </>
-              )}
-            </div>
+                    {bootstrap.stats && (
+                      <p className="mt-1 text-[11px] leading-5 text-gray-600">
+                        Site: {bootstrap.stats.siteCount} · Daire: {bootstrap.stats.unitCount} ·
+                        Sakin: {bootstrap.stats.residentCount} · Aidat: {bootstrap.stats.duesCount} ·
+                        Tahsilat: {bootstrap.stats.paymentCount}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setDevRole(UserRole.STAFF)}
-                className={`px-2 py-2 rounded-md text-xs font-semibold border ${
-                  devRole === UserRole.STAFF ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'
-                }`}
-              >
-                Personel
-              </button>
-              <button
-                type="button"
-                onClick={() => setDevRole(UserRole.TENANT_ADMIN)}
-                className={`px-2 py-2 rounded-md text-xs font-semibold border ${
-                  devRole === UserRole.TENANT_ADMIN ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'
-                }`}
-              >
-                Yönetici
-              </button>
-            </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDevRole(UserRole.STAFF)}
+                  className={`rounded-2xl px-2 py-2 text-xs font-semibold border transition-all ${
+                    devRole === UserRole.STAFF
+                      ? 'bg-[#102038] text-white border-[#102038] shadow-[0_12px_24px_rgba(16,32,56,0.18)]'
+                      : 'bg-white text-gray-700 border-[#d8e2ee]'
+                  }`}
+                >
+                  Personel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDevRole(UserRole.TENANT_ADMIN)}
+                  className={`rounded-2xl px-2 py-2 text-xs font-semibold border transition-all ${
+                    devRole === UserRole.TENANT_ADMIN
+                      ? 'bg-[#102038] text-white border-[#102038] shadow-[0_12px_24px_rgba(16,32,56,0.18)]'
+                      : 'bg-white text-gray-700 border-[#d8e2ee]'
+                  }`}
+                >
+                  Yönetici
+                </button>
+              </div>
 
-            <div className="space-y-2">
+              <div className="space-y-2">
                 <label htmlFor="devTenantId" className="block text-sm font-medium text-gray-700">
                   Tenant ID
                 </label>
@@ -226,7 +246,7 @@ export default function LoginPage() {
                   value={devTenantId}
                   onChange={(e) => setDevTenantIdState(e.target.value)}
                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  className="block w-full rounded-2xl border border-[#d8e2ee] bg-white px-3 py-2 text-sm"
                 />
                 {bootstrap?.ready && bootstrap.tenantId && (
                   <button
@@ -242,15 +262,16 @@ export default function LoginPage() {
                 )}
               </div>
 
-            {devError && (
-              <p className="text-sm text-red-600">{devError}</p>
-            )}
+              {devError && (
+                <p className="text-sm text-red-600">{devError}</p>
+              )}
 
-            <Button type="submit" variant="secondary" className="w-full">
-              Dev Hızlı Giriş
-            </Button>
-          </form>
-        )}
+              <Button type="submit" variant="secondary" className="w-full">
+                Dev Hızlı Giriş
+              </Button>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   )

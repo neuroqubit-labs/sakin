@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { UserRole } from '@sakin/shared'
 import { Menu } from 'lucide-react'
 import { getNavGroupsForRole } from '@/lib/access-policy'
+import { BrandLockup } from '@/components/brand-lockup'
 import { SidebarNav } from '@/components/sidebar-nav'
 import { MobileSidebar } from '@/components/mobile-sidebar'
 import { SiteProvider, useSiteContext } from '@/providers/site-provider'
@@ -72,7 +73,12 @@ function ShellInner({ title, mainGroups, bottomItems, mobileOpen, setMobileOpen,
   }, [])
 
   return (
-    <div className="flex h-screen ledger-mesh-bg">
+    <div className="relative flex min-h-screen ledger-mesh-bg">
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-24 top-16 h-72 w-72 rounded-full bg-[#4f7df7]/12 blur-3xl" />
+        <div className="absolute right-0 top-0 h-80 w-80 rounded-full bg-[#3bd1ff]/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-[#17345a]/6 blur-3xl" />
+      </div>
       <SidebarNav title={title} mainGroups={mainGroups} bottomItems={bottomItems} />
       <MobileSidebar
         title={title}
@@ -81,22 +87,25 @@ function ShellInner({ title, mainGroups, bottomItems, mobileOpen, setMobileOpen,
         open={mobileOpen}
         onOpenChange={setMobileOpen}
       />
-      <main className="flex-1 overflow-auto">
+      <main className="relative z-10 min-w-0 flex-1 overflow-auto">
         <div className="sticky top-0 z-20">
-          <div className="flex items-center lg:hidden px-4 py-2.5 border-b border-white/60 ledger-glass">
-            <button
-              type="button"
-              onClick={() => setMobileOpen(true)}
-              className="p-1.5 rounded-md hover:bg-[#f3f4f6] transition-colors"
-              aria-label="Menüyü aç"
-            >
-              <Menu className="h-5 w-5 text-[#0c1427]" />
-            </button>
-            <span className="ml-2 text-sm font-semibold text-[#0c1427]">Sakin</span>
+          <div className="px-3 pt-3 lg:hidden">
+            <div className="ledger-shell-topbar flex items-center gap-3 rounded-[24px] px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setMobileOpen(true)}
+                className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/80 bg-white/86 text-[#102038] shadow-[0_10px_24px_rgba(8,17,31,0.08)] transition-all hover:-translate-y-0.5 hover:bg-white"
+                aria-label="Menüyü aç"
+                aria-expanded={mobileOpen}
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              <BrandLockup subtitle={title} compact className="min-w-0 flex-1" />
+            </div>
           </div>
           <Topbar onPaymentClick={() => setOpenPaymentModal(true)} />
         </div>
-        <div className="p-4 lg:p-6">{children}</div>
+        <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 p-4 lg:p-6 xl:p-8">{children}</div>
       </main>
 
       <PaymentCollectModal

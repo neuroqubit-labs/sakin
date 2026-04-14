@@ -5,6 +5,8 @@ import { DuesType } from '@sakin/shared'
 import { useApiQuery, useApiMutation } from '@/hooks/use-api'
 import { formatTry } from '@/lib/formatters'
 import { toastSuccess } from '@/lib/toast'
+import { Button } from '@/components/ui/button'
+import { SectionTitle } from '@/components/surface'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface DuesPolicy {
@@ -81,14 +83,17 @@ export function DuesPeriodPanel({ siteId }: DuesPeriodPanelProps) {
   }
 
   if (isLoading) {
-    return <Skeleton className="h-64 rounded-lg" />
+    return <Skeleton className="h-64 rounded-2xl" />
   }
 
   return (
     <div className="space-y-6">
-      {/* Step-by-step wizard layout */}
-      <div className="ledger-panel p-5 space-y-5">
-        <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4b5968]">Dönem Açma Sihirbazı</p>
+      <div className="ledger-panel overflow-hidden">
+        <SectionTitle
+          title="Dönem Açma Sihirbazı"
+          subtitle="Aktif aidat tanımıyla dönem açıp tüm daireler için borç kaydı üretin."
+        />
+        <div className="p-5 space-y-5">
 
         {/* Step 1: Select Policy */}
         <div className="space-y-2">
@@ -154,7 +159,7 @@ export function DuesPeriodPanel({ siteId }: DuesPeriodPanelProps) {
           </div>
 
           {selectedPolicyId && (
-            <div className="rounded-lg bg-[#f2f4f6] p-4">
+            <div className="rounded-[20px] border border-white/85 bg-white/82 p-4 shadow-[0_14px_30px_rgba(8,17,31,0.04)]">
               <p className="text-sm text-[#0c1427]">
                 <strong>{activePolicies.find((p) => p.id === selectedPolicyId)?.name}</strong> tanımı ile{' '}
                 <strong>{MONTH_NAMES[periodMonth]} {periodYear}</strong> dönemi açılacak.
@@ -165,40 +170,43 @@ export function DuesPeriodPanel({ siteId }: DuesPeriodPanelProps) {
             </div>
           )}
 
-          <button
+          <Button
             type="button"
             disabled={openMutation.isPending || !selectedPolicyId}
             onClick={handleOpen}
-            className="w-full px-4 py-3 rounded-lg ledger-gradient text-sm font-bold text-white uppercase tracking-tight disabled:opacity-50 transition-opacity"
+            className="w-full"
           >
             {openMutation.isPending ? 'Dönem Açılıyor...' : 'Dönem Aç'}
-          </button>
+          </Button>
+        </div>
         </div>
       </div>
 
       {/* Period Close */}
-      <div className="ledger-panel p-5 space-y-4">
-        <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4b5968]">Dönem Kapatma</p>
-        <p className="text-sm text-[#445266]">
-          Seçili dönem ({MONTH_NAMES[periodMonth]} {periodYear}) için bekleyen/kısmi kayıtları kapatır.
-        </p>
-        <label className="text-xs text-[#445266] flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={forceOverdue}
-            onChange={(e) => setForceOverdue(e.target.checked)}
-            className="h-4 w-4 rounded border-[#c5c6cd]"
-          />
-          Bekleyen/kısmi kayıtları gecikmiş olarak işaretle
-        </label>
-        <button
-          type="button"
-          disabled={closeMutation.isPending}
-          onClick={handleClose}
-          className="px-4 py-2.5 rounded-lg bg-[#e6e8ea] text-sm font-bold text-[#0c1427] hover:bg-[#dce0e3] disabled:opacity-50 transition-colors"
-        >
-          {closeMutation.isPending ? 'Kapatılıyor...' : 'Dönem Kapat'}
-        </button>
+      <div className="ledger-panel overflow-hidden">
+        <SectionTitle
+          title="Dönem Kapatma"
+          subtitle={`Seçili dönem (${MONTH_NAMES[periodMonth]} ${periodYear}) için bekleyen/kısmi kayıtları kapatır.`}
+        />
+        <div className="p-5 space-y-4">
+          <label className="text-xs text-[#445266] flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={forceOverdue}
+              onChange={(e) => setForceOverdue(e.target.checked)}
+              className="h-4 w-4 rounded border-[#c5c6cd]"
+            />
+            Bekleyen/kısmi kayıtları gecikmiş olarak işaretle
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={closeMutation.isPending}
+            onClick={handleClose}
+          >
+            {closeMutation.isPending ? 'Kapatılıyor...' : 'Dönem Kapat'}
+          </Button>
+        </div>
       </div>
     </div>
   )

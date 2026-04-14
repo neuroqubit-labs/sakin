@@ -8,7 +8,8 @@ import { useAuth } from '@/providers/auth-provider'
 import { UserRole } from '@sakin/shared'
 import { FileText } from 'lucide-react'
 import { EmptyState } from '@/components/empty-state'
-import { StatusPill } from '@/components/surface'
+import { Button } from '@/components/ui/button'
+import { KpiCard, SectionTitle, StatusPill } from '@/components/surface'
 import { duesStatusLabel, duesStatusTone, formatShortDate, formatTry } from '@/lib/formatters'
 import { toastSuccess } from '@/lib/toast'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -91,36 +92,28 @@ export function DuesRecordsPanel({ siteId }: DuesRecordsPanelProps) {
     <div className="space-y-4">
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="ledger-panel p-4">
-          <p className="ledger-label">Toplam Kayıt</p>
-          <p className="ledger-value mt-2">{meta?.total ?? rows.length}</p>
-        </div>
-        <div className="ledger-panel p-4">
-          <p className="ledger-label">Açık Bakiye</p>
-          <p className="ledger-value mt-2">{formatTry(openAmount)}</p>
-        </div>
-        <div className="ledger-panel p-4">
-          <p className="ledger-label">Gecikmiş</p>
-          <p className="ledger-value mt-2">{overdueCount}</p>
-        </div>
+        <KpiCard label="Toplam Kayıt" value={meta?.total ?? rows.length} hint="Seçili filtreye göre aidat satırları." icon={FileText} tone="blue" />
+        <KpiCard label="Açık Bakiye" value={formatTry(openAmount)} hint="Ödenmemiş toplam borç miktarı." icon={FileText} tone="amber" />
+        <KpiCard label="Gecikmiş" value={overdueCount} hint="Vadesi geçmiş aidat adedi." icon={FileText} tone="rose" />
       </div>
 
       {/* Table */}
       <div className="ledger-panel overflow-x-auto">
-        <div className="px-5 py-4 bg-[#f2f4f6] flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Aidat Kayıtları</h2>
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-            className="ledger-input bg-white text-xs"
-          >
-            {STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
+        <SectionTitle
+          title="Aidat Kayıtları"
+          subtitle="Daire bazında dönem, tutar ve durum dağılımı."
+          actions={(
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+              className="ledger-input bg-white text-xs"
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          )}
+        />
 
         {isLoading ? (
           <div className="p-5 space-y-3">
@@ -154,14 +147,16 @@ export function DuesRecordsPanel({ siteId }: DuesRecordsPanelProps) {
                   <span className="lg:col-span-1 text-xs text-[#6b7280]">{formatShortDate(row.dueDate)}</span>
                   <div className="lg:col-span-1 lg:text-right">
                     {isTenantAdmin && (row.status === 'PENDING' || row.status === 'OVERDUE') && (
-                      <button
+                      <Button
                         type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-[#ba1a1a]"
                         disabled={waivingId === row.id}
                         onClick={() => void handleWaive(row.id)}
-                        className="text-xs font-bold text-[#ba1a1a] hover:text-[#93000a] transition-colors disabled:opacity-50"
                       >
                         {waivingId === row.id ? '...' : 'Affet'}
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -170,7 +165,7 @@ export function DuesRecordsPanel({ siteId }: DuesRecordsPanelProps) {
                 <EmptyState
                   icon={FileText}
                   title="Aidat kaydı bulunamadı"
-                  description="Seçili filtreye uygun aidat kaydı yok. Filtre ayarlarını değiştirin veya yeni dönem açın."
+                  description="Bu filtreyle eşleşen aidat yok — filtre ayarlarını değiştirin veya yeni dönem oluşturun."
                 />
               )}
             </div>
@@ -181,23 +176,25 @@ export function DuesRecordsPanel({ siteId }: DuesRecordsPanelProps) {
                 <p className="text-xs text-[#6b7280]">
                   Sayfa {meta.page} / {meta.totalPages} · Toplam {meta.total} kayıt
                 </p>
-                <div className="flex gap-1.5">
-                  <button
+                <div className="flex gap-2">
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => p - 1)}
-                    className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[#f2f4f6] text-[#0c1427] disabled:opacity-40 hover:bg-[#e6e8ea] transition-colors"
                   >
                     Önceki
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     disabled={page >= meta.totalPages}
                     onClick={() => setPage((p) => p + 1)}
-                    className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[#f2f4f6] text-[#0c1427] disabled:opacity-40 hover:bg-[#e6e8ea] transition-colors"
                   >
                     Sonraki
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

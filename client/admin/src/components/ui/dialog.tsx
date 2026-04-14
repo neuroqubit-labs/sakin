@@ -35,13 +35,13 @@ function Dialog({ open, onClose, children, className, align = 'center' }: Dialog
       }`}
     >
       <div
-        className="fixed inset-0 bg-black/50"
+        className="fixed inset-0 bg-[radial-gradient(circle_at_top,rgba(79,125,247,0.16),transparent_28%),rgba(8,17,31,0.56)] backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
       <div
         className={cn(
-          'relative z-10 w-full max-w-lg rounded-xl bg-white shadow-xl',
+          'relative z-10 w-full max-w-lg rounded-[28px] bg-white shadow-[0_30px_80px_rgba(8,17,31,0.18)]',
           'max-h-[calc(100vh-2rem)] overflow-y-auto',
           className,
         )}

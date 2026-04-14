@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
+    <div className="relative w-full overflow-auto rounded-[24px]">
       <table
         ref={ref}
         className={cn('w-full caption-bottom text-sm', className)}
@@ -16,7 +16,11 @@ Table.displayName = 'Table'
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   ({ className, ...props }, ref) => (
-    <thead ref={ref} className={cn('[&_tr]:border-b bg-gray-50', className)} {...props} />
+    <thead
+      ref={ref}
+      className={cn('[&_tr]:border-b [&_tr]:border-[#dde5f0] bg-[rgba(245,248,252,0.84)]', className)}
+      {...props}
+    />
   ),
 )
 TableHeader.displayName = 'TableHeader'
@@ -33,7 +37,7 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
     <tr
       ref={ref}
       className={cn(
-        'border-b transition-colors hover:bg-gray-50/50 data-[state=selected]:bg-gray-100',
+        'border-b border-[#e4ebf3] transition-colors hover:bg-white/66 data-[state=selected]:bg-[#eef4ff]',
         className,
       )}
       {...props}
@@ -47,7 +51,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
     <th
       ref={ref}
       className={cn(
-        'h-10 px-4 text-left align-middle font-medium text-gray-500 [&:has([role=checkbox])]:pr-0',
+        'h-11 px-4 text-left align-middle text-[10px] font-semibold uppercase tracking-[0.22em] text-[#7a8ba3] [&:has([role=checkbox])]:pr-0',
         className,
       )}
       {...props}
@@ -60,7 +64,7 @@ const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<
   ({ className, ...props }, ref) => (
     <td
       ref={ref}
-      className={cn('p-4 align-middle [&:has([role=checkbox])]:pr-0', className)}
+      className={cn('p-4 align-middle text-[#203047] [&:has([role=checkbox])]:pr-0', className)}
       {...props}
     />
   ),

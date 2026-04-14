@@ -1,16 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CreateAnnouncementSchema, type CreateAnnouncementDto } from '@sakin/shared'
-import { Plus, Megaphone, Pencil, Trash2 } from 'lucide-react'
+import { Megaphone, Pencil, Plus, Send, Trash2 } from 'lucide-react'
 import { EmptyState } from '@/components/empty-state'
 import { useApiQuery, useApiMutation } from '@/hooks/use-api'
 import { useSiteContext } from '@/providers/site-provider'
 import { toastSuccess } from '@/lib/toast'
 import { formatShortDate } from '@/lib/formatters'
-import { PageHeader } from '@/components/surface'
+import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
 import { Button } from '@/components/ui/button'
 import { SplitButton } from '@/components/ui/split-button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -95,218 +95,258 @@ export default function AnnouncementsPage() {
     createForm.setValue('siteId', selectedSiteId)
   }
 
-  const startEdit = (ann: AnnouncementRow) => {
-    setEditingId(ann.id)
+  const startEdit = (announcement: AnnouncementRow) => {
+    setEditingId(announcement.id)
     editForm.reset({
-      title: ann.title,
-      body: ann.body,
-      siteId: ann.siteId ?? undefined,
+      title: announcement.title,
+      body: announcement.body,
+      siteId: announcement.siteId ?? undefined,
     })
   }
 
-  const published = announcements.filter((a) => a.publishedAt)
-  const drafts = announcements.filter((a) => !a.publishedAt)
+  const published = announcements.filter((announcement) => announcement.publishedAt)
+  const drafts = announcements.filter((announcement) => !announcement.publishedAt)
+  const siteScoped = useMemo(
+    () => announcements.filter((announcement) => !!announcement.siteId).length,
+    [announcements],
+  )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 motion-in">
       <PageHeader
         title="Duyurular"
-        subtitle="Sakinlere gönderilen duyuru ve bildirimler."
-        actions={
-          <Button size="sm" onClick={() => setShowCreate(!showCreate)}>
-            <Plus className="h-4 w-4" /> Yeni Duyuru
+        eyebrow="İletişim Operasyonu"
+        subtitle="Sakin duyurularını taslak, yayın ve hedef site bağlamıyla yönetin."
+        actions={(
+          <Button size="sm" onClick={() => setShowCreate((prev) => !prev)}>
+            <Plus className="h-4 w-4" />
+            Yeni Duyuru
           </Button>
-        }
+        )}
       />
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="ledger-panel p-4">
-          <p className="ledger-label">Toplam Duyuru</p>
-          <p className="ledger-value mt-2">{announcements.length}</p>
-        </div>
-        <div className="ledger-panel p-4">
-          <p className="ledger-label">Yayınlanan</p>
-          <p className="ledger-value mt-2">{published.length}</p>
-        </div>
-        <div className="ledger-panel p-4">
-          <p className="ledger-label">Taslak</p>
-          <p className="ledger-value mt-2">{drafts.length}</p>
-        </div>
+      <div className="motion-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="ledger-panel p-5 space-y-3">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-2 w-full" />
+            </div>
+          ))
+        ) : (
+          <>
+            <KpiCard label="Toplam Duyuru" value={announcements.length} hint="Bu tenant altında kayıtlı tüm duyuru satırları." icon={Megaphone} tone="blue" />
+            <KpiCard label="Yayındaki" value={published.length} hint="Sakinlere görünür durumda olan duyurular." icon={Send} tone="emerald" />
+            <KpiCard label="Taslak" value={drafts.length} hint="Henüz yayına alınmamış hazırlık duyuruları." icon={Pencil} tone="amber" />
+            <KpiCard label="Site Bazlı" value={siteScoped} hint="Belirli bir siteye hedeflenmiş duyurular." icon={Megaphone} tone="navy" />
+          </>
+        )}
       </div>
 
-      {/* Create Form */}
-      {showCreate && (
-        <div className="ledger-panel p-5 space-y-4">
-          <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4b5968]">Yeni Duyuru</p>
-          <Form {...createForm}>
-            <form
-              onSubmit={createForm.handleSubmit((data) => createMutation.mutate(data))}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={createForm.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Başlık</FormLabel>
-                      <FormControl><Input placeholder="Duyuru başlığı" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={createForm.control}
-                  name="siteId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Site (opsiyonel)</FormLabel>
-                      <FormControl>
-                        <select {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value || undefined)} className="ledger-input bg-white w-full">
-                          <option value="">Tüm Siteler</option>
-                          {availableSites.map((site) => (
-                            <option key={site.id} value={site.id}>{site.name}</option>
-                          ))}
-                        </select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <FormField
-                control={createForm.control}
-                name="body"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>İçerik</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Duyuru içeriği..." rows={4} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="flex gap-2">
-                <SplitButton
-                  primaryLabel="Kaydet ve Yayınla"
-                  primaryAction={() => {
-                    createForm.setValue('publishedAt', new Date())
-                    void createForm.handleSubmit((data) => createMutation.mutate(data))()
-                  }}
-                  secondaryOptions={[{
-                    label: 'Taslak Kaydet',
-                    action: () => {
-                      createForm.setValue('publishedAt', undefined as unknown as Date)
-                      void createForm.handleSubmit((data) => createMutation.mutate({ ...data, publishedAt: undefined as unknown as Date }))()
-                    },
-                  }]}
-                  isPending={createMutation.isPending}
-                  disabled={createMutation.isPending}
-                />
-                <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>İptal</Button>
-              </div>
-            </form>
-          </Form>
-        </div>
-      )}
-
-      {/* Edit Panel */}
-      {editingId && (
-        <div className="ledger-panel p-5 space-y-4">
-          <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4b5968]">Duyuru Düzenle</p>
-          <Form {...editForm}>
-            <form
-              onSubmit={editForm.handleSubmit((data) => updateMutation.mutate({ ...data, id: editingId }))}
-              className="space-y-4"
-            >
-              <FormField
-                control={editForm.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Başlık</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="body"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>İçerik</FormLabel>
-                    <FormControl><Textarea rows={4} {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="flex gap-2">
-                <Button type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setEditingId(null)}>İptal</Button>
-              </div>
-            </form>
-          </Form>
-        </div>
-      )}
-
-      {/* Announcements List */}
-      <div className="ledger-panel overflow-x-auto">
-        <div className="min-w-[800px]">
-        <div className="grid grid-cols-12 px-5 py-3 ledger-table-head text-xs">
-          <span className="col-span-1">Durum</span>
-          <span className="col-span-3">Başlık</span>
-          <span className="col-span-4">İçerik</span>
-          <span className="col-span-2">Tarih / Site</span>
-          <span className="col-span-2 text-right">Aksiyon</span>
-        </div>
-        <div className="ledger-divider">
-          {isLoading && Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="px-5 py-4"><Skeleton className="h-10 w-full" /></div>
-          ))}
-          {!isLoading && announcements.length === 0 && (
-            <EmptyState
-              icon={Megaphone}
-              title="Henüz duyuru yok"
-              description="Sakinlerinize ilk duyurunuzu oluşturun."
-              actionLabel="İlk Duyuruyu Oluştur"
-              onAction={() => setShowCreate(true)}
-            />
-          )}
-          {!isLoading && announcements.map((ann) => (
-            <div key={ann.id} className="grid grid-cols-12 px-5 py-3 items-center ledger-table-row-hover">
-              <div className="col-span-1">
-                <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-medium ${ann.publishedAt ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                  {ann.publishedAt ? 'Yayında' : 'Taslak'}
-                </span>
-              </div>
-              <p className="col-span-3 text-sm font-semibold text-[#0c1427] truncate">{ann.title}</p>
-              <p className="col-span-4 text-sm text-[#374151] truncate">{ann.body}</p>
-              <div className="col-span-2">
-                <p className="text-xs text-[#6b7280]">{formatShortDate(ann.publishedAt ?? ann.createdAt)}</p>
-                <p className="text-[11px] text-[#9ca3af]">{ann.site?.name ?? 'Tüm Siteler'}</p>
-              </div>
-              <div className="col-span-2 flex justify-end gap-1">
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(ann)}>
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0 text-[#ba1a1a]"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => deleteMutation.mutate({ id: ann.id })}
+      {showCreate ? (
+        <div className="ledger-panel overflow-hidden">
+          <SectionTitle
+            title="Yeni duyuru"
+            subtitle="Başlık, içerik ve hedef site belirleyerek duyuruyu taslak veya yayında kaydedin."
+          />
+          <div className="p-5">
+            <div className="ledger-panel-soft p-4 md:p-5">
+              <Form {...createForm}>
+                <form
+                  onSubmit={createForm.handleSubmit((data) => createMutation.mutate(data))}
+                  className="space-y-4"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormField
+                      control={createForm.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Başlık</FormLabel>
+                          <FormControl><Input placeholder="Duyuru başlığı" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={createForm.control}
+                      name="siteId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Site</FormLabel>
+                          <FormControl>
+                            <select
+                              {...field}
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.value || undefined)}
+                              className="ledger-input bg-white w-full"
+                            >
+                              <option value="">Tüm Siteler</option>
+                              {availableSites.map((site) => (
+                                <option key={site.id} value={site.id}>{site.name}</option>
+                              ))}
+                            </select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={createForm.control}
+                    name="body"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>İçerik</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Duyuru içeriği..." rows={5} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <SplitButton
+                      primaryLabel="Kaydet ve Yayınla"
+                      primaryAction={() => {
+                        createForm.setValue('publishedAt', new Date())
+                        void createForm.handleSubmit((data) => createMutation.mutate(data))()
+                      }}
+                      secondaryOptions={[{
+                        label: 'Taslak Kaydet',
+                        action: () => {
+                          createForm.setValue('publishedAt', undefined as unknown as Date)
+                          void createForm.handleSubmit((data) => createMutation.mutate({ ...data, publishedAt: undefined as unknown as Date }))()
+                        },
+                      }]}
+                      isPending={createMutation.isPending}
+                      disabled={createMutation.isPending}
+                    />
+                    <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>
+                      İptal
+                    </Button>
+                  </div>
+                </form>
+              </Form>
             </div>
-          ))}
+          </div>
         </div>
+      ) : null}
+
+      {editingId ? (
+        <div className="ledger-panel overflow-hidden">
+          <SectionTitle
+            title="Duyuru düzenle"
+            subtitle="Başlık ve içerik tonunu güncelleyerek kaydı yeniden düzenleyin."
+          />
+          <div className="p-5">
+            <div className="ledger-panel-soft p-4 md:p-5">
+              <Form {...editForm}>
+                <form
+                  onSubmit={editForm.handleSubmit((data) => updateMutation.mutate({ ...data, id: editingId }))}
+                  className="space-y-4"
+                >
+                  <FormField
+                    control={editForm.control}
+                    name="title"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Başlık</FormLabel>
+                        <FormControl><Input {...field} value={field.value ?? ''} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="body"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>İçerik</FormLabel>
+                        <FormControl><Textarea rows={5} {...field} value={field.value ?? ''} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={updateMutation.isPending}>
+                      {updateMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setEditingId(null)}>
+                      İptal
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="ledger-panel overflow-hidden">
+        <SectionTitle
+          title="Duyuru listesi"
+          subtitle="Başlık, kapsam ve yayın durumu ile mevcut duyuru akışı."
+        />
+        <div className="overflow-x-auto">
+          <div className="min-w-[820px]">
+            <div className="grid grid-cols-12 px-5 py-3 ledger-table-head text-xs">
+              <span className="col-span-1">Durum</span>
+              <span className="col-span-3">Başlık</span>
+              <span className="col-span-4">İçerik</span>
+              <span className="col-span-2">Tarih / Site</span>
+              <span className="col-span-2 text-right">Aksiyon</span>
+            </div>
+            <div className="ledger-divider">
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="px-5 py-4">
+                    <Skeleton className="h-12 w-full rounded-2xl" />
+                  </div>
+                ))
+              ) : announcements.length === 0 ? (
+                <EmptyState
+                  icon={Megaphone}
+                  title="Henüz duyuru yok"
+                  description="Sakinlerinize ilk duyurunuzu oluşturarak iletişim akışını başlatın."
+                  actionLabel="İlk Duyuruyu Oluştur"
+                  onAction={() => setShowCreate(true)}
+                />
+              ) : (
+                announcements.map((announcement) => (
+                  <div key={announcement.id} className="grid grid-cols-12 px-5 py-4 items-center ledger-table-row-hover">
+                    <div className="col-span-1">
+                      <StatusPill
+                        label={announcement.publishedAt ? 'Yayında' : 'Taslak'}
+                        tone={announcement.publishedAt ? 'success' : 'warning'}
+                      />
+                    </div>
+                    <p className="col-span-3 truncate text-sm font-semibold text-[#0c1427]">{announcement.title}</p>
+                    <p className="col-span-4 truncate text-sm text-[#374151]">{announcement.body}</p>
+                    <div className="col-span-2">
+                      <p className="text-xs text-[#6b7280]">{formatShortDate(announcement.publishedAt ?? announcement.createdAt)}</p>
+                      <p className="text-[11px] text-[#9ca3af]">{announcement.site?.name ?? 'Tüm Siteler'}</p>
+                    </div>
+                    <div className="col-span-2 flex justify-end gap-1">
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => startEdit(announcement)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-[#ba1a1a]"
+                        disabled={deleteMutation.isPending}
+                        onClick={() => deleteMutation.mutate({ id: announcement.id })}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

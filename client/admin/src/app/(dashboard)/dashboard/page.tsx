@@ -2,11 +2,23 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ArrowRight, CheckCircle, ChevronRight, TrendingDown } from 'lucide-react'
+import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Building2,
+  Calendar,
+  CheckCircle,
+  ChevronRight,
+  Percent,
+  ShieldAlert,
+  TrendingDown,
+  Wallet,
+} from 'lucide-react'
 import { DuesStatus } from '@sakin/shared'
 import { useApiQuery } from '@/hooks/use-api'
 import { useSiteContext } from '@/providers/site-provider'
-import { KpiCard, PageHeader, StatusPill } from '@/components/surface'
+import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
 import { duesStatusLabel, duesStatusTone, formatShortDate, formatTry, paymentMethodLabel } from '@/lib/formatters'
 import { buildFilterParams } from '@/lib/query-params'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -93,7 +105,7 @@ interface CollectTarget {
 }
 
 export default function DashboardPage() {
-  const { selectedSiteId, setSelectedSiteId, availableSites, hydrated, error: siteError } = useSiteContext()
+  const { selectedSiteId, availableSites, hydrated, error: siteError } = useSiteContext()
   const [collectTarget, setCollectTarget] = useState<CollectTarget | null>(null)
 
   const summaryParams = buildFilterParams({ siteId: selectedSiteId ?? undefined })
@@ -153,6 +165,10 @@ export default function DashboardPage() {
   const portfolioHighRisk = portfolio.filter((s) => s.riskLevel === 'HIGH')
   const portfolioMediumRisk = portfolio.filter((s) => s.riskLevel === 'MEDIUM')
   const topDebtors = (summary?.debtors ?? []).slice().sort((a, b) => b.remainingAmount - a.remainingAmount).slice(0, 6)
+  const selectedSiteName = useMemo(
+    () => availableSites.find((site) => site.id === selectedSiteId)?.name,
+    [availableSites, selectedSiteId],
+  )
 
   const weeklyDelta = trendDelta(weekCurrent?.totals.confirmedAmount ?? 0, weekPrev?.totals.confirmedAmount ?? 0)
   const monthlyDelta = trendDelta(monthCurrent?.totals.confirmedAmount ?? 0, monthPrev?.totals.confirmedAmount ?? 0)
@@ -207,12 +223,20 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 motion-in">
       <PageHeader
         title="Genel Bakış"
-        subtitle="Günlük durum özeti ve aksiyon takibi."
+        eyebrow="Wafra Enterprise Console"
+        subtitle={
+          selectedSiteName
+            ? `${selectedSiteName} için günlük durum özeti, tahsilat ritmi ve öncelikli operasyon aksiyonları tek yüzeyde.`
+            : 'Tüm portföyün günlük durum özeti, tahsilat ritmi ve öncelikli operasyon aksiyonları tek yüzeyde.'
+        }
         actions={
           <div className="flex items-center gap-2 flex-wrap">
+            <div className="hidden rounded-full border border-white/80 bg-white/74 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#63758d] shadow-[0_10px_24px_rgba(8,17,31,0.05)] md:inline-flex">
+              {selectedSiteName ?? 'Tüm Portföy'}
+            </div>
             <Link href="/payments">
               <Button size="sm">Tahsilatlar</Button>
             </Link>
@@ -222,15 +246,15 @@ export default function DashboardPage() {
 
       {/* KPI Row 1 */}
       {summaryLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="motion-stagger grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
         </div>
       ) : summary ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          <KpiCard label="Site Sayısı" value={portfolio.length || availableSites.length} />
-          <KpiCard label="Toplam Açık Borç" value={formatTry(summary.kpi.totalDebt)} />
-          <KpiCard label="Tahsilat Oranı" value={`%${summary.kpi.collectionRate}`} railPercent={summary.kpi.collectionRate} />
-          <KpiCard label="Gecikmiş Kayıt" value={summary.kpi.overdueCount} />
+          <KpiCard label="Site Sayısı" value={portfolio.length || availableSites.length} icon={Building2} tone="blue" />
+          <KpiCard label="Toplam Açık Borç" value={formatTry(summary.kpi.totalDebt)} icon={Wallet} tone="navy" />
+          <KpiCard label="Tahsilat Oranı" value={`%${summary.kpi.collectionRate}`} railPercent={summary.kpi.collectionRate} icon={Percent} tone="cyan" />
+          <KpiCard label="Gecikmiş Kayıt" value={summary.kpi.overdueCount} icon={AlertTriangle} tone="rose" />
         </div>
       ) : null}
 
@@ -241,36 +265,57 @@ export default function DashboardPage() {
             label="Haftalık Tahsilat"
             value={formatTry(weekCurrent?.totals.confirmedAmount ?? 0)}
             hint={`Geçen haftaya göre ${weeklyDelta >= 0 ? '+' : ''}%${weeklyDelta}`}
+            icon={Calendar}
+            tone="blue"
           />
           <KpiCard
             label="Aylık Tahsilat"
             value={formatTry(monthCurrent?.totals.confirmedAmount ?? 0)}
             hint={`Geçen aya göre ${monthlyDelta >= 0 ? '+' : ''}%${monthlyDelta}`}
+            icon={BarChart3}
+            tone="emerald"
           />
-          <KpiCard label="Yüksek Riskli Site" value={portfolioHighRisk.length} hint={`${portfolioMediumRisk.length} orta riskli`} />
-          <KpiCard label="Açık Borç İşlem" value={summary.alerts.openDebtItems} hint={`${summary.alerts.highPriorityDebtors} yüksek öncelikli`} />
+          <KpiCard
+            label="Yüksek Riskli Site"
+            value={portfolioHighRisk.length}
+            hint={`${portfolioMediumRisk.length} orta riskli`}
+            icon={ShieldAlert}
+            tone="amber"
+          />
+          <KpiCard
+            label="Açık Borç İşlem"
+            value={summary.alerts.openDebtItems}
+            hint={`${summary.alerts.highPriorityDebtors} yüksek öncelikli`}
+            icon={Activity}
+            tone="navy"
+          />
         </div>
       )}
 
       {/* Portfolio Risk Panel */}
       {portfolio.length > 0 && (
         <div className="ledger-panel overflow-hidden">
-          <div className="px-5 py-4 bg-[#f2f4f6]">
-            <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Portföy Risk Paneli</h2>
-          </div>
+          <SectionTitle title="Portföy Risk Paneli" subtitle="Tahsilat seviyesi, açık borç ve bina riskini tek listede topla." />
           <div className="ledger-divider">
             {portfolio.map((site) => (
-              <div key={site.id} className="px-5 py-3 flex items-center justify-between ledger-table-row-hover">
-                <div>
-                  <p className="text-sm font-semibold text-[#0c1427]">{site.name}</p>
-                  <p className="text-xs text-[#6b7280] mt-0.5">{site.city} · Tahsilat %{site.collectionRate} · {formatTry(site.totalDebt)} açık borç</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#6b7280] tabular-nums">{site.totalUnits} daire</span>
-                  <StatusPill
-                    label={site.riskLevel === 'HIGH' ? 'Yüksek Risk' : site.riskLevel === 'MEDIUM' ? 'Orta Risk' : 'Düşük Risk'}
-                    tone={site.riskLevel === 'HIGH' ? 'danger' : site.riskLevel === 'MEDIUM' ? 'warning' : 'success'}
-                  />
+              <div key={site.id} className="px-4 py-3 lg:px-5">
+                <div className="ledger-table-row-hover flex flex-col gap-3 rounded-[22px] border border-white/72 bg-white/46 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-[#102038]">{site.name}</p>
+                    <p className="mt-1 text-xs leading-6 text-[#6b7d93]">{site.city} · Tahsilat %{site.collectionRate} · {formatTry(site.totalDebt)} açık borç</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-[#dce7f6] bg-[#f7faff] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6480ab] tabular-nums">
+                      {site.totalUnits} daire
+                    </span>
+                    <span className="rounded-full border border-[#dce7f6] bg-[#f7faff] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6480ab]">
+                      %{site.occupancyRate} doluluk
+                    </span>
+                    <StatusPill
+                      label={site.riskLevel === 'HIGH' ? 'Yüksek Risk' : site.riskLevel === 'MEDIUM' ? 'Orta Risk' : 'Düşük Risk'}
+                      tone={site.riskLevel === 'HIGH' ? 'danger' : site.riskLevel === 'MEDIUM' ? 'warning' : 'success'}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
@@ -282,36 +327,36 @@ export default function DashboardPage() {
       {summary && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="ledger-panel overflow-hidden">
-            <div className="px-5 py-4 bg-[#f2f4f6]">
-              <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">En Borçlu Daireler</h2>
-            </div>
+            <SectionTitle title="En Borçlu Daireler" subtitle="Öncelikli tahsilat gerektiren daireleri en üstte tut." />
             <div className="ledger-divider">
               {topDebtors.map((row) => (
-                <div key={row.id} className="px-5 py-3 flex items-center justify-between ledger-table-row-hover">
-                  <Link href={`/units/${row.id}`} className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#0c1427]">{row.siteName} / {row.unitNumber}</p>
-                    <p className="text-xs text-[#6b7280] mt-0.5">
-                      {row.residentName ?? 'Sorumlu atanmamış'} · Vade: {formatShortDate(row.dueDate)} · {row.overdueDays} gün
-                    </p>
-                  </Link>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-[#0c1427]">{formatTry(row.remainingAmount)}</p>
-                      <StatusPill label={duesStatusLabel(row.status)} tone={duesStatusTone(row.status)} />
+                <div key={row.id} className="px-4 py-3 lg:px-5">
+                  <div className="ledger-table-row-hover flex items-center justify-between gap-3 rounded-[22px] border border-white/72 bg-white/46 px-4 py-4">
+                    <Link href={`/units/${row.id}`} className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-[#102038]">{row.siteName} / {row.unitNumber}</p>
+                      <p className="mt-1 text-xs leading-6 text-[#6b7d93]">
+                        {row.residentName ?? 'Sorumlu atanmamış'} · Vade: {formatShortDate(row.dueDate)} · {row.overdueDays} gün
+                      </p>
+                    </Link>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-[#102038]">{formatTry(row.remainingAmount)}</p>
+                        <StatusPill label={duesStatusLabel(row.status)} tone={duesStatusTone(row.status)} />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCollectTarget({
+                          duesId: row.duesId,
+                          unitNumber: row.unitNumber,
+                          siteName: row.siteName,
+                          residentName: row.residentName,
+                          remainingAmount: row.remainingAmount,
+                        })}
+                        className="rounded-2xl border border-[#0f766e]/10 bg-[linear-gradient(135deg,#0f766e,#10b981)] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-[0_14px_28px_rgba(16,185,129,0.24)] transition-all hover:-translate-y-0.5"
+                      >
+                        Tahsil Et
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setCollectTarget({
-                        duesId: row.duesId,
-                        unitNumber: row.unitNumber,
-                        siteName: row.siteName,
-                        residentName: row.residentName,
-                        remainingAmount: row.remainingAmount,
-                      })}
-                      className="px-2.5 py-1.5 rounded-md bg-[#006e2d] text-white text-[11px] font-bold uppercase tracking-tight hover:bg-[#005a24] transition-colors"
-                    >
-                      Tahsil Et
-                    </button>
                   </div>
                 </div>
               ))}
@@ -321,17 +366,15 @@ export default function DashboardPage() {
 
           <div className="space-y-4">
             <div className="ledger-panel overflow-hidden">
-              <div className="px-5 py-4 bg-[#f2f4f6]">
-                <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Aksiyon Önerileri</h2>
-              </div>
-              <div className="p-3 space-y-1.5">
+              <SectionTitle title="Aksiyon Önerileri" subtitle="Bugün öne çıkması gereken operasyon hamleleri." />
+              <div className="p-3 space-y-2">
                 {actions.map((item) => {
                   const Icon = item.icon
                   return (
                     <Link
                       key={item.text}
                       href={item.href}
-                      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[#0c1427] hover:bg-[#f2f4f6] transition-colors group"
+                      className="group flex items-center gap-3 rounded-[22px] border border-white/72 bg-white/48 px-4 py-3 text-sm text-[#102038] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/70"
                     >
                       <Icon className={`h-4 w-4 shrink-0 ${
                         item.tone === 'danger' ? 'text-[#ba1a1a]' :
@@ -347,19 +390,19 @@ export default function DashboardPage() {
             </div>
 
             <div className="ledger-panel overflow-hidden">
-              <div className="px-5 py-4 bg-[#f2f4f6]">
-                <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Son Tahsilatlar</h2>
-              </div>
+              <SectionTitle title="Son Tahsilatlar" subtitle="Yakın zamanda kayda geçen ödemeleri hızlıca denetle." />
               <div className="ledger-divider">
                 {(summary.recentPayments ?? []).slice(0, 6).map((payment) => (
-                  <div key={payment.id} className="px-5 py-3 flex items-center justify-between ledger-table-row-hover">
-                    <div>
-                      <p className="text-sm font-semibold text-[#0c1427]">{payment.siteName} / {payment.unitNumber}</p>
-                      <p className="text-xs text-[#6b7280] mt-0.5">{payment.residentName ?? 'Bilinmeyen'} · {paymentMethodLabel(payment.method)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-[#0c1427]">{formatTry(payment.amount)}</p>
-                      <p className="text-xs text-[#6b7280]">{formatShortDate(payment.paidAt)}</p>
+                  <div key={payment.id} className="px-4 py-3 lg:px-5">
+                    <div className="ledger-table-row-hover flex items-center justify-between gap-3 rounded-[22px] border border-white/72 bg-white/46 px-4 py-4">
+                      <div>
+                        <p className="text-sm font-semibold text-[#102038]">{payment.siteName} / {payment.unitNumber}</p>
+                        <p className="mt-1 text-xs leading-6 text-[#6b7d93]">{payment.residentName ?? 'Bilinmeyen'} · {paymentMethodLabel(payment.method)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-[#102038]">{formatTry(payment.amount)}</p>
+                        <p className="text-xs text-[#6b7280]">{formatShortDate(payment.paidAt)}</p>
+                      </div>
                     </div>
                   </div>
                 ))}

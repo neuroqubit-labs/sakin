@@ -16,7 +16,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { SectionHeader, SectionSkeleton } from './shared'
+import { SectionHeader, SectionShell, SectionSkeleton, SoftPanel } from './shared'
 
 interface GatewayConfigResponse {
   id: string
@@ -90,134 +90,138 @@ export function PaymentSection() {
         description="iyzico ödeme altyapısı konfigürasyonu. Sakinlerden online tahsilat için gereklidir."
       />
 
-      <div className={`rounded-lg border p-3 flex items-center gap-3 ${
-        config?.isActive
-          ? 'border-green-200 bg-green-50'
-          : 'border-amber-200 bg-amber-50'
-      }`}>
-        <div className={`h-2 w-2 rounded-full ${config?.isActive ? 'bg-green-500' : 'bg-amber-500'}`} />
-        <div>
-          <p className={`text-xs font-semibold ${config?.isActive ? 'text-green-800' : 'text-amber-800'}`}>
-            {config?.isActive ? 'Aktif' : 'Yapılandırılmadı'}
-          </p>
-          {config && (
-            <p className="text-[11px] text-[#6b7280]">
-              {MODE_LABELS[config.mode]} · Son güncelleme: {new Date(config.updatedAt).toLocaleDateString('tr-TR')}
-            </p>
-          )}
-        </div>
-      </div>
+      <SectionShell>
+        <div className="p-5 space-y-4">
+          <div className={`rounded-[20px] border p-4 flex items-center gap-3 ${
+            config?.isActive
+              ? 'border-green-200 bg-green-50'
+              : 'border-amber-200 bg-amber-50'
+          }`}>
+            <div className={`h-2 w-2 rounded-full ${config?.isActive ? 'bg-green-500' : 'bg-amber-500'}`} />
+            <div>
+              <p className={`text-xs font-semibold ${config?.isActive ? 'text-green-800' : 'text-amber-800'}`}>
+                {config?.isActive ? 'Aktif' : 'Yapılandırılmadı'}
+              </p>
+              {config ? (
+                <p className="text-[11px] text-[#6b7280]">
+                  {MODE_LABELS[config.mode]} · Son güncelleme: {new Date(config.updatedAt).toLocaleDateString('tr-TR')}
+                </p>
+              ) : null}
+            </div>
+          </div>
 
-      <div className="rounded-lg border border-[#e5e7eb] p-4 space-y-4">
-        <p className="text-xs font-semibold text-[#374151] uppercase tracking-wide">iyzico API Ayarları</p>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit((data) => {
-              if (isNew && !data.secretKey?.trim()) return
-              saveMutation.mutate({
-                provider: PaymentProvider.IYZICO,
-                mode: data.mode,
-                apiKey: data.apiKey.trim(),
-                secretKey: data.secretKey?.trim() ?? '',
-                merchantName: data.merchantName?.trim() || undefined,
-                merchantId: data.merchantId?.trim() || undefined,
-                subMerchantKey: data.subMerchantKey?.trim() || undefined,
-                isActive: true,
-              })
-            })}
-            className="space-y-3"
-          >
-            <FormField
-              control={form.control}
-              name="mode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Ortam</FormLabel>
-                  <FormControl>
-                    <select {...field} className="h-9 w-full rounded-md border border-[#e5e7eb] bg-white px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#0c1427]">
-                      {Object.values(GatewayMode).map((m) => (
-                        <option key={m} value={m}>{MODE_LABELS[m]}</option>
-                      ))}
-                    </select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <FormField
-                control={form.control}
-                name="apiKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>API Key</FormLabel>
-                    <FormControl><Input className="font-mono text-xs" placeholder="sandbox-xxxxxxxx" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="secretKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      Secret Key
-                      {config && <span className="font-normal text-[#9ca3af] ml-1">({config.secretKeyMasked})</span>}
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        className="font-mono text-xs"
-                        placeholder={isNew ? 'Secret key girin' : 'Değiştirmek için girin'}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <FormField
-                control={form.control}
-                name="merchantName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>İşyeri Adı <span className="text-[#9ca3af]">(opsiyonel)</span></FormLabel>
-                    <FormControl><Input placeholder="Demo Yönetim A.Ş." {...field} /></FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="merchantId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Merchant ID <span className="text-[#9ca3af]">(opsiyonel)</span></FormLabel>
-                    <FormControl><Input className="font-mono text-xs" placeholder="iyzico merchant ID" {...field} /></FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-            <FormField
-              control={form.control}
-              name="subMerchantKey"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Sub Merchant Key <span className="text-[#9ca3af]">(opsiyonel)</span></FormLabel>
-                  <FormControl><Input className="font-mono text-xs" placeholder="Alt işyeri anahtarı" {...field} /></FormControl>
-                </FormItem>
-              )}
-            />
-            <div className="pt-1">
-              <Button type="submit" disabled={saveMutation.isPending || (isNew && !form.watch('secretKey')?.trim())}>
-                {saveMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </div>
+          <SoftPanel>
+            <p className="ledger-label mb-4">iyzico API Ayarları</p>
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit((data) => {
+                  if (isNew && !data.secretKey?.trim()) return
+                  saveMutation.mutate({
+                    provider: PaymentProvider.IYZICO,
+                    mode: data.mode,
+                    apiKey: data.apiKey.trim(),
+                    secretKey: data.secretKey?.trim() ?? '',
+                    merchantName: data.merchantName?.trim() || undefined,
+                    merchantId: data.merchantId?.trim() || undefined,
+                    subMerchantKey: data.subMerchantKey?.trim() || undefined,
+                    isActive: true,
+                  })
+                })}
+                className="space-y-3"
+              >
+                <FormField
+                  control={form.control}
+                  name="mode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Ortam</FormLabel>
+                      <FormControl>
+                        <select {...field} className="ledger-input bg-white w-full">
+                          {Object.values(GatewayMode).map((m) => (
+                            <option key={m} value={m}>{MODE_LABELS[m]}</option>
+                          ))}
+                        </select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="apiKey"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>API Key</FormLabel>
+                        <FormControl><Input className="font-mono text-xs" placeholder="sandbox-xxxxxxxx" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="secretKey"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Secret Key
+                          {config ? <span className="font-normal text-[#9ca3af] ml-1">({config.secretKeyMasked})</span> : null}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            className="font-mono text-xs"
+                            placeholder={isNew ? 'Secret key girin' : 'Değiştirmek için girin'}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="merchantName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>İşyeri Adı <span className="text-[#9ca3af]">(opsiyonel)</span></FormLabel>
+                        <FormControl><Input placeholder="Demo Yönetim A.Ş." {...field} /></FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="merchantId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Merchant ID <span className="text-[#9ca3af]">(opsiyonel)</span></FormLabel>
+                        <FormControl><Input className="font-mono text-xs" placeholder="iyzico merchant ID" {...field} /></FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="subMerchantKey"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sub Merchant Key <span className="text-[#9ca3af]">(opsiyonel)</span></FormLabel>
+                      <FormControl><Input className="font-mono text-xs" placeholder="Alt işyeri anahtarı" {...field} /></FormControl>
+                    </FormItem>
+                  )}
+                />
+                <div className="pt-1">
+                  <Button type="submit" disabled={saveMutation.isPending || (isNew && !form.watch('secretKey')?.trim())}>
+                    {saveMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </SoftPanel>
+        </div>
+      </SectionShell>
     </div>
   )
 }

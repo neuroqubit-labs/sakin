@@ -1,12 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { FileText } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { DuesType } from '@sakin/shared'
 import { useApiQuery, useApiMutation } from '@/hooks/use-api'
 import { apiClient } from '@/lib/api'
 import { formatTry } from '@/lib/formatters'
 import { toastSuccess, toastError } from '@/lib/toast'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/empty-state'
+import { SectionTitle } from '@/components/surface'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface DuesPolicy {
@@ -99,7 +103,7 @@ export function DuesPolicyPanel({ siteId }: DuesPolicyPanelProps) {
   if (isLoading) {
     return (
       <div className="space-y-3">
-        {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+        {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-2xl" />)}
       </div>
     )
   }
@@ -107,89 +111,97 @@ export function DuesPolicyPanel({ siteId }: DuesPolicyPanelProps) {
   return (
     <div className="space-y-6">
       {/* Create Form */}
-      <div className="ledger-panel p-5 space-y-4">
-        <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4b5968]">Yeni Aidat Tanımı</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input
-            value={policyName}
-            onChange={(e) => setPolicyName(e.target.value)}
-            className="ledger-input bg-white"
-            placeholder="Tanım adı (ör: Aylık Aidat)"
-          />
-          <input
-            type="number"
-            min={1}
-            step={0.01}
-            value={policyAmount}
-            onChange={(e) => setPolicyAmount(Number(e.target.value))}
-            className="ledger-input bg-white"
-            placeholder="Tutar"
-          />
-          <input
-            type="number"
-            min={1}
-            max={28}
-            value={policyDueDay}
-            onChange={(e) => setPolicyDueDay(Number(e.target.value))}
-            className="ledger-input bg-white"
-            placeholder="Vade günü"
-          />
-          <select
-            value={policyType}
-            onChange={(e) => setPolicyType(e.target.value as DuesType)}
-            className="ledger-input bg-white"
-          >
-            <option value={DuesType.AIDAT}>Aidat</option>
-            <option value={DuesType.EXTRA}>Ek Ücret</option>
-          </select>
-        </div>
-        <input
-          value={policyDescription}
-          onChange={(e) => setPolicyDescription(e.target.value)}
-          className="ledger-input bg-white"
-          placeholder="Açıklama (opsiyonel)"
+      <div className="ledger-panel overflow-hidden">
+        <SectionTitle
+          title="Yeni Aidat Tanımı"
+          subtitle="Aidat ve ek ücret kalemlerini dönem üretiminde kullanılacak şekilde tanımlayın."
         />
-        <button
-          type="button"
-          disabled={createMutation.isPending || !policyName.trim()}
-          onClick={handleCreate}
-          className="px-4 py-2.5 rounded-lg ledger-gradient text-xs font-bold text-white uppercase tracking-tight disabled:opacity-50 transition-opacity"
-        >
-          {createMutation.isPending ? 'Oluşturuluyor...' : 'Tanım Ekle'}
-        </button>
+        <div className="p-5">
+          <div className="ledger-panel-soft p-4 md:p-5 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input
+                value={policyName}
+                onChange={(e) => setPolicyName(e.target.value)}
+                className="ledger-input bg-white"
+                placeholder="Tanım adı (ör: Aylık Aidat)"
+              />
+              <input
+                type="number"
+                min={1}
+                step={0.01}
+                value={policyAmount}
+                onChange={(e) => setPolicyAmount(Number(e.target.value))}
+                className="ledger-input bg-white"
+                placeholder="Tutar"
+              />
+              <input
+                type="number"
+                min={1}
+                max={28}
+                value={policyDueDay}
+                onChange={(e) => setPolicyDueDay(Number(e.target.value))}
+                className="ledger-input bg-white"
+                placeholder="Vade günü"
+              />
+              <select
+                value={policyType}
+                onChange={(e) => setPolicyType(e.target.value as DuesType)}
+                className="ledger-input bg-white"
+              >
+                <option value={DuesType.AIDAT}>Aidat</option>
+                <option value={DuesType.EXTRA}>Ek Ücret</option>
+              </select>
+            </div>
+            <input
+              value={policyDescription}
+              onChange={(e) => setPolicyDescription(e.target.value)}
+              className="ledger-input bg-white"
+              placeholder="Açıklama (opsiyonel)"
+            />
+            <Button
+              type="button"
+              disabled={createMutation.isPending || !policyName.trim()}
+              onClick={handleCreate}
+            >
+              {createMutation.isPending ? 'Oluşturuluyor...' : 'Tanım Ekle'}
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Policies List */}
       <div className="ledger-panel overflow-hidden">
-        <div className="px-5 py-4 bg-[#f2f4f6]">
-          <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Mevcut Tanımlar</h2>
-          <p className="text-xs text-[#6b7280] mt-1">{policies.filter((p) => p.isActive).length} aktif, {policies.filter((p) => !p.isActive).length} pasif</p>
-        </div>
+        <SectionTitle
+          title="Mevcut Tanımlar"
+          subtitle={`${policies.filter((p) => p.isActive).length} aktif, ${policies.filter((p) => !p.isActive).length} pasif`}
+        />
         <div className="ledger-divider">
-          {policies.map((policy) => (
-            <div key={policy.id} className="px-5 py-3 flex items-center justify-between ledger-table-row-hover">
-              <div>
-                <p className="text-sm font-semibold text-[#0c1427]">{policy.name}</p>
-                <p className="text-xs text-[#6b7280]">
-                  {formatTry(Number(policy.amount))} · Vade: {policy.dueDay}. gün · {policy.type === DuesType.AIDAT ? 'Aidat' : 'Ek Ücret'}
-                </p>
+          {policies.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="Aidat tanımı bulunamadı"
+              description="Bu site için ilk aidat tanımını oluşturarak dönemi açabilirsiniz."
+            />
+          ) : (
+            policies.map((policy) => (
+              <div key={policy.id} className="px-5 py-4 flex items-center justify-between ledger-table-row-hover">
+                <div>
+                  <p className="text-sm font-semibold text-[#0c1427]">{policy.name}</p>
+                  <p className="text-xs text-[#6b7280]">
+                    {formatTry(Number(policy.amount))} · Vade: {policy.dueDay}. gün · {policy.type === DuesType.AIDAT ? 'Aidat' : 'Ek Ücret'}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={policy.isActive ? 'outline' : 'secondary'}
+                  onClick={() => void handleToggle(policy)}
+                  disabled={togglingId === policy.id}
+                >
+                  {togglingId === policy.id ? '...' : policy.isActive ? 'Pasife Al' : 'Aktif Et'}
+                </Button>
               </div>
-              <button
-                type="button"
-                onClick={() => void handleToggle(policy)}
-                disabled={togglingId === policy.id}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
-                  policy.isActive
-                    ? 'bg-[#ffe7e7] text-[#ba1a1a] hover:bg-[#ffd6d6]'
-                    : 'bg-[#d8f7dd] text-[#006e2d] hover:bg-[#c0f0c8]'
-                } disabled:opacity-50`}
-              >
-                {togglingId === policy.id ? '...' : policy.isActive ? 'Pasife Al' : 'Aktif Et'}
-              </button>
-            </div>
-          ))}
-          {policies.length === 0 && (
-            <p className="px-5 py-5 text-sm text-[#6b7280]">Bu site için aidat tanımı bulunamadı.</p>
+            ))
           )}
         </div>
       </div>

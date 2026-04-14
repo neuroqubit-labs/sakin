@@ -298,18 +298,18 @@ export function UnitDuesSearch({ onSelect, initialDuesId, initialUnitId, siteId:
     <div className="space-y-4">
       {/* Stage 1: Unit Search */}
       <div className="space-y-2">
-        <label className="px-1 text-[11px] font-black uppercase tracking-[0.15em] text-[#6e7882]">
+        <label className="px-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#71829a]">
           Daire Seçimi
         </label>
 
         {selectedUnit ? (
-          <div className="flex items-center justify-between rounded-lg bg-[#f2f4f6] px-4 py-3">
+          <div className="flex items-center justify-between rounded-[22px] border border-white/82 bg-white/74 px-4 py-3 shadow-[0_12px_28px_rgba(8,17,31,0.05)]">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0c1427] text-white">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#17345a,#4f7df7)] text-white shadow-[0_14px_28px_rgba(79,125,247,0.24)]">
                 <Building2 className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-sm font-bold text-[#0c1427]">
+                <p className="text-sm font-semibold text-[#0c1427]">
                   Daire {selectedUnit.number}
                 </p>
                 <p className="text-xs text-[#6b7280]">
@@ -321,7 +321,7 @@ export function UnitDuesSearch({ onSelect, initialDuesId, initialUnitId, siteId:
             <button
               type="button"
               onClick={handleUnitClear}
-              className="text-xs font-bold text-[#6b7280] hover:text-[#ba1a1a] transition-colors"
+              className="rounded-full border border-white/80 bg-white/72 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6b7280] transition-colors hover:text-[#ba1a1a]"
             >
               Değiştir
             </button>
@@ -333,13 +333,15 @@ export function UnitDuesSearch({ onSelect, initialDuesId, initialUnitId, siteId:
                 type="button"
                 role="combobox"
                 aria-expanded={unitPopoverOpen}
-                className="flex h-11 w-full items-center gap-2 rounded-lg bg-[#e6e8ea] px-4 text-sm text-[#9ca3af] hover:bg-[#dce0e3] transition-colors"
+                className="flex h-12 w-full items-center gap-3 rounded-[22px] border border-white/82 bg-white/78 px-4 text-sm text-[#7d8ea5] shadow-[0_12px_28px_rgba(8,17,31,0.05)] transition-all duration-200 hover:bg-white"
               >
-                <Building2 className="h-4 w-4" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-[#eef4ff] text-[#31538c]">
+                  <Building2 className="h-4 w-4" />
+                </span>
                 <span>Daire numarası veya sakin adı ile arayın...</span>
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+            <PopoverContent className="w-[--radix-popover-trigger-width] rounded-[24px] border-white/80 bg-white/90 p-1 shadow-[0_22px_50px_rgba(8,17,31,0.12)] backdrop-blur-2xl" align="start">
               <Command shouldFilter={false}>
                 <CommandInput
                   placeholder="Daire no veya sakin adı..."
@@ -365,7 +367,7 @@ export function UnitDuesSearch({ onSelect, initialDuesId, initialUnitId, siteId:
                           >
                             <div className="flex w-full items-center justify-between gap-2">
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[#f2f4f6] text-[10px] font-bold text-[#0c1427]">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-[#eef4ff] text-[10px] font-semibold text-[#17345a]">
                                   {unit.number}
                                 </div>
                                 <div className="min-w-0">
@@ -400,16 +402,16 @@ export function UnitDuesSearch({ onSelect, initialDuesId, initialUnitId, siteId:
       {/* Stage 2: Dues Selection */}
       {selectedUnit && (
         <div className="space-y-2">
-          <label className="px-1 text-[11px] font-black uppercase tracking-[0.15em] text-[#6e7882]">
+          <label className="px-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#71829a]">
             Borç Seçimi
           </label>
 
           {unitDetailLoading ? (
-            <div className="rounded-lg bg-[#f2f4f6] p-4 text-center text-xs text-[#6b7280]">
+            <div className="rounded-[22px] border border-white/80 bg-white/70 p-4 text-center text-xs text-[#6b7280]">
               Borçlar yükleniyor...
             </div>
           ) : openDues.length === 0 ? (
-            <div className="rounded-lg bg-[#f2f4f6] p-4 text-center text-xs text-[#6b7280]">
+            <div className="rounded-[22px] border border-white/80 bg-white/70 p-4 text-center text-xs text-[#6b7280]">
               Bu dairenin açık borcu bulunmuyor.
             </div>
           ) : (
@@ -424,10 +426,10 @@ export function UnitDuesSearch({ onSelect, initialDuesId, initialUnitId, siteId:
                     type="button"
                     onClick={() => handleDuesSelect(dues)}
                     className={cn(
-                      'w-full rounded-lg px-4 py-3 text-left transition-all',
+                      'w-full rounded-[22px] px-4 py-3 text-left transition-all duration-200',
                       isSelected
-                        ? 'bg-[#0c1427] text-white shadow-md'
-                        : 'bg-[#f2f4f6] text-[#0c1427] hover:bg-[#e6e8ea]',
+                        ? 'bg-[linear-gradient(135deg,#12203a_0%,#1d3b67_46%,#4f7df7_100%)] text-white shadow-[0_18px_34px_rgba(79,125,247,0.24)]'
+                        : 'border border-white/80 bg-white/72 text-[#0c1427] hover:bg-white',
                     )}
                   >
                     <div className="flex items-center justify-between">

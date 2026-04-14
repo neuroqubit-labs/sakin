@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { CreditCard } from 'lucide-react'
-import { PageHeader, StatusPill } from '@/components/surface'
+import { AlertTriangle, CreditCard, Landmark, Receipt, RotateCcw, ShieldAlert, Wallet } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { PageHeader, SectionTitle, StatusPill, KpiCard } from '@/components/surface'
 import { EmptyState } from '@/components/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApiQuery } from '@/hooks/use-api'
@@ -142,33 +143,22 @@ export default function PaymentsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 motion-in">
       <PageHeader
         title="Ödemeler"
+        eyebrow="Finans Operasyonu"
         subtitle="Tahsilat takibi, mutabakat ve şüpheli işlem denetimi."
         actions={
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void downloadCsv('receipt')}
-              className="px-3 py-2 rounded-md bg-[#e6e8ea] text-xs font-semibold text-[#0c1427]"
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => void downloadCsv('receipt')}>
               Makbuz Raporu
-            </button>
-            <button
-              type="button"
-              onClick={() => void downloadCsv('audit')}
-              className="px-3 py-2 rounded-md bg-[#e6e8ea] text-xs font-semibold text-[#0c1427]"
-            >
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => void downloadCsv('audit')}>
               Denetim Raporu
-            </button>
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white"
-            >
+            </Button>
+            <Button type="button" size="sm" onClick={() => void refetch()}>
               Yenile
-            </button>
+            </Button>
           </div>
         }
       />
@@ -183,7 +173,7 @@ export default function PaymentsPage() {
 
       {isTenantAdmin && selectedSiteId && (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+          <div className="motion-stagger grid grid-cols-1 lg:grid-cols-4 gap-3">
             {reconLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="ledger-panel p-4 space-y-2">
@@ -193,27 +183,21 @@ export default function PaymentsPage() {
               ))
             ) : (
               <>
-                <div className="ledger-panel p-4">
-                  <p className="ledger-label">Onaylı Tahsilat</p>
-                  <p className="ledger-value mt-2">{formatTry(reconciliation?.totals.confirmedAmount ?? 0)}</p>
-                </div>
-                <div className="ledger-panel p-4">
-                  <p className="ledger-label">Bekleyen Tutar</p>
-                  <p className="ledger-value mt-2">{formatTry(reconciliation?.totals.pendingAmount ?? 0)}</p>
-                </div>
-                <div className="ledger-panel p-4">
-                  <p className="ledger-label">Başarısız Tutar</p>
-                  <p className="ledger-value mt-2">{formatTry(reconciliation?.totals.failedAmount ?? 0)}</p>
-                </div>
-                <div className="ledger-panel p-4">
-                  <p className="ledger-label">Şüpheli İşlem</p>
-                  <p className="ledger-value mt-2">{suspicious?.meta.total ?? 0}</p>
-                </div>
+                <KpiCard label="Onaylı Tahsilat" value={formatTry(reconciliation?.totals.confirmedAmount ?? 0)} icon={Wallet} tone="emerald" />
+                <KpiCard label="Bekleyen Tutar" value={formatTry(reconciliation?.totals.pendingAmount ?? 0)} icon={RotateCcw} tone="amber" />
+                <KpiCard label="Başarısız Tutar" value={formatTry(reconciliation?.totals.failedAmount ?? 0)} icon={Landmark} tone="rose" />
+                <KpiCard label="Şüpheli İşlem" value={suspicious?.meta.total ?? 0} icon={ShieldAlert} tone="navy" />
               </>
             )}
           </div>
 
-          <div className="ledger-panel p-4">
+          <div className="ledger-panel-soft p-3 md:p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="ledger-label">Filtreleme</p>
+                <p className="mt-1 text-sm text-[#6b7d93]">Makbuz, yöntem ve durum filtresiyle tahsilat akışını daralt.</p>
+              </div>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-2">
               <input
                 value={search}
@@ -248,7 +232,7 @@ export default function PaymentsPage() {
               <button
                 type="button"
                 onClick={handleFilter}
-                className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white"
+                className="rounded-2xl border border-[#17345a]/12 bg-[linear-gradient(135deg,#12203a_0%,#1d3b67_46%,#4f7df7_100%)] px-3 py-2 text-xs font-semibold text-white shadow-[0_16px_28px_rgba(79,125,247,0.2)]"
               >
                 Filtrele
               </button>
@@ -256,6 +240,7 @@ export default function PaymentsPage() {
           </div>
 
           <div className="ledger-panel overflow-x-auto">
+            <SectionTitle title="Tahsilat Akışı" subtitle="Filtreye uyan ödeme kayıtları ve durumları." />
             <div className="min-w-[800px]">
             <div className="grid grid-cols-12 px-5 py-3 ledger-table-head">
               <span className="col-span-2">Daire</span>
@@ -266,14 +251,14 @@ export default function PaymentsPage() {
               <span className="col-span-2">Tarih</span>
             </div>
             <div className="ledger-divider">
-              {listLoading && Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="grid grid-cols-12 px-5 py-3 gap-3">
-                  <Skeleton className="col-span-2 h-5" />
-                  <Skeleton className="col-span-2 h-5" />
-                  <Skeleton className="col-span-2 h-5" />
-                  <Skeleton className="col-span-2 h-5" />
-                  <Skeleton className="col-span-2 h-5" />
-                  <Skeleton className="col-span-2 h-5" />
+              {listLoading && Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="grid grid-cols-12 px-5 py-3 gap-3 items-center">
+                  <Skeleton className="col-span-2 h-10 rounded" />
+                  <Skeleton className="col-span-2 h-10 rounded" />
+                  <Skeleton className="col-span-2 h-10 rounded" />
+                  <Skeleton className="col-span-2 h-10 rounded" />
+                  <Skeleton className="col-span-2 h-10 rounded" />
+                  <Skeleton className="col-span-2 h-10 rounded" />
                 </div>
               ))}
               {!listLoading && payments?.data.map((row) => (
@@ -303,10 +288,7 @@ export default function PaymentsPage() {
           </div>
 
           <div className="ledger-panel overflow-hidden">
-            <div className="px-5 py-4 bg-[#f2f4f6]">
-              <h2 className="text-sm font-bold tracking-[0.12em] uppercase text-[#0c1427]">Şüpheli İşlemler</h2>
-              <p className="text-xs text-[#6b7280] mt-1">İnceleme gerektiren ödemeler</p>
-            </div>
+            <SectionTitle title="Şüpheli İşlemler" subtitle="İnceleme gerektiren tahsilat kayıtları." />
             <div className="ledger-divider">
               {suspLoading && Array.from({ length: 2 }).map((_, i) => (
                 <div key={i} className="px-5 py-3"><Skeleton className="h-10 w-full" /></div>
@@ -324,9 +306,7 @@ export default function PaymentsPage() {
                   </p>
                 </div>
               ))}
-              {!suspLoading && !suspicious?.data.length && (
-                <p className="px-5 py-5 text-sm text-[#6b7280]">Şüpheli ödeme kaydı yok.</p>
-              )}
+              {!suspLoading && !suspicious?.data.length && <EmptyState icon={AlertTriangle} title="Şüpheli ödeme yok" description="Şu an inceleme gerektiren ödeme kaydı görünmüyor." />}
             </div>
           </div>
         </>

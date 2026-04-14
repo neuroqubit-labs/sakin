@@ -1,16 +1,20 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Users } from 'lucide-react'
+import Link from 'next/link'
+import { Download, RefreshCcw, Upload, UserCheck, UserCog, UserX, Users } from 'lucide-react'
 import { ResidentType, UserRole } from '@sakin/shared'
 import { useApiQuery, useApiMutation } from '@/hooks/use-api'
 import { apiClient } from '@/lib/api'
 import { toastSuccess, toastError } from '@/lib/toast'
 import { useSiteContext } from '@/providers/site-provider'
 import { useAuth } from '@/providers/auth-provider'
-import { PageHeader } from '@/components/surface'
 import { EmptyState } from '@/components/empty-state'
+import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
 
 interface ResidentItem {
   id: string
@@ -61,28 +65,30 @@ interface DryRunResponse {
   exceededPreviewLimit: boolean
 }
 
+function residentTypeLabel(type: ResidentType) {
+  if (type === ResidentType.OWNER) return 'Ev Sahibi'
+  if (type === ResidentType.TENANT) return 'Kiracı'
+  return 'İletişim Kişisi'
+}
+
 export default function ResidentsPage() {
   const { selectedSiteId, hydrated } = useSiteContext()
   const { role } = useAuth()
   const isTenantAdmin = role === UserRole.TENANT_ADMIN
 
-  // Filter state
   const [search, setSearch] = useState('')
   const [committedSearch, setCommittedSearch] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'passive'>('all')
   const [typeFilter, setTypeFilter] = useState<'all' | ResidentType>('all')
   const [page, setPage] = useState(1)
 
-  // Selection state
   const [selected, setSelected] = useState<string[]>([])
 
-  // Bulk update form
   const [bulkIsActive, setBulkIsActive] = useState<'none' | 'active' | 'passive'>('none')
   const [bulkEmail, setBulkEmail] = useState('')
   const [bulkPhone, setBulkPhone] = useState('')
   const [bulkType, setBulkType] = useState<'none' | ResidentType>('none')
 
-  // CSV import
   const [csvText, setCsvText] = useState('')
   const [dryRun, setDryRun] = useState<DryRunResponse | null>(null)
 
@@ -92,7 +98,7 @@ export default function ResidentsPage() {
     siteId: selectedSiteId ?? undefined,
     search: committedSearch.trim() || undefined,
     type: typeFilter === 'all' ? undefined : typeFilter,
-    isActive: activeFilter === 'all' ? undefined : activeFilter === 'active' ? true : false,
+    isActive: activeFilter === 'all' ? undefined : activeFilter === 'active',
   }
 
   const { data: residentsResponse, isLoading, refetch } = useApiQuery<ResidentListResponse>(
@@ -101,10 +107,24 @@ export default function ResidentsPage() {
     queryParams,
     { enabled: hydrated && !!selectedSiteId },
   )
+
   const items = residentsResponse?.data ?? []
   const meta = residentsResponse?.meta ?? null
-
   const selectedSet = useMemo(() => new Set(selected), [selected])
+
+  const stats = useMemo(() => {
+    const activeCount = items.filter((resident) => resident.isActive).length
+    const ownerCount = items.filter((resident) => resident.type === ResidentType.OWNER).length
+    const tenantCount = items.filter((resident) => resident.type === ResidentType.TENANT).length
+
+    return {
+      total: meta?.total ?? items.length,
+      activeCount,
+      passiveCount: items.length - activeCount,
+      ownerCount,
+      tenantCount,
+    }
+  }, [items, meta])
 
   const bulkMutation = useApiMutation<{ updatedCount: number }, Record<string, unknown>>('/residents/bulk-update', {
     invalidateKeys: [['residents']],
@@ -143,15 +163,18 @@ export default function ResidentsPage() {
   const toggleSelectAllCurrentPage = () => {
     const allCurrentIds = items.map((item) => item.id)
     const allSelected = allCurrentIds.every((id) => selectedSet.has(id))
+
     if (allSelected) {
       setSelected((prev) => prev.filter((id) => !allCurrentIds.includes(id)))
       return
     }
+
     setSelected((prev) => Array.from(new Set([...prev, ...allCurrentIds])))
   }
 
   const runBulkUpdate = () => {
     if (!isTenantAdmin || selected.length === 0) return
+
     bulkMutation.mutate({
       residentIds: selected,
       isActive: bulkIsActive === 'none' ? undefined : bulkIsActive === 'active',
@@ -163,15 +186,17 @@ export default function ResidentsPage() {
 
   const exportCsv = async () => {
     if (!isTenantAdmin) return
+
     try {
       const payload = await apiClient<{ fileName: string; csv: string }>('/residents/export', {
         params: {
           siteId: selectedSiteId ?? undefined,
           search: committedSearch.trim() || undefined,
           type: typeFilter === 'all' ? undefined : typeFilter,
-          isActive: activeFilter === 'all' ? undefined : activeFilter === 'active' ? true : false,
+          isActive: activeFilter === 'all' ? undefined : activeFilter === 'active',
         },
       })
+
       const blob = new Blob([payload.csv], { type: 'text/csv;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -188,45 +213,70 @@ export default function ResidentsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 motion-in">
       <PageHeader
         title="Sakinler"
-        subtitle="Sakin kayıtları ve bağlı oldukları daire bilgileri."
-        actions={
+        eyebrow="İletişim Operasyonu"
+        subtitle="Sakin kayıtlarını, bağlı daireleri ve toplu işlem akışlarını tek ekrandan yönetin."
+        actions={(
           <div className="flex items-center gap-2">
-            {isTenantAdmin && (
-              <button
-                type="button"
-                onClick={() => void exportCsv()}
-                className="px-3 py-2 rounded-md bg-[#e6e8ea] text-xs font-semibold text-[#0c1427]"
-              >
+            {isTenantAdmin ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => void exportCsv()}>
+                <Download className="h-4 w-4" />
                 CSV Dışa Aktar
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white"
-            >
+              </Button>
+            ) : null}
+            <Button type="button" size="sm" onClick={() => void refetch()}>
+              <RefreshCcw className="h-4 w-4" />
               Yenile
-            </button>
+            </Button>
           </div>
-        }
+        )}
       />
 
-      <div className="ledger-panel p-4 space-y-3">
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-2">
-          <input
+      <div className="motion-stagger grid grid-cols-1 gap-3 lg:grid-cols-4">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="ledger-panel p-5 space-y-3">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-2 w-full" />
+            </div>
+          ))
+        ) : (
+          <>
+            <KpiCard label="Toplam Kayıt" value={stats.total} hint="Filtreye göre eşleşen sakin kaydı." icon={Users} tone="blue" />
+            <KpiCard label="Aktif Sakin" value={stats.activeCount} hint="Mevcut sayfada aktif görünen kayıtlar." icon={UserCheck} tone="emerald" />
+            <KpiCard label="Pasif Kayıt" value={stats.passiveCount} hint="Görünür listede pasif durumda olan sakin." icon={UserX} tone="amber" />
+            <KpiCard label="Seçili Kayıt" value={selected.length} hint="Toplu güncelleme için işaretlenen satırlar." icon={UserCog} tone="navy" />
+          </>
+        )}
+      </div>
+
+      <div className="ledger-panel-soft p-3 md:p-4">
+        <div className="mb-3">
+          <p className="ledger-label">Filtreleme</p>
+          <p className="mt-1 text-sm text-[#6b7d93]">
+            Ad, telefon, durum ve sakin tipine göre listeyi daraltın. Sonuçlar seçili site bağlamında çalışır.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-5">
+          <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleFilter() }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleFilter()
+            }}
             placeholder="Ad, soyad, telefon ara..."
-            className="ledger-input bg-white lg:col-span-2"
+            className="bg-white lg:col-span-2"
           />
           <select
             value={activeFilter}
-            onChange={(e) => { setActiveFilter(e.target.value as typeof activeFilter); setPage(1) }}
+            onChange={(e) => {
+              setActiveFilter(e.target.value as typeof activeFilter)
+              setPage(1)
+            }}
             className="ledger-input bg-white"
           >
             <option value="all">Tüm Durumlar</option>
@@ -235,7 +285,10 @@ export default function ResidentsPage() {
           </select>
           <select
             value={typeFilter}
-            onChange={(e) => { setTypeFilter(e.target.value as typeof typeFilter); setPage(1) }}
+            onChange={(e) => {
+              setTypeFilter(e.target.value as typeof typeFilter)
+              setPage(1)
+            }}
             className="ledger-input bg-white"
           >
             <option value="all">Tüm Tipler</option>
@@ -243,193 +296,241 @@ export default function ResidentsPage() {
             <option value={ResidentType.TENANT}>Kiracı</option>
             <option value={ResidentType.CONTACT}>İletişim Kişisi</option>
           </select>
-          <button type="button" onClick={handleFilter} className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white">
+          <Button type="button" onClick={handleFilter}>
             Filtrele
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="ledger-panel overflow-x-auto">
-        <div className="min-w-[800px]">
-        <div className="grid grid-cols-12 px-5 py-3 ledger-table-head">
-          <span className="col-span-1">
-            <input type="checkbox" checked={items.length > 0 && items.every((i) => selectedSet.has(i.id))} onChange={toggleSelectAllCurrentPage} />
-          </span>
-          <span className="col-span-3">Sakin</span>
-          <span className="col-span-2">İletişim</span>
-          <span className="col-span-2">Tip</span>
-          <span className="col-span-2">Site/Daire</span>
-          <span className="col-span-2 text-right">Durum</span>
-        </div>
-
-        <div className="ledger-divider">
-          {isLoading && Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="grid grid-cols-12 px-5 py-3 gap-3">
-              <Skeleton className="col-span-1 h-4 w-4" />
-              <Skeleton className="col-span-3 h-5" />
-              <Skeleton className="col-span-2 h-5" />
-              <Skeleton className="col-span-2 h-5" />
-              <Skeleton className="col-span-2 h-5" />
-              <Skeleton className="col-span-2 h-5" />
+      <div className="ledger-panel overflow-hidden">
+        <SectionTitle
+          title="Sakin listesi"
+          subtitle="İletişim bilgileri, daire ataması ve durum görünümü."
+        />
+        <div className="overflow-x-auto">
+          <div className="min-w-[880px]">
+            <div className="grid grid-cols-12 px-5 py-3 ledger-table-head">
+              <span className="col-span-1">
+                <input
+                  type="checkbox"
+                  checked={items.length > 0 && items.every((i) => selectedSet.has(i.id))}
+                  onChange={toggleSelectAllCurrentPage}
+                />
+              </span>
+              <span className="col-span-3">Sakin</span>
+              <span className="col-span-2">İletişim</span>
+              <span className="col-span-2">Tip</span>
+              <span className="col-span-2">Site / Daire</span>
+              <span className="col-span-1 text-right">Durum</span>
+              <span className="col-span-1 text-right">Detay</span>
             </div>
-          ))}
-          {!isLoading && items.length === 0 && (
-            <EmptyState
-              icon={Users}
-              title="Sakin bulunamadı"
-              description="Kriterlere uygun sakin kaydı yok."
-            />
-          )}
-          {!isLoading &&
-            items.map((resident) => {
-              const siteName = resident.occupancies[0]?.unit.site.name ?? '-'
-              const unitNumber = resident.occupancies[0]?.unit.number ?? '-'
-              return (
-                <div key={resident.id} className="grid grid-cols-12 px-5 py-3 items-center ledger-table-row-hover">
-                  <span className="col-span-1">
-                    <input type="checkbox" checked={selectedSet.has(resident.id)} onChange={() => toggleSelect(resident.id)} />
-                  </span>
-                  <div className="col-span-3">
-                    <p className="text-sm font-semibold text-[#0c1427]">{resident.firstName} {resident.lastName}</p>
-                    <p className="text-xs text-[#6b7280]">{resident.email ?? '-'}</p>
-                  </div>
-                  <p className="col-span-2 text-sm text-[#0c1427]">{resident.phoneNumber}</p>
-                  <p className="col-span-2 text-sm text-[#0c1427]">{resident.type === 'OWNER' ? 'Ev Sahibi' : resident.type === 'TENANT' ? 'Kiracı' : 'İletişim Kişisi'}</p>
-                  <p className="col-span-2 text-sm text-[#0c1427]">{siteName} / {unitNumber}</p>
-                  <p className="col-span-2 text-right text-xs font-semibold">
-                    <span className={resident.isActive ? 'text-[#006e2d]' : 'text-[#ba1a1a]'}>
-                      {resident.isActive ? 'AKTIF' : 'PASIF'}
-                    </span>
-                  </p>
+
+            <div className="ledger-divider">
+              {isLoading && Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="grid grid-cols-12 px-5 py-3 gap-3 items-center">
+                  <Skeleton className="col-span-1 h-4 w-4 rounded" />
+                  <Skeleton className="col-span-3 h-12 rounded-2xl" />
+                  <Skeleton className="col-span-2 h-12 rounded-2xl" />
+                  <Skeleton className="col-span-2 h-12 rounded-2xl" />
+                  <Skeleton className="col-span-2 h-12 rounded-2xl" />
+                  <Skeleton className="col-span-2 h-12 rounded-2xl" />
                 </div>
-              )
-            })}
-        </div>
+              ))}
+
+              {!isLoading && items.length === 0 && (
+                <EmptyState
+                  icon={Users}
+                  title="Sakin bulunamadı"
+                  description="Bu filtreyle eşleşen kayıt yok. Arama veya durum filtresini genişletin."
+                />
+              )}
+
+              {!isLoading && items.map((resident) => {
+                const siteName = resident.occupancies[0]?.unit.site.name ?? '-'
+                const unitNumber = resident.occupancies[0]?.unit.number ?? '-'
+
+                return (
+                  <div key={resident.id} className="grid grid-cols-12 px-5 py-4 items-center ledger-table-row-hover">
+                    <span className="col-span-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedSet.has(resident.id)}
+                        onChange={() => toggleSelect(resident.id)}
+                      />
+                    </span>
+                    <div className="col-span-3 min-w-0">
+                      <p className="truncate text-sm font-semibold text-[#0c1427]">
+                        {resident.firstName} {resident.lastName}
+                      </p>
+                      <p className="truncate text-xs text-[#6b7280]">{resident.email ?? '-'}</p>
+                    </div>
+                    <p className="col-span-2 text-sm text-[#0c1427]">{resident.phoneNumber}</p>
+                    <div className="col-span-2">
+                      <span className="ledger-chip ledger-chip-neutral">
+                        {residentTypeLabel(resident.type)}
+                      </span>
+                    </div>
+                    <p className="col-span-2 truncate text-sm text-[#0c1427]">
+                      {siteName} / {unitNumber}
+                    </p>
+                    <div className="col-span-1 flex justify-end">
+                      <StatusPill
+                        label={resident.isActive ? 'Aktif' : 'Pasif'}
+                        tone={resident.isActive ? 'success' : 'neutral'}
+                      />
+                    </div>
+                    <div className="col-span-1 flex justify-end">
+                      <Link href={`/residents/${resident.id}`}>
+                        <Button size="sm" className="h-8 px-3 text-xs">
+                          Detay
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
-      {meta && (
-        <div className="flex items-center justify-between text-xs text-[#6b7280]">
+      {meta ? (
+        <div className="flex items-center justify-between rounded-[22px] border border-white/80 bg-white/74 px-4 py-3 text-xs text-[#6b7280] shadow-[0_14px_30px_rgba(8,17,31,0.04)]">
           <span>
             Toplam {meta.total} kayıt • Sayfa {meta.page}/{Math.max(meta.totalPages, 1)}
           </span>
           <div className="flex gap-2">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               disabled={meta.page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="px-2 py-1 rounded bg-[#e6e8ea] disabled:opacity-50"
             >
               Önceki
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               disabled={meta.page >= meta.totalPages}
               onClick={() => setPage((p) => p + 1)}
-              className="px-2 py-1 rounded bg-[#e6e8ea] disabled:opacity-50"
             >
               Sonraki
-            </button>
+            </Button>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {isTenantAdmin && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <div className="ledger-panel p-4 space-y-3">
-            <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4b5968]">Toplu Güncelleme</p>
-            <p className="text-xs text-[#6b7280]">Seçili kayıt: {selected.length}</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <select
-                value={bulkIsActive}
-                onChange={(e) => setBulkIsActive(e.target.value as typeof bulkIsActive)}
-                className="ledger-input bg-white"
-              >
-                <option value="none">Durum Değiştirme</option>
-                <option value="active">Aktif Yap</option>
-                <option value="passive">Pasif Yap</option>
-              </select>
-              <select
-                value={bulkType}
-                onChange={(e) => setBulkType(e.target.value as typeof bulkType)}
-                className="ledger-input bg-white"
-              >
-                <option value="none">Tip Değiştirme</option>
-                <option value={ResidentType.OWNER}>Ev Sahibi</option>
-                <option value={ResidentType.TENANT}>Kiracı</option>
-                <option value={ResidentType.CONTACT}>İletişim Kişisi</option>
-              </select>
-              <input
-                value={bulkEmail}
-                onChange={(e) => setBulkEmail(e.target.value)}
-                placeholder="Toplu email (opsiyonel)"
-                className="ledger-input bg-white"
-              />
-              <input
-                value={bulkPhone}
-                onChange={(e) => setBulkPhone(e.target.value)}
-                placeholder="Toplu telefon (opsiyonel)"
-                className="ledger-input bg-white"
-              />
-            </div>
-            <button
-              type="button"
-              disabled={bulkMutation.isPending || selected.length === 0}
-              onClick={runBulkUpdate}
-              className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white disabled:opacity-50"
-            >
-              {bulkMutation.isPending ? 'İşleniyor...' : 'Toplu Güncelle'}
-            </button>
-          </div>
-
-          <div className="ledger-panel p-4 space-y-3">
-            <p className="text-xs font-bold tracking-[0.12em] uppercase text-[#4b5968]">CSV Aktarım</p>
-            <textarea
-              value={csvText}
-              onChange={(e) => setCsvText(e.target.value)}
-              rows={8}
-              className="w-full ledger-input bg-white"
-              placeholder="firstName,lastName,email,phoneNumber,tckn,type&#10;Ali,Yilmaz,ali@test.com,05320000000,12345678901,OWNER"
+      {isTenantAdmin ? (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="ledger-panel overflow-hidden">
+            <SectionTitle
+              title="Toplu güncelleme"
+              subtitle={`Seçili kayıt: ${selected.length}. Durum, tip ve iletişim alanlarını tek seferde güncelleyin.`}
             />
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={dryRunMutation.isPending || importMutation.isPending || !csvText.trim()}
-                onClick={() => dryRunMutation.mutate({ csv: csvText })}
-                className="px-3 py-2 rounded-md bg-[#e6e8ea] text-xs font-semibold text-[#0c1427] disabled:opacity-50"
-              >
-                {dryRunMutation.isPending ? 'Kontrol ediliyor...' : 'Önizleme'}
-              </button>
-              <button
-                type="button"
-                disabled={dryRunMutation.isPending || importMutation.isPending || !csvText.trim()}
-                onClick={() => importMutation.mutate({ csv: csvText, skipInvalid: true })}
-                className="px-3 py-2 rounded-md ledger-gradient text-xs font-semibold text-white disabled:opacity-50"
-              >
-                {importMutation.isPending ? 'Aktarılıyor...' : 'Uygula'}
-              </button>
-            </div>
-            {dryRun && (
-              <div className="rounded-md bg-[#f8f9fb] p-3 text-xs text-[#445266] space-y-2">
-                <p>
-                  Toplam: {dryRun.summary.totalRows} • Geçerli: {dryRun.summary.validRows} • Hatalı: {dryRun.summary.invalidRows}
-                </p>
-                <div className="max-h-40 overflow-auto space-y-1">
-                  {dryRun.preview.map((row) => (
-                    <p key={row.rowIndex} className={row.valid ? 'text-[#006e2d]' : 'text-[#ba1a1a]'}>
-                      Satır {row.rowIndex}: {row.valid ? 'Geçerli' : row.errors.join(' | ')}
-                    </p>
-                  ))}
+            <div className="p-5">
+              <div className="ledger-panel-soft p-4 md:p-5 space-y-4">
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <select
+                    value={bulkIsActive}
+                    onChange={(e) => setBulkIsActive(e.target.value as typeof bulkIsActive)}
+                    className="ledger-input bg-white"
+                  >
+                    <option value="none">Durum Değiştirme</option>
+                    <option value="active">Aktif Yap</option>
+                    <option value="passive">Pasif Yap</option>
+                  </select>
+                  <select
+                    value={bulkType}
+                    onChange={(e) => setBulkType(e.target.value as typeof bulkType)}
+                    className="ledger-input bg-white"
+                  >
+                    <option value="none">Tip Değiştirme</option>
+                    <option value={ResidentType.OWNER}>Ev Sahibi</option>
+                    <option value={ResidentType.TENANT}>Kiracı</option>
+                    <option value={ResidentType.CONTACT}>İletişim Kişisi</option>
+                  </select>
+                  <Input
+                    value={bulkEmail}
+                    onChange={(e) => setBulkEmail(e.target.value)}
+                    placeholder="Toplu e-posta (opsiyonel)"
+                    className="bg-white"
+                  />
+                  <Input
+                    value={bulkPhone}
+                    onChange={(e) => setBulkPhone(e.target.value)}
+                    placeholder="Toplu telefon (opsiyonel)"
+                    className="bg-white"
+                  />
                 </div>
+                <Button
+                  type="button"
+                  disabled={bulkMutation.isPending || selected.length === 0}
+                  onClick={runBulkUpdate}
+                >
+                  {bulkMutation.isPending ? 'İşleniyor...' : 'Toplu Güncelle'}
+                </Button>
               </div>
-            )}
+            </div>
+          </div>
+
+          <div className="ledger-panel overflow-hidden">
+            <SectionTitle
+              title="CSV aktarım"
+              subtitle="Hızlı toplu kayıt için önce önizleme al, sonra geçerli satırları içe aktar."
+            />
+            <div className="p-5">
+              <div className="ledger-panel-soft p-4 md:p-5 space-y-4">
+                <Textarea
+                  value={csvText}
+                  onChange={(e) => setCsvText(e.target.value)}
+                  rows={8}
+                  className="bg-white"
+                  placeholder="firstName,lastName,email,phoneNumber,tckn,type&#10;Ali,Yilmaz,ali@test.com,05320000000,12345678901,OWNER"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={dryRunMutation.isPending || importMutation.isPending || !csvText.trim()}
+                    onClick={() => dryRunMutation.mutate({ csv: csvText })}
+                  >
+                    <UserCog className="h-4 w-4" />
+                    {dryRunMutation.isPending ? 'Kontrol ediliyor...' : 'Önizleme'}
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={dryRunMutation.isPending || importMutation.isPending || !csvText.trim()}
+                    onClick={() => importMutation.mutate({ csv: csvText, skipInvalid: true })}
+                  >
+                    <Upload className="h-4 w-4" />
+                    {importMutation.isPending ? 'Aktarılıyor...' : 'Uygula'}
+                  </Button>
+                </div>
+                {dryRun ? (
+                  <div className="rounded-[20px] border border-white/80 bg-white/80 p-4 text-xs text-[#445266] shadow-[0_14px_30px_rgba(8,17,31,0.04)]">
+                    <p className="font-semibold text-[#0d182b]">
+                      Toplam: {dryRun.summary.totalRows} • Geçerli: {dryRun.summary.validRows} • Hatalı: {dryRun.summary.invalidRows}
+                    </p>
+                    <div className="mt-3 max-h-40 overflow-auto space-y-1">
+                      {dryRun.preview.map((row) => (
+                        <p key={row.rowIndex} className={row.valid ? 'text-[#0e7a52]' : 'text-[#ba1a1a]'}>
+                          Satır {row.rowIndex}: {row.valid ? 'Geçerli' : row.errors.join(' | ')}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
-      )}
-
-      {!isTenantAdmin && (
-        <div className="ledger-panel p-4">
-          <p className="text-sm text-[#6b7280]">Personel rolü bu ekranda listeleme yapabilir. CSV aktarım ve toplu güncelleme yalnızca yönetici yetkisiyle kullanılır.</p>
+      ) : (
+        <div className="ledger-panel p-5">
+          <p className="text-sm text-[#6b7280]">
+            Personel rolü bu ekranda listeleme yapabilir. CSV aktarım ve toplu güncelleme yalnızca yönetici yetkisiyle kullanılır.
+          </p>
         </div>
       )}
     </div>

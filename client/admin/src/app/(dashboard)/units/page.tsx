@@ -3,10 +3,10 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Building2 } from 'lucide-react'
+import { AlertTriangle, Building2, Home, ShieldCheck, Wallet } from 'lucide-react'
 import { useApiQuery } from '@/hooks/use-api'
 import { useSiteContext } from '@/providers/site-provider'
-import { KpiCard, PageHeader, StatusPill } from '@/components/surface'
+import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
 import { EmptyState } from '@/components/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatShortDate, formatTry } from '@/lib/formatters'
@@ -95,17 +95,23 @@ export default function WorkUnitsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Daire Yönetimi ve Finans"
+        eyebrow="Portföy Operasyonu"
         subtitle="Daire operasyonu, sakin bilgisi ve finansal sağlık tek tabloda."
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        <KpiCard label="Filtrelenmiş Daire" value={stats.total} hint="Mevcut filtre sonucu" />
-        <KpiCard label="Toplam Açık Borç" value={<span className="text-[#ba1a1a]">{formatTry(stats.totalDebt)}</span>} />
-        <KpiCard label="Borçlu Daire" value={stats.debtor} hint={`${stats.overdue} gecikmiş`} />
-        <KpiCard label="Temiz Daire" value={stats.clean} hint="Borç bakiyesi yok" />
+        <KpiCard label="Filtrelenmiş Daire" value={stats.total} hint="Mevcut filtre sonucu" icon={Home} tone="blue" />
+        <KpiCard label="Toplam Açık Borç" value={<span className="text-[#ba1a1a]">{formatTry(stats.totalDebt)}</span>} icon={Wallet} tone="navy" />
+        <KpiCard label="Borçlu Daire" value={stats.debtor} hint={`${stats.overdue} gecikmiş`} icon={AlertTriangle} tone="amber" />
+        <KpiCard label="Temiz Daire" value={stats.clean} hint="Borç bakiyesi yok" icon={ShieldCheck} tone="emerald" />
       </div>
 
-      <div className="ledger-panel-soft p-3 grid grid-cols-1 lg:grid-cols-5 gap-2 items-center">
+      <div className="ledger-panel-soft p-3 md:p-4">
+        <div className="mb-3">
+          <p className="ledger-label">Filtreleme</p>
+          <p className="mt-1 text-sm text-[#6b7d93]">Durum, blok, kat ve sakin aramasıyla daire listesini daralt.</p>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-2 items-center">
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value as 'ALL' | 'CLEAR' | 'DEBTOR' | 'OVERDUE')}
@@ -135,6 +141,7 @@ export default function WorkUnitsPage() {
           placeholder="Daire veya sakin ara..."
           className="ledger-input bg-white lg:col-span-2"
         />
+        </div>
       </div>
 
       {!hydrated || !selectedSiteId ? (
@@ -147,6 +154,7 @@ export default function WorkUnitsPage() {
         </div>
       ) : (
         <div className="ledger-panel overflow-x-auto">
+          <SectionTitle title="Daire Listesi" subtitle="Finansal durum, sakin bilgisi ve hızlı erişim tek tabloda." />
           <div className="min-w-[800px]">
           <div className="grid grid-cols-12 px-5 py-3 ledger-table-head">
             <span className="col-span-2">Daire No</span>
@@ -157,14 +165,14 @@ export default function WorkUnitsPage() {
             <span className="col-span-1 text-right">Aksiyon</span>
           </div>
           <div className="ledger-divider">
-            {isLoading && Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="grid grid-cols-12 px-5 py-4 gap-3">
-                <Skeleton className="col-span-2 h-5" />
-                <Skeleton className="col-span-3 h-5" />
-                <Skeleton className="col-span-2 h-5" />
-                <Skeleton className="col-span-2 h-5" />
-                <Skeleton className="col-span-2 h-5" />
-                <Skeleton className="col-span-1 h-5" />
+            {isLoading && Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="grid grid-cols-12 px-5 py-4 gap-3 items-center">
+                <Skeleton className="col-span-2 h-10 rounded" />
+                <Skeleton className="col-span-3 h-10 rounded" />
+                <Skeleton className="col-span-2 h-10 rounded" />
+                <Skeleton className="col-span-2 h-10 rounded" />
+                <Skeleton className="col-span-2 h-10 rounded" />
+                <Skeleton className="col-span-1 h-10 rounded" />
               </div>
             ))}
             {!isLoading && units.map((unit) => (
@@ -209,7 +217,7 @@ export default function WorkUnitsPage() {
               <EmptyState
                 icon={Building2}
                 title="Daire bulunamadı"
-                description="Seçili filtreye uygun sonuç yok."
+                description="Bu filtreyle eşleşen daire yok — filtreyi değiştirmeyi deneyin."
               />
             )}
           </div>
@@ -219,7 +227,8 @@ export default function WorkUnitsPage() {
 
       {!isLoading && units.length > 0 && (
         <div className="ledger-panel-soft p-4">
-          <p className="text-xs font-bold tracking-[0.16em] uppercase text-[#4f5d6c]">Tahsilat Trendi</p>
+          <p className="ledger-label">Tahsilat Trendi</p>
+          <p className="mt-1 text-sm text-[#6b7d93]">Temiz, borçlu ve gecikmiş daire dağılımı.</p>
           <div className="mt-3 flex items-end gap-2 h-20">
             {stats.trend.map((value, index) => (
               <div

@@ -76,15 +76,18 @@ export function Topbar({ onPaymentClick }: TopbarProps) {
   }
 
   return (
-    <div className="border-b border-white/60 ledger-glass px-4 py-2.5">
+    <div className="px-3 pb-1 pt-4 lg:px-6 xl:px-8">
       {error ? (
-        <div className="mb-2 rounded-md bg-[#fef2f2] px-3 py-1.5 text-xs font-medium text-[#991b1b]">
+        <div className="mb-3 rounded-2xl border border-[#ffd8d0] bg-[#fff4f1] px-4 py-2 text-xs font-medium text-[#991b1b] shadow-[0_10px_26px_rgba(153,27,27,0.08)]">
           Site verisi alınamadı: {error}
         </div>
       ) : null}
-      <div className="flex items-center justify-between gap-3">
+      <div className="ledger-shell-topbar flex flex-col gap-3 rounded-[26px] px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-5">
         {/* Left: Site switcher */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#0f1a2b,#31538c)] text-white shadow-[0_16px_30px_rgba(15,26,43,0.2)] md:flex">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em]">OS</span>
+          </div>
           <SiteSwitcher
             sites={availableSites}
             selectedSiteId={selectedSiteId}
@@ -94,15 +97,15 @@ export function Topbar({ onPaymentClick }: TopbarProps) {
         </div>
 
         {/* Right: Search + Payment + Notifications */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <button
             type="button"
             onClick={openCommandPalette}
-            className="hidden md:flex h-8 w-56 items-center gap-2 rounded-md border border-[#e5e7eb] bg-[#fafafa] px-2.5 text-[13px] text-[#9ca3af] hover:bg-white hover:border-[#d1d5db] transition-colors"
+            className="hidden h-11 w-64 items-center gap-3 rounded-2xl border border-white/85 bg-white/82 px-3.5 text-[13px] text-[#7e90a8] shadow-[0_12px_28px_rgba(8,17,31,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white md:flex"
           >
-            <Search className="h-3.5 w-3.5 shrink-0" />
+            <Search className="h-4 w-4 shrink-0" />
             <span className="flex-1 text-left truncate">Daire veya sakin ara...</span>
-            <kbd className="hidden lg:inline-flex h-5 items-center gap-1 rounded border border-[#e5e7eb] bg-white px-1.5 text-[10px] font-medium text-[#9ca3af]">
+            <kbd className="hidden h-6 items-center gap-1 rounded-full border border-[#dfe7f2] bg-[#f7faff] px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a9bb0] lg:inline-flex">
               ⌘K
             </kbd>
           </button>
@@ -110,7 +113,7 @@ export function Topbar({ onPaymentClick }: TopbarProps) {
           <button
             type="button"
             onClick={onPaymentClick}
-            className="h-8 px-3 text-xs font-semibold rounded-md bg-[#0c1427] text-white hover:bg-[#1a2332] transition-colors"
+            className="inline-flex h-11 rounded-2xl border border-[#17345a]/12 bg-[linear-gradient(135deg,#12203a_0%,#1d3b67_46%,#4f7df7_100%)] px-3.5 text-[12px] font-semibold text-white shadow-[0_18px_34px_rgba(79,125,247,0.26)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_40px_rgba(79,125,247,0.32)] sm:px-4 sm:text-[13px]"
           >
             Ödeme Al
           </button>
@@ -123,24 +126,24 @@ export function Topbar({ onPaymentClick }: TopbarProps) {
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="h-8 w-8 grid place-items-center rounded-md border border-[#e5e7eb] hover:bg-[#f5f5f5] text-[#4b5563] relative transition-colors"
+                className="relative grid h-11 w-11 place-items-center rounded-2xl border border-white/85 bg-white/82 text-[#45566d] shadow-[0_12px_28px_rgba(8,17,31,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white"
                 aria-label="Bildirimler"
               >
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-[#dc2626] text-white text-[10px] font-bold grid place-items-center">
+                  <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#dc2626] px-1 text-[10px] font-bold text-white shadow-[0_8px_18px_rgba(220,38,38,0.28)]">
                     {Math.min(unreadCount, 99)}
                   </span>
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[320px] p-3 space-y-2">
+            <PopoverContent align="end" className="w-[340px] rounded-[24px] border-white/80 bg-white/92 p-3 shadow-[0_24px_54px_rgba(8,17,31,0.14)] backdrop-blur-2xl">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-[#111827]">Bildirimler</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#63758d]">Bildirimler</p>
                 <button
                   type="button"
                   onClick={() => void markAllRead()}
-                  className="flex items-center gap-1 text-xs text-[#6b7280] hover:text-[#0c1427]"
+                  className="flex items-center gap-1 rounded-full bg-[#f4f8fc] px-2.5 py-1 text-xs text-[#5d6f86] transition-colors hover:bg-[#ecf2f9] hover:text-[#0c1427]"
                 >
                   <Check className="h-3 w-3" /> Okundu
                 </button>
@@ -151,7 +154,7 @@ export function Topbar({ onPaymentClick }: TopbarProps) {
                 <p className="text-xs text-[#6b7280] py-2">Bildirim yok.</p>
               )}
               {!notificationLoading && notifications.map((item) => (
-                <div key={item.id} className="rounded-md bg-[#f9fafb] p-2 animate-fade-in-up">
+                <div key={item.id} className="animate-fade-in-up rounded-2xl border border-white/70 bg-[#f8fbff] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
                   <p className="text-xs font-medium text-[#111827]">{item.templateKey ?? 'Bildirim'}</p>
                   <p className="text-[11px] text-[#6b7280] mt-0.5">{relativeTime(item.createdAt)}</p>
                 </div>
@@ -159,7 +162,7 @@ export function Topbar({ onPaymentClick }: TopbarProps) {
               <Link
                 href="/announcements"
                 onClick={() => setNotifOpen(false)}
-                className="block text-center text-xs font-medium text-[#0c1427] py-1.5 rounded-md bg-[#f3f4f6] hover:bg-[#e5e7eb] transition-colors"
+                className="mt-2 block rounded-2xl border border-white/80 bg-[#f3f7fb] py-2 text-center text-xs font-medium text-[#0c1427] transition-colors hover:bg-[#edf3fa]"
               >
                 Tümünü Gör
               </Link>

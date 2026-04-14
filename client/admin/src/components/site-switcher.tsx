@@ -58,7 +58,7 @@ export function SiteSwitcher({ sites, selectedSiteId, onSelect, disabled = false
       <button
         type="button"
         disabled
-        className="flex h-8 items-center gap-2 rounded-md border border-[#e5e7eb] bg-white px-2.5 text-[13px] text-[#9ca3af]"
+        className="flex h-11 items-center gap-2 rounded-2xl border border-white/85 bg-white/78 px-3.5 text-[13px] text-[#8a9bb0] shadow-[0_10px_24px_rgba(8,17,31,0.05)]"
       >
         <Building2 className="h-3.5 w-3.5" />
         <span>Bina bulunamadı</span>
@@ -74,19 +74,23 @@ export function SiteSwitcher({ sites, selectedSiteId, onSelect, disabled = false
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className="flex h-8 min-w-52 items-center gap-2 rounded-md border border-[#e5e7eb] bg-white px-2.5 text-[13px] font-medium text-[#0c1427] hover:bg-[#fafafa] focus:outline-none focus:ring-1 focus:ring-[#0c1427] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+          className="flex h-11 min-w-[15rem] items-center gap-2 rounded-2xl border border-white/85 bg-white/82 px-3.5 text-[13px] font-medium text-[#0d182b] shadow-[0_12px_28px_rgba(8,17,31,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-4 focus:ring-[#6d8ef8]/12 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Building2 className="h-3.5 w-3.5 shrink-0 text-[#6b7280]" />
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-[#eef4ff] text-[#31538c]">
+            <Building2 className="h-4 w-4 shrink-0" />
+          </span>
           <span className="flex-1 text-left truncate">
             {selectedSite ? `${selectedSite.name}` : 'Bina seçiniz'}
           </span>
           {selectedSite && (
-            <span className="text-[11px] text-[#9ca3af] shrink-0">{selectedSite.city}</span>
+            <span className="shrink-0 rounded-full border border-[#dde8fb] bg-[#f3f7ff] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6080b2]">
+              {selectedSite.city}
+            </span>
           )}
-          <ChevronsUpDown className="h-3 w-3 shrink-0 text-[#9ca3af]" />
+          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-[#8fa0b5]" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+      <PopoverContent className="w-[--radix-popover-trigger-width] rounded-[24px] border-white/80 bg-white/90 p-1 shadow-[0_22px_50px_rgba(8,17,31,0.12)] backdrop-blur-2xl" align="start">
         <Command>
           <CommandInput placeholder="Site ara..." />
           <CommandList>

@@ -1,10 +1,27 @@
 'use client'
 
-import { UserCog, Shield, User } from 'lucide-react'
-import { UserRole } from '@sakin/shared'
-import { useApiQuery } from '@/hooks/use-api'
-import { PageHeader } from '@/components/surface'
+import { useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Check, Copy, Plus, Shield, User, UserCog, UserPlus, UserX } from 'lucide-react'
+import { InviteUserSchema, type InviteUserDto, UserRole } from '@sakin/shared'
+import { useApiQuery, useApiMutation } from '@/hooks/use-api'
+import { useAuth } from '@/providers/auth-provider'
+import { EmptyState } from '@/components/empty-state'
+import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { toastSuccess } from '@/lib/toast'
+import { formatShortDate } from '@/lib/formatters'
 
 interface UserRow {
   id: string
@@ -16,120 +33,368 @@ interface UserRow {
   createdAt: string
 }
 
+interface InviteResult {
+  userId: string
+  email: string
+  displayName: string
+  role: UserRole
+  resetLink: string | null
+}
+
 const ROLE_LABELS: Partial<Record<UserRole, string>> = {
   [UserRole.TENANT_ADMIN]: 'Yönetici',
   [UserRole.STAFF]: 'Personel',
-  [UserRole.RESIDENT]: 'Sakin',
 }
 
-const ROLE_COLORS: Partial<Record<UserRole, string>> = {
-  [UserRole.TENANT_ADMIN]: 'bg-blue-100 text-blue-700',
-  [UserRole.STAFF]: 'bg-green-100 text-green-700',
-  [UserRole.RESIDENT]: 'bg-gray-100 text-gray-700',
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const copy = () => {
+    void navigator.clipboard.writeText(value)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      className="shrink-0 text-[#9ca3af] transition-colors hover:text-[#0c1427]"
+      aria-label="Kopyala"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  )
 }
 
 export default function UsersPage() {
-  // Note: This queries the tenant's user list. API endpoint may need to be
-  // created if not already available. For now, we use /auth/dev-bootstrap
-  // pattern to show what data we have.
-  const { data: usersResponse, isLoading } = useApiQuery<{ data: UserRow[] }>(
+  const { role: myRole } = useAuth()
+  const isTenantAdmin = myRole === UserRole.TENANT_ADMIN
+
+  const [showInvite, setShowInvite] = useState(false)
+  const [inviteResult, setInviteResult] = useState<InviteResult | null>(null)
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
+
+  const { data: users = [], isLoading, refetch } = useApiQuery<UserRow[]>(
     ['tenant-users'],
     '/tenant/users',
-    undefined,
-    { retry: false },
   )
-  const users = usersResponse?.data ?? []
 
-  const admins = users.filter((u) => u.role === UserRole.TENANT_ADMIN)
-  const staff = users.filter((u) => u.role === UserRole.STAFF)
+  const inviteMutation = useApiMutation<InviteResult, InviteUserDto>('/tenant/users', {
+    invalidateKeys: [['tenant-users']],
+    onSuccess: (result) => {
+      setInviteResult(result)
+      form.reset()
+      toastSuccess(`${result.displayName} davet edildi.`)
+    },
+  })
+
+  const updateRoleMutation = useApiMutation<unknown, { userId: string; role: UserRole }>(
+    (vars) => `/tenant/users/${vars.userId}`,
+    {
+      method: 'PATCH',
+      invalidateKeys: [['tenant-users']],
+      onSuccess: () => toastSuccess('Rol güncellendi.'),
+    },
+  )
+
+  const deactivateMutation = useApiMutation<unknown, { userId: string }>(
+    (vars) => `/tenant/users/${vars.userId}`,
+    {
+      method: 'DELETE',
+      invalidateKeys: [['tenant-users']],
+      onSuccess: () => {
+        toastSuccess('Kullanıcı pasifleştirildi.')
+        setDeactivatingId(null)
+      },
+    },
+  )
+
+  const form = useForm<InviteUserDto>({
+    resolver: zodResolver(InviteUserSchema),
+    defaultValues: { email: '', displayName: '', role: UserRole.STAFF },
+  })
+
+  const admins = users.filter((user) => user.role === UserRole.TENANT_ADMIN)
+  const staff = users.filter((user) => user.role === UserRole.STAFF)
+  const activeCount = users.filter((user) => user.isActive).length
+
+  const recentJoin = useMemo(
+    () => [...users].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0],
+    [users],
+  )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 motion-in">
       <PageHeader
-        title="Kullanıcılar"
-        subtitle="Şirket kullanıcıları ve rol yönetimi."
+        title="Kullanıcı Yönetimi"
+        eyebrow="Ekip Operasyonu"
+        subtitle="Yönetici ve personel kullanıcılarını aynı operasyon diliyle davet edin, yetkilendirin ve izleyin."
+        actions={isTenantAdmin ? (
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+              Yenile
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setShowInvite((prev) => !prev)
+                setInviteResult(null)
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Personel Davet Et
+            </Button>
+          </div>
+        ) : undefined}
       />
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="ledger-panel p-4">
-          <p className="ledger-label">Toplam Kullanıcı</p>
-          <p className="ledger-value mt-2">{users.length}</p>
-        </div>
-        <div className="ledger-panel p-4">
-          <p className="ledger-label">Yönetici</p>
-          <p className="ledger-value mt-2">{admins.length}</p>
-        </div>
-        <div className="ledger-panel p-4">
-          <p className="ledger-label">Personel</p>
-          <p className="ledger-value mt-2">{staff.length}</p>
-        </div>
+      <div className="motion-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="ledger-panel p-5 space-y-3">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-2 w-full" />
+            </div>
+          ))
+        ) : (
+          <>
+            <KpiCard label="Toplam Kullanıcı" value={users.length} hint="Bu tenant altında kayıtlı toplam ekip kullanıcısı." icon={UserCog} tone="blue" />
+            <KpiCard label="Yönetici" value={admins.length} hint="Ayar, davet ve operasyon yönetimi yetkisi olanlar." icon={Shield} tone="navy" />
+            <KpiCard label="Personel" value={staff.length} hint="Günlük operasyonu yürüten ekip üyeleri." icon={User} tone="emerald" />
+            <KpiCard
+              label="Aktif Kullanıcı"
+              value={activeCount}
+              hint={recentJoin ? `Son eklenen: ${recentJoin.displayName ?? recentJoin.email ?? 'Kullanıcı'}` : 'Henüz ekip kullanıcısı yok.'}
+              icon={UserPlus}
+              tone="amber"
+            />
+          </>
+        )}
       </div>
 
-      {/* User Table */}
-      <div className="ledger-panel overflow-hidden">
-        <div className="grid grid-cols-12 px-5 py-3 ledger-table-head text-xs">
-          <span className="col-span-1" />
-          <span className="col-span-3">Ad</span>
-          <span className="col-span-3">İletişim</span>
-          <span className="col-span-2">Rol</span>
-          <span className="col-span-1">Durum</span>
-          <span className="col-span-2 text-right">Kullanıcı Kodu</span>
-        </div>
-        <div className="ledger-divider">
-          {isLoading && Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="px-5 py-4"><Skeleton className="h-10 w-full" /></div>
-          ))}
-          {!isLoading && users.length === 0 && (
-            <div className="px-5 py-8 text-center">
-              <UserCog className="h-8 w-8 mx-auto text-[#c5c6cd] mb-2" />
-              <p className="text-sm text-[#6b7280]">
-                Henüz kayıtlı kullanıcı bulunamadı.
-              </p>
-              <p className="text-xs text-[#9ca3af] mt-2">
-                Kullanıcı davet sistemi yakında eklenecektir.
-              </p>
-            </div>
-          )}
-          {!isLoading && users.map((row) => (
-            <div key={row.id} className="grid grid-cols-12 px-5 py-3 items-center ledger-table-row-hover">
-              <div className="col-span-1">
-                <div className="h-8 w-8 rounded-full bg-[#e6e8ea] grid place-items-center">
-                  {row.role === UserRole.TENANT_ADMIN
-                    ? <Shield className="h-4 w-4 text-[#445266]" />
-                    : <User className="h-4 w-4 text-[#445266]" />}
-                </div>
-              </div>
-              <div className="col-span-3">
-                <p className="text-sm font-semibold text-[#0c1427]">
-                  {row.displayName ?? 'İsimsiz Kullanıcı'}
+      {isTenantAdmin && showInvite ? (
+        <div className="ledger-panel overflow-hidden">
+          <SectionTitle
+            title="Yeni kullanıcı davet et"
+            subtitle="Yeni ekip üyesini ekleyin; gerekiyorsa reset linkiyle güvenli başlangıç akışını paylaşın."
+          />
+
+          <div className="p-5">
+            {inviteResult ? (
+              <div role="status" className="rounded-[22px] border border-green-200 bg-green-50 p-4 space-y-3">
+                <p className="text-sm font-semibold text-green-800">
+                  {inviteResult.displayName} başarıyla eklendi.
                 </p>
+                {inviteResult.resetLink ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-green-700">
+                      Aşağıdaki şifre belirleme linkini kullanıcıya iletin.
+                    </p>
+                    <div className="flex items-center gap-2 rounded-xl bg-white border border-green-200 px-3 py-2">
+                      <code className="flex-1 truncate text-xs text-[#374151]">{inviteResult.resetLink}</code>
+                      <CopyButton value={inviteResult.resetLink} />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-green-700">
+                    Kullanıcı zaten Firebase üzerinde kayıtlı. Mevcut şifresiyle giriş yapabilir.
+                  </p>
+                )}
+                <Button size="sm" variant="outline" onClick={() => setInviteResult(null)}>
+                  Yeni Davet
+                </Button>
               </div>
-              <div className="col-span-3">
-                <p className="text-sm text-[#374151]">{row.email ?? '-'}</p>
-                <p className="text-xs text-[#6b7280]">{row.phoneNumber ?? '-'}</p>
+            ) : (
+              <div className="ledger-panel-soft p-4 md:p-5">
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit((data) => inviteMutation.mutate(data))}
+                    className="grid grid-cols-1 gap-4 md:grid-cols-3"
+                  >
+                    <FormField
+                      control={form.control}
+                      name="displayName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ad Soyad</FormLabel>
+                          <FormControl><Input placeholder="Ahmet Yılmaz" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>E-posta</FormLabel>
+                          <FormControl><Input type="email" placeholder="ahmet@firma.com" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="role"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Rol</FormLabel>
+                          <FormControl>
+                            <select {...field} className="ledger-input bg-white w-full h-10">
+                              <option value={UserRole.STAFF}>Personel</option>
+                              <option value={UserRole.TENANT_ADMIN}>Yönetici</option>
+                            </select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="md:col-span-3 flex flex-wrap gap-2">
+                      <Button type="submit" disabled={inviteMutation.isPending}>
+                        {inviteMutation.isPending ? 'Davet Ediliyor...' : 'Davet Et'}
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setShowInvite(false)}>
+                        İptal
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
               </div>
-              <div className="col-span-2">
-                <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${ROLE_COLORS[row.role] ?? 'bg-gray-100 text-gray-700'}`}>
-                  {ROLE_LABELS[row.role] ?? row.role}
-                </span>
-              </div>
-              <div className="col-span-1">
-                <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-medium ${row.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {row.isActive ? 'Aktif' : 'Pasif'}
-                </span>
-              </div>
-              <p className="col-span-2 text-right text-[11px] text-[#9ca3af] font-mono truncate">
-                {row.id.slice(0, 12)}...
-              </p>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="ledger-panel overflow-hidden">
+        <SectionTitle
+          title="Ekip listesi"
+          subtitle="Rol, durum ve katılım tarihiyle birlikte tenant kullanıcıları."
+        />
+        <div className="overflow-x-auto">
+          <div className="min-w-[760px]">
+            <div className="grid grid-cols-12 px-5 py-3 ledger-table-head">
+              <span className="col-span-1" />
+              <span className="col-span-3">Kullanıcı</span>
+              <span className="col-span-3">E-posta</span>
+              <span className="col-span-2">Rol</span>
+              <span className="col-span-1">Durum</span>
+              <span className="col-span-1">Eklenme</span>
+              <span className="col-span-1 text-right">İşlem</span>
             </div>
-          ))}
+            <div className="ledger-divider">
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="grid grid-cols-12 px-5 py-3 gap-3 items-center">
+                    <Skeleton className="col-span-1 h-10 w-10 rounded-full" />
+                    <Skeleton className="col-span-3 h-10 rounded-2xl" />
+                    <Skeleton className="col-span-3 h-10 rounded-2xl" />
+                    <Skeleton className="col-span-2 h-10 rounded-2xl" />
+                    <Skeleton className="col-span-1 h-10 rounded-2xl" />
+                    <Skeleton className="col-span-1 h-10 rounded-2xl" />
+                    <Skeleton className="col-span-1 h-10 rounded-2xl" />
+                  </div>
+                ))
+              ) : users.length === 0 ? (
+                <EmptyState
+                  icon={UserCog}
+                  title="Henüz kullanıcı yok"
+                  description="İlk ekip üyesini davet ederek operasyon panelini paylaşın."
+                  actionLabel="Personel Davet Et"
+                  onAction={() => setShowInvite(true)}
+                />
+              ) : (
+                users.map((row) => (
+                  <div key={row.id} className="grid grid-cols-12 px-5 py-4 items-center ledger-table-row-hover">
+                    <div className="col-span-1">
+                      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(238,244,255,0.86))] shadow-[0_14px_30px_rgba(8,17,31,0.05)]">
+                        {row.role === UserRole.TENANT_ADMIN ? (
+                          <Shield className="h-4 w-4 text-[#274c84]" aria-hidden="true" />
+                        ) : (
+                          <User className="h-4 w-4 text-[#445266]" aria-hidden="true" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-span-3">
+                      <p className="text-sm font-semibold text-[#0c1427]">
+                        {row.displayName ?? 'İsimsiz Kullanıcı'}
+                      </p>
+                    </div>
+                    <div className="col-span-3 min-w-0">
+                      <p className="truncate text-sm text-[#374151]">{row.email ?? '-'}</p>
+                      {row.phoneNumber ? <p className="text-xs text-[#6b7280]">{row.phoneNumber}</p> : null}
+                    </div>
+                    <div className="col-span-2">
+                      {isTenantAdmin ? (
+                        <select
+                          value={row.role}
+                          onChange={(e) => {
+                            updateRoleMutation.mutate({ userId: row.id, role: e.target.value as UserRole })
+                          }}
+                          className="ledger-input bg-white text-xs py-1"
+                          aria-label="Rolü değiştir"
+                        >
+                          <option value={UserRole.STAFF}>Personel</option>
+                          <option value={UserRole.TENANT_ADMIN}>Yönetici</option>
+                        </select>
+                      ) : (
+                        <span className="ledger-chip ledger-chip-neutral">
+                          {ROLE_LABELS[row.role] ?? row.role}
+                        </span>
+                      )}
+                    </div>
+                    <div className="col-span-1">
+                      <StatusPill label={row.isActive ? 'Aktif' : 'Pasif'} tone={row.isActive ? 'success' : 'neutral'} />
+                    </div>
+                    <p className="col-span-1 text-xs text-[#9ca3af] tabular-nums">{formatShortDate(row.createdAt)}</p>
+                    <div className="col-span-1 text-right">
+                      {isTenantAdmin && row.isActive ? (
+                        deactivatingId === row.id ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                deactivateMutation.mutate({ userId: row.id })
+                              }}
+                              disabled={deactivateMutation.isPending}
+                              className="text-[11px] font-bold text-[#ba1a1a] transition-colors hover:text-[#93000a] disabled:opacity-50"
+                            >
+                              Evet
+                            </button>
+                            <span className="text-[#d1d5db]">·</span>
+                            <button
+                              type="button"
+                              onClick={() => setDeactivatingId(null)}
+                              className="text-[11px] text-[#6b7280] transition-colors hover:text-[#0c1427]"
+                            >
+                              Hayır
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setDeactivatingId(row.id)}
+                            className="rounded-xl p-2 text-[#9ca3af] transition-colors hover:bg-[#fee2e2] hover:text-[#ba1a1a]"
+                            aria-label={`${row.displayName ?? row.email} kullanıcısını pasifleştir`}
+                          >
+                            <UserX className="h-4 w-4" />
+                          </button>
+                        )
+                      ) : null}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="rounded-md bg-[#f0f4f8] p-4">
-        <p className="text-xs text-[#445266]">
-          Kullanıcı davet etme ve rol değiştirme özellikleri yakında eklenecektir.
+      <div className="ledger-panel-soft p-4">
+        <p className="text-xs leading-6 text-[#445266]">
+          <strong>Log izlenebilirliği:</strong> Aidat, ödeme, gider ve sakin işlemlerinde hangi kullanıcının aksiyon aldığı kaydedilir.
+          Pasifleştirilen kullanıcıların geçmiş işlem izi korunur.
         </p>
       </div>
     </div>

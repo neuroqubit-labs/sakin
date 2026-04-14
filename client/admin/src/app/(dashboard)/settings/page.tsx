@@ -23,34 +23,48 @@ export default function SettingsPage() {
   const [section, setSection] = useState<SettingsSection>('profile')
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 motion-in">
       <PageHeader
         title="Ayarlar"
+        eyebrow="Yönetim Konfigürasyonu"
         subtitle="Şirket yapılandırması, entegrasyonlar ve abonelik yönetimi."
       />
 
       <div className="flex flex-col lg:flex-row gap-6">
-        <nav className="lg:w-56 shrink-0">
-          <div className="space-y-0.5">
+        <nav className="lg:w-72 shrink-0">
+          <div className="ledger-panel p-4">
+            <p className="ledger-label mb-3">Ayar Grupları</p>
+            <div className="space-y-1.5">
             {SETTINGS_NAV.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setSection(key)}
-                className={`w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-colors text-left ${
+                className={`w-full flex items-center gap-3 rounded-[18px] px-3.5 py-3 text-[13px] font-medium transition-all text-left ${
                   section === key
-                    ? 'bg-[#0c1427] text-white'
-                    : 'text-[#4b5563] hover:bg-[#f3f4f6] hover:text-[#0c1427]'
+                    ? 'bg-[linear-gradient(135deg,#11203a_0%,#1d3b67_48%,#4f7df7_100%)] text-white shadow-[0_18px_34px_rgba(79,125,247,0.22)]'
+                    : 'text-[#4b5563] hover:bg-white hover:text-[#0c1427]'
                 }`}
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-2xl ${
+                  section === key ? 'bg-white/16' : 'bg-[#edf4ff] text-[#31568f]'
+                }`}>
+                  <Icon className="h-4 w-4 shrink-0" />
+                </span>
                 <span>{label}</span>
               </button>
             ))}
+            </div>
+            <div className="mt-4 rounded-[20px] border border-white/85 bg-white/72 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#72839b]">Kontrol Notu</p>
+              <p className="mt-2 text-sm leading-6 text-[#5e7188]">
+                Bu alan şirket profilini, ödeme altyapısını ve güvenlik yaklaşımını tek yerde toplar.
+              </p>
+            </div>
           </div>
         </nav>
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 space-y-4">
           {section === 'profile' && <ProfileSection />}
           {section === 'payment' && <PaymentSection />}
           {section === 'notifications' && <NotificationsSection />}

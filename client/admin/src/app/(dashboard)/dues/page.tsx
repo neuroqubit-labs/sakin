@@ -4,6 +4,7 @@ import { useApiQuery } from '@/hooks/use-api'
 import { useAuth } from '@/providers/auth-provider'
 import { useSiteContext } from '@/providers/site-provider'
 import { UserRole } from '@sakin/shared'
+import { AlertTriangle, Percent, Wallet } from 'lucide-react'
 import { PageHeader, KpiCard } from '@/components/surface'
 import { formatTry } from '@/lib/formatters'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -38,7 +39,7 @@ export default function DuesPage() {
 
   if (!selectedSiteId) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 motion-in">
         <PageHeader title="Aidatlar" subtitle="Aidat tanımları, dönem yönetimi ve mutabakat işlemleri." />
         <div className="ledger-panel p-6">
           <p className="text-sm text-[#6b7280]">Aidat yönetimi için önce bir site seçin.</p>
@@ -59,35 +60,36 @@ export default function DuesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 motion-in">
       <PageHeader
         title="Aidatlar"
+        eyebrow="Aidat Operasyonu"
         subtitle="Aidat tanımları, dönem yönetimi ve mutabakat işlemleri."
       />
 
       {/* KPI Row */}
       {summaryLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="motion-stagger grid grid-cols-1 sm:grid-cols-3 gap-3">
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
         </div>
       ) : summary ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <KpiCard label="Tahsilat Oranı" value={`%${summary.kpi.collectionRate}`} railPercent={summary.kpi.collectionRate} />
-          <KpiCard label="Toplam Açık Borç" value={formatTry(summary.kpi.totalDebt)} />
-          <KpiCard label="Gecikmiş Kayıt" value={summary.kpi.overdueCount} />
+          <KpiCard label="Tahsilat Oranı" value={`%${summary.kpi.collectionRate}`} railPercent={summary.kpi.collectionRate} icon={Percent} tone="cyan" />
+          <KpiCard label="Toplam Açık Borç" value={formatTry(summary.kpi.totalDebt)} icon={Wallet} tone="navy" />
+          <KpiCard label="Gecikmiş Kayıt" value={summary.kpi.overdueCount} icon={AlertTriangle} tone="rose" />
         </div>
       ) : null}
 
       {/* Tabs */}
       <Tabs defaultValue="records">
-        <TabsList className="bg-[#f2f4f6] p-1 rounded-lg">
-          <TabsTrigger value="records" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-4 py-2 text-sm font-semibold">
+        <TabsList>
+          <TabsTrigger value="records">
             Kayıtlar
           </TabsTrigger>
-          <TabsTrigger value="definitions" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-4 py-2 text-sm font-semibold">
+          <TabsTrigger value="definitions">
             Tanımlar
           </TabsTrigger>
-          <TabsTrigger value="period" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-4 py-2 text-sm font-semibold">
+          <TabsTrigger value="period">
             Dönem İşlemleri
           </TabsTrigger>
         </TabsList>

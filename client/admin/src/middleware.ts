@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { UserRole } from '@sakin/shared'
 import { hasRouteAccess } from '@/lib/access-policy'
 
-const PUBLIC_PATHS = ['/login', '/favicon.ico']
+const PUBLIC_PATHS = ['/login', '/favicon.ico', '/brand']
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -45,5 +45,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|brand).*)'],
 }
