@@ -197,6 +197,14 @@ export class ResidentService {
     const resident = await db.resident.findFirst({
       where: { id },
       include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            displayName: true,
+            createdAt: true,
+          },
+        },
         occupancies: {
           include: {
             unit: {
@@ -211,6 +219,16 @@ export class ResidentService {
         payments: {
           orderBy: { createdAt: 'desc' },
           take: 10,
+          select: {
+            id: true,
+            amount: true,
+            currency: true,
+            method: true,
+            status: true,
+            paidAt: true,
+            receiptNumber: true,
+            createdAt: true,
+          },
         },
       },
     })

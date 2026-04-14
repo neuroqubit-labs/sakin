@@ -41,6 +41,21 @@ export const AssignUserTenantRoleSchema = z.object({
   isActive: z.boolean().default(true),
 })
 
+// Admin tarafından yeni personel/yönetici daveti
+export const InviteUserSchema = z.object({
+  email: z.string().email('Geçerli bir e-posta adresi girin'),
+  displayName: z.string().min(2, 'Ad en az 2 karakter olmalı').max(100),
+  role: z.enum([UserRole.STAFF, UserRole.TENANT_ADMIN], {
+    errorMap: () => ({ message: 'Rol STAFF veya TENANT_ADMIN olmalı' }),
+  }),
+})
+
+// Mevcut kullanıcı rol veya durum güncellemesi
+export const UpdateTenantUserSchema = z.object({
+  role: z.enum([UserRole.STAFF, UserRole.TENANT_ADMIN]).optional(),
+  isActive: z.boolean().optional(),
+})
+
 export const TenantFilterSchema = z.object({
   isActive: z.coerce.boolean().optional(),
   city: z.string().optional(),
@@ -54,3 +69,5 @@ export type UpdateTenantPlanDto = z.infer<typeof UpdateTenantPlanSchema>
 export type TenantFilterDto = z.infer<typeof TenantFilterSchema>
 export type UpsertTenantGatewayConfigDto = z.infer<typeof UpsertTenantGatewayConfigSchema>
 export type AssignUserTenantRoleDto = z.infer<typeof AssignUserTenantRoleSchema>
+export type InviteUserDto = z.infer<typeof InviteUserSchema>
+export type UpdateTenantUserDto = z.infer<typeof UpdateTenantUserSchema>

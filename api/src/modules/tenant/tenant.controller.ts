@@ -1,9 +1,9 @@
-import { Controller, Get, Patch, Put, Body, ForbiddenException, Query } from '@nestjs/common'
+import { Controller, Get, Patch, Put, Post, Delete, Body, Param, ForbiddenException, Query } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger'
 import { TenantService } from './tenant.service'
 import { Tenant } from '../../common/decorators/tenant.decorator'
 import { Roles } from '../../common/decorators/roles.decorator'
-import { UpdateTenantSchema, UpsertTenantGatewayConfigSchema } from '@sakin/shared'
+import { InviteUserSchema, UpdateTenantSchema, UpdateTenantUserSchema, UpsertTenantGatewayConfigSchema } from '@sakin/shared'
 import type { TenantContext } from '@sakin/shared'
 import { UserRole } from '@sakin/shared'
 
@@ -63,6 +63,39 @@ export class TenantController {
   getPaymentGateway(@Tenant() ctx: TenantContext) {
     if (!ctx.tenantId) throw new ForbiddenException('Bu endpoint tenant kullanıcıları içindir')
     return this.tenantService.getPaymentGatewayConfig(ctx.tenantId)
+  }
+
+  @Post('users')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Yeni personel / yönetici davet et (TENANT_ADMIN)' })
+  inviteUser(@Tenant() ctx: TenantContext, @Body() body: unknown) {
+    if (!ctx.tenantId) throw new ForbiddenException('Bu endpoint tenant kullanıcıları içindir')
+    const dto = InviteUserSchema.parse(body)
+    return this.tenantService.inviteUser(ctx.tenantId, dto)
+  }
+
+  @Patch('users/:userId')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Kullanıcı rolü veya durumunu güncelle (TENANT_ADMIN)' })
+  updateUser(
+    @Tenant() ctx: TenantContext,
+    @Param('userId') userId: string,
+    @Body() body: unknown,
+  ) {
+    if (!ctx.tenantId) throw new ForbiddenException('Bu endpoint tenant kullanıcıları içindir')
+    const dto = UpdateTenantUserSchema.parse(body)
+    return this.tenantService.updateTenantUser(ctx.tenantId, userId, dto)
+  }
+
+  @Delete('users/:userId')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Kullanıcıyı pasifleştir (TENANT_ADMIN)' })
+  deactivateUser(
+    @Tenant() ctx: TenantContext,
+    @Param('userId') userId: string,
+  ) {
+    if (!ctx.tenantId) throw new ForbiddenException('Bu endpoint tenant kullanıcıları içindir')
+    return this.tenantService.deactivateTenantUser(ctx.tenantId, userId)
   }
 
   @Put('payment-gateway')

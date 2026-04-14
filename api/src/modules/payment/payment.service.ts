@@ -1159,8 +1159,8 @@ export class PaymentService {
     throw new BadRequestException('Refund süreci henüz otomatikleştirilmedi')
   }
 
-  private async refreshDuesStatus(duesId: string, tenantId: string, tx?: PrismaService) {
-    const db = tx ?? this.prisma
+  private async refreshDuesStatus(duesId: string, tenantId: string, _tx?: PrismaService) {
+    const db = this.prisma.forTenant(tenantId)
 
     const dues = await db.dues.findFirst({
       where: { id: duesId, tenantId },
@@ -1226,7 +1226,7 @@ export class PaymentService {
   }
 
   private async getDuesRemainingBalanceFromLedger(
-    db: ReturnType<PrismaService['forTenant']> | PrismaService,
+    db: ReturnType<PrismaService['forTenant']>,
     tenantId: string,
     duesId: string,
   ) {

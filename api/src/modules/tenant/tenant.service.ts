@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import * as admin from 'firebase-admin'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { UpdateTenantDto, UpsertTenantGatewayConfigDto } from '@sakin/shared'
+import type { InviteUserDto, UpdateTenantDto, UpdateTenantUserDto, UpsertTenantGatewayConfigDto } from '@sakin/shared'
 import { DuesStatus, LedgerEntryType, LedgerReferenceType, PaymentStatus } from '@sakin/shared'
 import { normalizeDebt, toMoneyNumber } from '../../common/finance/finance.utils'
 import { mapDuesRemainingByLedger } from '../../common/finance/ledger-balance.util'
@@ -407,6 +408,129 @@ export class TenantService {
     )
 
     return rows
+  }
+
+  // ─── Kullanıcı Yönetimi ──────────────────────────────────────────────────────
+
+  /**
+   * Yeni personel / yönetici davet et.
+   * Firebase'de kullanıcı oluşturur, DB'ye kaydeder ve şifre sıfırlama linki döner.
+   * Yeni kullanıcı bu link üzerinden kendi şifresini belirleyerek giriş yapar.
+   */
+  async inviteUser(tenantId: string, dto: InviteUserDto) {
+    // Aynı e-posta bu tenant'a zaten atanmış mı kontrol et
+    const existing = await this.prisma.user.findFirst({
+      where: { email: dto.email },
+      include: {
+        tenantRoles: {
+          where: { tenantId, isActive: true },
+        },
+      },
+    })
+
+    if (existing?.tenantRoles.length) {
+      throw new ConflictException('Bu e-posta adresi zaten bu şirkete kayıtlı')
+    }
+
+    // Firebase kullanıcısı oluştur veya mevcut olanı bul
+    let firebaseUser: admin.auth.UserRecord
+    try {
+      firebaseUser = await admin.auth().getUserByEmail(dto.email)
+    } catch {
+      // Kullanıcı Firebase'de yok — oluştur
+      firebaseUser = await admin.auth().createUser({
+        email: dto.email,
+        displayName: dto.displayName,
+        emailVerified: false,
+      })
+    }
+
+    // DB'de User kaydı bul veya oluştur
+    let dbUser = await this.prisma.user.findUnique({
+      where: { firebaseUid: firebaseUser.uid },
+    })
+
+    if (!dbUser) {
+      dbUser = await this.prisma.user.create({
+        data: {
+          firebaseUid: firebaseUser.uid,
+          email: dto.email,
+          displayName: dto.displayName,
+        },
+      })
+    }
+
+    // Tenant rolü ata (upsert — daha önce pasifleştirilmiş olabilir)
+    await this.prisma.userTenantRole.upsert({
+      where: {
+        userId_tenantId: { userId: dbUser.id, tenantId },
+      },
+      update: { role: dto.role, isActive: true },
+      create: { userId: dbUser.id, tenantId, role: dto.role, isActive: true },
+    })
+
+    // Şifre sıfırlama linki üret — kullanıcı bu link ile şifresini belirler
+    let resetLink: string | null = null
+    try {
+      resetLink = await admin.auth().generatePasswordResetLink(dto.email)
+    } catch {
+      // Link üretimi opsiyonel — production'da e-posta servisi devralır
+    }
+
+    return {
+      userId: dbUser.id,
+      email: dto.email,
+      displayName: dto.displayName,
+      role: dto.role,
+      resetLink,
+    }
+  }
+
+  /**
+   * Mevcut kullanıcının rolünü veya aktiflik durumunu güncelle.
+   */
+  async updateTenantUser(tenantId: string, userId: string, dto: UpdateTenantUserDto) {
+    const roleRecord = await this.prisma.userTenantRole.findUnique({
+      where: { userId_tenantId: { userId, tenantId } },
+    })
+
+    if (!roleRecord) {
+      throw new NotFoundException('Bu kullanıcı bu şirkete ait değil')
+    }
+
+    await this.prisma.userTenantRole.update({
+      where: { userId_tenantId: { userId, tenantId } },
+      data: {
+        ...(dto.role !== undefined && { role: dto.role }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    })
+
+    return { userId, tenantId, ...dto }
+  }
+
+  /**
+   * Kullanıcıyı bu tenant'tan pasifleştir (silme değil — audit log korunur).
+   */
+  async deactivateTenantUser(tenantId: string, userId: string) {
+    const roleRecord = await this.prisma.userTenantRole.findUnique({
+      where: { userId_tenantId: { userId, tenantId } },
+    })
+
+    if (!roleRecord) {
+      throw new NotFoundException('Bu kullanıcı bu şirkete ait değil')
+    }
+
+    if (!roleRecord.isActive) {
+      throw new BadRequestException('Kullanıcı zaten pasif')
+    }
+
+    await this.prisma.userTenantRole.update({
+      where: { userId_tenantId: { userId, tenantId } },
+      data: { isActive: false },
+    })
+
+    return { userId, deactivated: true }
   }
 
 }
