@@ -3,7 +3,8 @@ import { TicketCategory, TicketPriority, TicketStatus } from '../enums'
 import { PaginationSchema } from './pagination.schemas'
 
 export const CreateTicketSchema = z.object({
-  siteId: z.string().uuid(),
+  // RESIDENT için backend kendi occupancy'sinden türetir; client göndermese de olur.
+  siteId: z.string().uuid().optional(),
   unitId: z.string().uuid().optional(),
   category: z.nativeEnum(TicketCategory),
   priority: z.nativeEnum(TicketPriority).optional(),

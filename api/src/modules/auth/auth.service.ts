@@ -128,6 +128,57 @@ export class AuthService {
     })
   }
 
+  /**
+   * Kullanıcının aktif ünite(ler)ini döner — mobilin "daire seçici" ve
+   * resident↔tenant↔unit köprüsü için kullanılır. Tek kullanıcı birden fazla
+   * daireden sorumlu olabileceği için array döner.
+   */
+  async getResidencies(userId: string, tenantId: string | null) {
+    if (!tenantId) return { data: [] }
+
+    const resident = await this.prisma.resident.findFirst({
+      where: { userId, tenantId, isActive: true },
+      select: { id: true },
+    })
+    if (!resident) return { data: [] }
+
+    const occupancies = await this.prisma.unitOccupancy.findMany({
+      where: { residentId: resident.id, tenantId, isActive: true },
+      orderBy: [{ isPrimaryResponsible: 'desc' }, { startDate: 'desc' }],
+      select: {
+        id: true,
+        role: true,
+        isPrimaryResponsible: true,
+        startDate: true,
+        unit: {
+          select: {
+            id: true,
+            number: true,
+            floor: true,
+            site: { select: { id: true, name: true } },
+            block: { select: { id: true, name: true } },
+          },
+        },
+      },
+    })
+
+    return {
+      data: occupancies.map((o) => ({
+        occupancyId: o.id,
+        occupancyRole: o.role,
+        isPrimaryResponsible: o.isPrimaryResponsible,
+        startDate: o.startDate,
+        unitId: o.unit.id,
+        unitNumber: o.unit.number,
+        floor: o.unit.floor,
+        siteId: o.unit.site.id,
+        siteName: o.unit.site.name,
+        blockId: o.unit.block?.id ?? null,
+        blockName: o.unit.block?.name ?? null,
+      })),
+    }
+  }
+
   async getDevBootstrap() {
     if (process.env['NODE_ENV'] === 'production') {
       throw new ForbiddenException('Bu endpoint yalnızca development modunda kullanılabilir')

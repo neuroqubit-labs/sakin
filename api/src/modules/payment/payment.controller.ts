@@ -137,10 +137,14 @@ export class PaymentController {
   }
 
   @Get(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
   @ApiOperation({ summary: 'Ödeme detayı' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
-    return this.paymentService.findOne(id, ctx.tenantId!)
+    return this.paymentService.findOne(id, ctx.tenantId!, {
+      role: ctx.role,
+      userId: ctx.userId,
+      unitId: ctx.unitId,
+    })
   }
 
   @Post(':id/refund')

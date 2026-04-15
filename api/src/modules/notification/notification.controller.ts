@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { NotificationService } from './notification.service'
 import { Tenant } from '../../common/decorators/tenant.decorator'
@@ -33,6 +33,20 @@ export class NotificationController {
   async unreadCount(@Tenant() ctx: TenantContext) {
     const count = await this.notificationService.countUnread(ctx.userId, ctx.tenantId!)
     return { count }
+  }
+
+  @Post(':id/read')
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Bildirimi okundu işaretle' })
+  markRead(@Param('id') id: string, @Tenant() ctx: TenantContext) {
+    return this.notificationService.markAsRead(id, ctx.userId, ctx.tenantId!)
+  }
+
+  @Post('read-all')
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Tüm bildirimleri okundu işaretle' })
+  markAllRead(@Tenant() ctx: TenantContext) {
+    return this.notificationService.markAllAsRead(ctx.userId, ctx.tenantId!)
   }
 
   @Post('broadcast')

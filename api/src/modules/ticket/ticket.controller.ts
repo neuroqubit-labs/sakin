@@ -30,6 +30,7 @@ export class TicketController {
       dto as Parameters<TicketService['create']>[0],
       ctx.tenantId!,
       ctx.userId,
+      { role: ctx.role, userId: ctx.userId, unitId: ctx.unitId },
     )
   }
 
@@ -41,11 +42,22 @@ export class TicketController {
     return this.ticketService.findAll(filter, ctx.tenantId!)
   }
 
+  @Get('my')
+  @Roles(UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Kendi açtığım talepler' })
+  findMy(@Query() query: unknown, @Tenant() ctx: TenantContext) {
+    const filter = TicketFilterSchema.parse(query)
+    return this.ticketService.findMyTickets(ctx.tenantId!, ctx.userId!, filter)
+  }
+
   @Get(':id')
   @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
   @ApiOperation({ summary: 'Talep detayı' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
-    return this.ticketService.findOne(id, ctx.tenantId!)
+    return this.ticketService.findOne(id, ctx.tenantId!, {
+      role: ctx.role as UserRole,
+      userId: ctx.userId,
+    })
   }
 
   @Patch(':id')
@@ -83,6 +95,7 @@ export class TicketController {
       dto as Parameters<TicketService['addComment']>[1],
       ctx.tenantId!,
       ctx.userId!,
+      { role: ctx.role, userId: ctx.userId },
     )
   }
 }

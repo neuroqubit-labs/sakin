@@ -32,14 +32,20 @@ export class AnnouncementController {
   @ApiOperation({ summary: 'Duyuru listesi (TENANT_ADMIN, STAFF, RESIDENT)' })
   findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = AnnouncementFilterSchema.parse(query)
-    return this.announcementService.findAll(filter, ctx.tenantId!)
+    return this.announcementService.findAll(filter, ctx.tenantId!, {
+      role: ctx.role,
+      unitId: ctx.unitId,
+    })
   }
 
   @Get(':id')
   @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
   @ApiOperation({ summary: 'Duyuru detayı (TENANT_ADMIN, STAFF, RESIDENT)' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
-    return this.announcementService.findOne(id, ctx.tenantId!)
+    return this.announcementService.findOne(id, ctx.tenantId!, {
+      role: ctx.role,
+      unitId: ctx.unitId,
+    })
   }
 
   @Patch(':id')

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import type { Prisma } from '@sakin/database'
 import {
@@ -70,9 +70,12 @@ export class NotificationService {
       select: {
         id: true,
         templateKey: true,
+        title: true,
+        body: true,
         payload: true,
         status: true,
         channel: true,
+        readAt: true,
         createdAt: true,
         sentAt: true,
       },
@@ -80,9 +83,34 @@ export class NotificationService {
   }
 
   async countUnread(userId: string, tenantId: string): Promise<number> {
+    // "Okunmadı" = kullanıcı henüz görmedi (readAt null). Status sadece dispatch durumu.
     return this.prisma.notification.count({
-      where: { tenantId, userId, status: NotificationStatus.PENDING },
+      where: { tenantId, userId, readAt: null },
     })
+  }
+
+  async markAsRead(id: string, userId: string, tenantId: string) {
+    const notification = await this.prisma.notification.findFirst({
+      where: { id, tenantId, userId },
+      select: { id: true, readAt: true },
+    })
+    if (!notification) throw new NotFoundException('Bildirim bulunamadı')
+    if (notification.readAt) return { id: notification.id, readAt: notification.readAt }
+    const updated = await this.prisma.notification.update({
+      where: { id: notification.id },
+      data: { readAt: new Date() },
+      select: { id: true, readAt: true },
+    })
+    return updated
+  }
+
+  async markAllAsRead(userId: string, tenantId: string) {
+    const now = new Date()
+    const result = await this.prisma.notification.updateMany({
+      where: { tenantId, userId, readAt: null },
+      data: { readAt: now },
+    })
+    return { updated: result.count }
   }
 
   async createBroadcast(dto: CreateNotificationBroadcastDto, tenantId: string, senderUserId: string) {

@@ -12,12 +12,37 @@ const ManualMethodSchema = z.enum([
   PaymentMethod.BANK_TRANSFER,
 ])
 
+const ALLOWED_CALLBACK_SCHEMES = new Set(['https:', 'sakin:', 'http:'])
+
+const CallbackUrlSchema = z
+  .string()
+  .url()
+  .refine(
+    (value) => {
+      let parsed: URL
+      try {
+        parsed = new URL(value)
+      } catch {
+        return false
+      }
+      if (!ALLOWED_CALLBACK_SCHEMES.has(parsed.protocol)) return false
+      // http yalnızca localhost için (dev)
+      if (parsed.protocol === 'http:' && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
+        return false
+      }
+      return true
+    },
+    {
+      message: 'callbackUrl yalnızca https:, sakin:// veya http://localhost olabilir',
+    },
+  )
+
 export const CreateCheckoutSessionSchema = z
   .object({
     unitId: z.string().uuid().optional(),
     duesId: z.string().uuid().optional(),
     amount: z.number().positive().optional(),
-    callbackUrl: z.string().url(),
+    callbackUrl: CallbackUrlSchema,
     channel: z.nativeEnum(PaymentChannel).default(PaymentChannel.RESIDENT_WEB),
   })
   .refine((value) => value.duesId || value.unitId, {

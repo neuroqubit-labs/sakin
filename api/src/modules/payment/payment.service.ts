@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
@@ -122,6 +123,28 @@ export class PaymentService {
     }
 
     await this.assertResidentUnitAccess(db, tenantId, unitId, userId, role)
+
+    // Double-click / retry koruması: son 10sn içinde aynı kullanıcı + (duesId veya unitId) için
+    // PENDING payment açtıysa duplicate iyzico session yaratma.
+    const duplicateWindowMs = 10_000
+    const recentPending = await db.payment.findFirst({
+      where: {
+        tenantId,
+        paidByUserId: userId,
+        status: PaymentStatus.PENDING,
+        method: PaymentMethod.ONLINE_CARD,
+        ...(duesId ? { duesId } : { unitId, duesId: null }),
+        createdAt: { gte: new Date(Date.now() - duplicateWindowMs) },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    })
+    if (recentPending) {
+      throw new ConflictException({
+        code: 'PAYMENT_CHECKOUT_DUPLICATE',
+        message: 'Aynı ödeme için yeni bir oturum çok kısa süre önce başlatıldı. Lütfen bekleyin.',
+      })
+    }
 
     const [primaryOccupancy] = await Promise.all([
       db.unitOccupancy.findMany({
@@ -918,7 +941,11 @@ export class PaymentService {
     return { data }
   }
 
-  async findOne(id: string, tenantId: string) {
+  async findOne(
+    id: string,
+    tenantId: string,
+    scope?: { role?: UserRole; userId?: string; unitId?: string | null },
+  ) {
     const db = this.prisma.forTenant(tenantId)
     const payment = await db.payment.findFirst({
       where: { id },
@@ -933,6 +960,16 @@ export class PaymentService {
     })
 
     if (!payment) throw new NotFoundException('Ödeme kaydı bulunamadı')
+
+    // RESIDENT yalnız kendi ödediği veya kendi dairesine ait ödemeyi görebilir.
+    if (scope?.role === UserRole.RESIDENT) {
+      const ownsByUser = payment.paidByUserId && payment.paidByUserId === scope.userId
+      const ownsByUnit = scope.unitId && payment.unitId === scope.unitId
+      if (!ownsByUser && !ownsByUnit) {
+        throw new ForbiddenException('Bu ödemeyi görüntüleme yetkiniz yok')
+      }
+    }
+
     return payment
   }
 

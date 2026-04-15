@@ -219,8 +219,15 @@ export class IyzicoService {
     signatureHeader: string | undefined,
   ): Promise<boolean> {
     if (!signatureHeader) {
-      // dev note: Bazı sandbox webhook payloadlarında imza header gelmeyebiliyor | hedef: M2-provider-hardening | etki: Geliştirme ortamında zayıf doğrulama. backlog: SKN-331
-      return process.env['NODE_ENV'] !== 'production'
+      // İmzasız webhook yalnızca development modunda VE ALLOW_WEBHOOK_DEV=true iken kabul edilir.
+      // Staging/prod yanlış konumlandırıldığında spoofable olmasın diye çift kilit.
+      const isDev = process.env['NODE_ENV'] === 'development'
+      const allowDev = process.env['ALLOW_WEBHOOK_DEV'] === 'true'
+      if (isDev && allowDev) {
+        this.logger.warn('iyzico webhook imzasız kabul edildi (ALLOW_WEBHOOK_DEV aktif)')
+        return true
+      }
+      return false
     }
 
     const config = await this.resolveConfig(tenantId)

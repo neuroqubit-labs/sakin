@@ -25,6 +25,13 @@ export class AuthController {
     return this.authService.getProfile(ctx.userId)
   }
 
+  @Get('residencies')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Kullanıcının aktif daireleri (RESIDENT)' })
+  async getResidencies(@Tenant() ctx: TenantContext) {
+    return this.authService.getResidencies(ctx.userId, ctx.tenantId)
+  }
+
   @Get('dev-bootstrap')
   @ApiOperation({ summary: 'Dev hızlı giriş için tenant/bootstrap bilgisi (development only)' })
   async getDevBootstrap() {
