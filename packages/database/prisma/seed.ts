@@ -574,7 +574,8 @@ async function main() {
 
   const periods: { month: number; year: number }[] = []
   const now = new Date()
-  for (let i = 2; i >= 0; i -= 1) {
+  // Geçmiş 2 ay + bu ay + gelecek 2 ay (gelecek aylar ödenmemiş kalacak)
+  for (let i = 2; i >= -2; i -= 1) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     periods.push({ month: d.getMonth() + 1, year: d.getFullYear() })
   }

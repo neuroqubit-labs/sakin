@@ -11,6 +11,8 @@ export interface PaymentItem {
   currency: string
   method: PaymentMethod
   status: string
+  receiptNumber: string | null
+  note: string | null
   paidAt: string | null
   confirmedAt: string | null
   createdAt: string
@@ -18,6 +20,10 @@ export interface PaymentItem {
     periodMonth: number
     periodYear: number
     description: string | null
+  } | null
+  unit: {
+    number: string
+    site: { name: string }
   } | null
 }
 

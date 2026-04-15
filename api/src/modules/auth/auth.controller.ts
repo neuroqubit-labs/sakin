@@ -29,7 +29,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Kullanıcının aktif daireleri (RESIDENT)' })
   async getResidencies(@Tenant() ctx: TenantContext) {
-    return this.authService.getResidencies(ctx.userId, ctx.tenantId)
+    return this.authService.getResidencies(ctx.userId, ctx.tenantId, ctx.residentId)
   }
 
   @Get('dev-bootstrap')

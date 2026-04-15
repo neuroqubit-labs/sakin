@@ -133,13 +133,22 @@ export class AuthService {
    * resident↔tenant↔unit köprüsü için kullanılır. Tek kullanıcı birden fazla
    * daireden sorumlu olabileceği için array döner.
    */
-  async getResidencies(userId: string, tenantId: string | null) {
+  async getResidencies(userId: string, tenantId: string | null, residentId?: string | null) {
     if (!tenantId) return { data: [] }
 
-    const resident = await this.prisma.resident.findFirst({
-      where: { userId, tenantId, isActive: true },
-      select: { id: true },
-    })
+    // Dev bypass: residentId doğrudan verilmişse kullan, yoksa userId üzerinden bul
+    let resident: { id: string } | null = null
+    if (residentId) {
+      resident = await this.prisma.resident.findFirst({
+        where: { id: residentId, tenantId, isActive: true },
+        select: { id: true },
+      })
+    } else {
+      resident = await this.prisma.resident.findFirst({
+        where: { userId, tenantId, isActive: true },
+        select: { id: true },
+      })
+    }
     if (!resident) return { data: [] }
 
     const occupancies = await this.prisma.unitOccupancy.findMany({
@@ -202,12 +211,28 @@ export class AuthService {
       }
     }
 
-    const [siteCount, unitCount, residentCount, duesCount, paymentCount] = await Promise.all([
+    const [siteCount, unitCount, residentCount, duesCount, paymentCount, firstResident] = await Promise.all([
       this.prisma.site.count({ where: { tenantId: tenant.id, isActive: true } }),
       this.prisma.unit.count({ where: { tenantId: tenant.id, isActive: true } }),
       this.prisma.unitOccupancy.count({ where: { tenantId: tenant.id, isActive: true } }),
       this.prisma.dues.count({ where: { tenantId: tenant.id } }),
       this.prisma.payment.count({ where: { tenantId: tenant.id, status: PaymentStatus.CONFIRMED } }),
+      this.prisma.unitOccupancy.findFirst({
+        where: { tenantId: tenant.id, isActive: true },
+        select: {
+          id: true,
+          role: true,
+          resident: { select: { id: true, firstName: true, lastName: true, phoneNumber: true } },
+          unit: {
+            select: {
+              id: true,
+              number: true,
+              site: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
     ])
 
     return {
@@ -223,6 +248,14 @@ export class AuthService {
         paymentCount,
       },
       quickRoles: [UserRole.STAFF, UserRole.TENANT_ADMIN, UserRole.SUPER_ADMIN],
+      devResident: firstResident ? {
+        residentId: firstResident.resident.id,
+        name: `${firstResident.resident.firstName} ${firstResident.resident.lastName}`,
+        phone: firstResident.resident.phoneNumber,
+        unitId: firstResident.unit.id,
+        unitNumber: firstResident.unit.number,
+        siteName: firstResident.unit.site.name,
+      } : null,
     }
   }
 }

@@ -210,7 +210,7 @@ importers:
         specifier: ^1.5.1
         version: 1.5.1
       expo:
-        specifier: ^54.0.0
+        specifier: ^54.0.33
         version: 54.0.33(@babel/core@7.29.0)(@expo/dom-webview@55.0.5)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.0.0)))(expo-router@5.1.11)(react-native-webview@13.13.5(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.0.0))(react@19.0.0))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.0.0))(react@19.0.0)(typescript@5.9.3)
       expo-constants:
         specifier: ~17.1.8

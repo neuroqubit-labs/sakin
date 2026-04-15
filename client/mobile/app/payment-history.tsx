@@ -1,6 +1,7 @@
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -50,7 +51,11 @@ export default function PaymentHistoryScreen() {
         data={payments}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
-          <PaymentRow item={item} last={index === payments.length - 1} />
+          <PaymentRow
+            item={item}
+            last={index === payments.length - 1}
+            onPress={() => router.push(`/receipt/${item.id}` as never)}
+          />
         )}
         contentContainerStyle={[
           styles.content,
@@ -117,27 +122,32 @@ export default function PaymentHistoryScreen() {
   )
 }
 
-function PaymentRow({ item, last }: { item: PaymentItem; last: boolean }) {
+function PaymentRow({ item, last, onPress }: { item: PaymentItem; last: boolean; onPress: () => void }) {
   const date = formatDate(item.paidAt ?? item.confirmedAt ?? item.createdAt)
   const label = METHOD_LABELS[item.method] ?? item.method
 
   return (
-    <SurfaceCard style={styles.rowCard} padding="lg">
-      <View style={[styles.row, !last && styles.rowWithGap]}>
-        <View style={styles.rowIcon}>
-          <Ionicons color={colors.brand} name="card-outline" size={18} />
+    <Pressable onPress={onPress}>
+      <SurfaceCard style={styles.rowCard} padding="lg">
+        <View style={[styles.row, !last && styles.rowWithGap]}>
+          <View style={styles.rowIcon}>
+            <Ionicons color={colors.brand} name="card-outline" size={18} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>
+              {item.dues
+                ? `${item.dues.periodMonth}/${item.dues.periodYear} ödemesi`
+                : 'Ödeme işlemi'}
+            </Text>
+            <Text style={styles.rowSub}>{label} · {date}</Text>
+          </View>
+          <View style={styles.rowRight}>
+            <Text style={styles.rowAmount}>{formatCurrency(item.amount)}</Text>
+            <Ionicons color={colors.inkMuted} name="chevron-forward" size={14} />
+          </View>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.rowTitle}>
-            {item.dues
-              ? `${item.dues.periodMonth}/${item.dues.periodYear} ödemesi`
-              : 'Ödeme işlemi'}
-          </Text>
-          <Text style={styles.rowSub}>{label} · {date}</Text>
-        </View>
-        <Text style={styles.rowAmount}>{formatCurrency(item.amount)}</Text>
-      </View>
-    </SurfaceCard>
+      </SurfaceCard>
+    </Pressable>
   )
 }
 
@@ -228,6 +238,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.inkSecondary,
     marginTop: 4,
+  },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   rowAmount: {
     fontSize: 13,

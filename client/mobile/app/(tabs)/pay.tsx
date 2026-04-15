@@ -315,7 +315,12 @@ export default function PayScreen() {
             <Text style={styles.secondaryEmpty}>Henüz onaylanmış ödemen yok.</Text>
           ) : (
             recentPayments.map((item, index) => (
-              <PaymentPreviewRow key={item.id} item={item} last={index === recentPayments.length - 1} />
+              <PaymentPreviewRow
+                key={item.id}
+                item={item}
+                last={index === recentPayments.length - 1}
+                onPress={() => router.push(`/receipt/${item.id}` as never)}
+              />
             ))
           )}
 
@@ -450,10 +455,10 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
   )
 }
 
-function PaymentPreviewRow({ item, last }: { item: PaymentItem; last: boolean }) {
+function PaymentPreviewRow({ item, last, onPress }: { item: PaymentItem; last: boolean; onPress: () => void }) {
   const when = item.paidAt ?? item.confirmedAt ?? item.createdAt
   return (
-    <View style={[styles.previewRow, !last && styles.rowBorder]}>
+    <Pressable onPress={onPress} style={[styles.previewRow, !last && styles.rowBorder]}>
       <View style={styles.previewIcon}>
         <Ionicons color={colors.brand} name="receipt-outline" size={18} />
       </View>
@@ -465,8 +470,11 @@ function PaymentPreviewRow({ item, last }: { item: PaymentItem; last: boolean })
         </Text>
         <Text style={styles.previewSub}>{formatDate(when)}</Text>
       </View>
-      <Text style={styles.previewAmount}>{formatCurrency(toNumber(item.amount))}</Text>
-    </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <Text style={styles.previewAmount}>{formatCurrency(toNumber(item.amount))}</Text>
+        <Ionicons color={colors.inkMuted} name="chevron-forward" size={14} />
+      </View>
+    </Pressable>
   )
 }
 

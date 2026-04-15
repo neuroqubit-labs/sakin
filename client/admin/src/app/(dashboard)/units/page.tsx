@@ -3,12 +3,17 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { AlertTriangle, Building2, Home, ShieldCheck, Wallet } from 'lucide-react'
+import { AlertTriangle, Building2, Home, ShieldCheck, Wallet, ToggleLeft, ToggleRight } from 'lucide-react'
 import { useApiQuery } from '@/hooks/use-api'
 import { useSiteContext } from '@/providers/site-provider'
+import { useAuth } from '@/providers/auth-provider'
+import { UserRole } from '@sakin/shared'
 import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
 import { EmptyState } from '@/components/empty-state'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { apiClient } from '@/lib/api'
+import { toastSuccess, toastError } from '@/lib/toast'
 import { formatShortDate, formatTry } from '@/lib/formatters'
 
 interface UnitsResponse {
@@ -29,7 +34,7 @@ interface UnitsResponse {
       status: 'OVERDUE' | 'DEBTOR' | 'CLEAR'
     }
   }>
-  meta: { total: number }
+  meta: { total: number; page: number; limit: number; totalPages: number }
 }
 
 interface BlockRow {
@@ -39,25 +44,30 @@ interface BlockRow {
 
 export default function WorkUnitsPage() {
   const { selectedSiteId, hydrated, error: siteError } = useSiteContext()
+  const { role } = useAuth()
+  const isTenantAdmin = role === UserRole.TENANT_ADMIN
   const searchParams = useSearchParams()
   const [search, setSearch] = useState(searchParams.get('q') ?? '')
+  const [committedSearch, setCommittedSearch] = useState(searchParams.get('q') ?? '')
   const [status, setStatus] = useState<'ALL' | 'CLEAR' | 'DEBTOR' | 'OVERDUE'>('ALL')
   const [blockId, setBlockId] = useState<string>('ALL')
   const [floor, setFloor] = useState<string>('')
+  const [page, setPage] = useState(1)
+  const [selected, setSelected] = useState<string[]>([])
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   const queryParams = {
     siteId: selectedSiteId ?? undefined,
-    page: 1,
-    // Backend UnitFilterSchema currently caps limit at 100.
-    limit: 100,
+    page,
+    limit: 20,
     isActive: true,
-    search: search.trim() || undefined,
+    search: committedSearch.trim() || undefined,
     financialStatus: status === 'ALL' ? undefined : status,
     blockId: blockId === 'ALL' ? undefined : blockId,
     floor: floor.trim() ? Number(floor) : undefined,
   }
 
-  const { data: unitsResponse, isLoading, error: unitsError } = useApiQuery<UnitsResponse>(
+  const { data: unitsResponse, isLoading, error: unitsError, refetch } = useApiQuery<UnitsResponse>(
     ['units', queryParams],
     '/units',
     queryParams,
@@ -73,24 +83,52 @@ export default function WorkUnitsPage() {
   )
   const blocks = blocksData ?? []
 
+  const selectedSet = useMemo(() => new Set(selected), [selected])
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  const toggleSelectAll = () => {
+    const allIds = units.map((u) => u.id)
+    const allSelected = allIds.every((id) => selectedSet.has(id))
+    if (allSelected) {
+      setSelected((prev) => prev.filter((id) => !allIds.includes(id)))
+    } else {
+      setSelected((prev) => Array.from(new Set([...prev, ...allIds])))
+    }
+  }
+
+  const bulkToggleActive = async (activate: boolean) => {
+    if (selected.length === 0) return
+    setBulkLoading(true)
+    try {
+      await Promise.all(
+        selected.map((id) =>
+          activate
+            ? apiClient(`/units/${id}/activate`, { method: 'POST' })
+            : apiClient(`/units/${id}`, { method: 'DELETE' }),
+        ),
+      )
+      toastSuccess(`${selected.length} daire ${activate ? 'aktifleştirildi' : 'pasife alındı'}`)
+      setSelected([])
+      void refetch()
+    } catch (err) {
+      toastError(err instanceof Error ? err : 'Toplu işlem başarısız')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   const stats = useMemo(() => {
-    const total = units.length
+    const total = unitsResponse?.meta?.total ?? units.length
     const clean = units.filter((unit) => unit.financial.status === 'CLEAR').length
     const debtor = units.filter((unit) => unit.financial.status === 'DEBTOR').length
     const overdue = units.filter((unit) => unit.financial.status === 'OVERDUE').length
     const totalDebt = units.reduce((sum, unit) => sum + unit.financial.openDebt, 0)
 
-    const trendBars = [clean, debtor, overdue, total]
-    const max = Math.max(...trendBars, 1)
-    return {
-      total,
-      clean,
-      debtor,
-      overdue,
-      totalDebt,
-      trend: trendBars.map((value) => Math.max(20, Math.round((value / max) * 100))),
-    }
-  }, [units])
+    return { total, clean, debtor, overdue, totalDebt }
+  }, [units, unitsResponse?.meta?.total])
 
   return (
     <div className="space-y-6">
@@ -115,7 +153,7 @@ export default function WorkUnitsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-2 items-center">
         <select
           value={status}
-          onChange={(e) => setStatus(e.target.value as 'ALL' | 'CLEAR' | 'DEBTOR' | 'OVERDUE')}
+          onChange={(e) => { setStatus(e.target.value as 'ALL' | 'CLEAR' | 'DEBTOR' | 'OVERDUE'); setPage(1) }}
           className="ledger-input bg-white"
         >
           <option value="ALL">Durum: Hepsi</option>
@@ -123,7 +161,7 @@ export default function WorkUnitsPage() {
           <option value="DEBTOR">Durum: Borçlu</option>
           <option value="CLEAR">Durum: Temiz</option>
         </select>
-        <select value={blockId} onChange={(e) => setBlockId(e.target.value)} className="ledger-input bg-white">
+        <select value={blockId} onChange={(e) => { setBlockId(e.target.value); setPage(1) }} className="ledger-input bg-white">
           <option value="ALL">Blok: Tümü</option>
           {blocks.map((block) => (
             <option key={block.id} value={block.id}>{block.name}</option>
@@ -132,6 +170,7 @@ export default function WorkUnitsPage() {
         <input
           value={floor}
           onChange={(e) => setFloor(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') setPage(1) }}
           placeholder="Kat"
           type="number"
           className="ledger-input bg-white"
@@ -139,9 +178,13 @@ export default function WorkUnitsPage() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { setCommittedSearch(search); setPage(1) } }}
           placeholder="Daire veya sakin ara..."
-          className="ledger-input bg-white lg:col-span-2"
+          className="ledger-input bg-white"
         />
+        <Button type="button" onClick={() => { setCommittedSearch(search); setPage(1) }}>
+          Filtrele
+        </Button>
         </div>
       </div>
 
@@ -160,12 +203,56 @@ export default function WorkUnitsPage() {
           </p>
         </div>
       ) : (
+        <>
+        {isTenantAdmin && selected.length > 0 && (
+          <div className="flex items-center gap-3 rounded-[22px] border border-[#dce7f6] bg-[#f7faff] px-4 py-3 text-sm">
+            <span className="font-semibold text-[#17345a]">{selected.length} daire seçili</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={bulkLoading}
+              onClick={() => void bulkToggleActive(false)}
+            >
+              <ToggleLeft className="h-4 w-4" />
+              Pasife Al
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={bulkLoading}
+              onClick={() => void bulkToggleActive(true)}
+            >
+              <ToggleRight className="h-4 w-4" />
+              Aktifleştir
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setSelected([])}
+            >
+              Seçimi Temizle
+            </Button>
+          </div>
+        )}
+
         <div className="ledger-panel overflow-x-auto">
           <SectionTitle title="Daire Listesi" subtitle="Finansal durum, sakin bilgisi ve hızlı erişim tek tabloda." />
           <div className="min-w-[800px]">
           <div className="grid grid-cols-12 px-5 py-3 ledger-table-head">
-            <span className="col-span-2">Daire No</span>
-            <span className="col-span-3">Sakin Bilgisi</span>
+            {isTenantAdmin && (
+              <span className="col-span-1">
+                <input
+                  type="checkbox"
+                  checked={units.length > 0 && units.every((u) => selectedSet.has(u.id))}
+                  onChange={toggleSelectAll}
+                />
+              </span>
+            )}
+            <span className={isTenantAdmin ? 'col-span-2' : 'col-span-2'}>Daire No</span>
+            <span className={isTenantAdmin ? 'col-span-2' : 'col-span-3'}>Sakin Bilgisi</span>
             <span className="col-span-2">Kat / Blok</span>
             <span className="col-span-2 text-right">Toplam Borç</span>
             <span className="col-span-2">Finansal Durum</span>
@@ -184,11 +271,20 @@ export default function WorkUnitsPage() {
             ))}
             {!isLoading && units.map((unit) => (
               <div key={unit.id} className="grid grid-cols-12 px-5 py-4 items-center ledger-table-row-hover">
+                {isTenantAdmin && (
+                  <span className="col-span-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedSet.has(unit.id)}
+                      onChange={() => toggleSelect(unit.id)}
+                    />
+                  </span>
+                )}
                 <div className="col-span-2">
                   <p className="text-sm font-semibold text-[#0c1427]">{unit.number}</p>
                   <p className="text-[11px] text-[#6b7280]">{unit.site.name}</p>
                 </div>
-                <div className="col-span-3">
+                <div className={isTenantAdmin ? 'col-span-2' : 'col-span-3'}>
                   <p className="text-sm text-[#374151]">
                     {unit.residents.length > 0
                       ? unit.residents.map((r) => `${r.firstName} ${r.lastName}`).join(', ')
@@ -230,20 +326,33 @@ export default function WorkUnitsPage() {
           </div>
           </div>
         </div>
+        </>
       )}
 
-      {!isLoading && units.length > 0 && (
-        <div className="ledger-panel-soft p-4">
-          <p className="ledger-label">Tahsilat Trendi</p>
-          <p className="mt-1 text-sm text-[#6b7d93]">Temiz, borçlu ve gecikmiş daire dağılımı.</p>
-          <div className="mt-3 flex items-end gap-2 h-20">
-            {stats.trend.map((value, index) => (
-              <div
-                key={index}
-                className={`flex-1 rounded-t-sm ${index === 2 ? 'bg-[#ba1a1a]/80' : index === 1 ? 'bg-[#e69a2f]/70' : 'bg-[#0c1427]/70'}`}
-                style={{ height: `${value}%` }}
-              />
-            ))}
+      {unitsResponse?.meta && (
+        <div className="flex items-center justify-between rounded-[22px] border border-white/80 bg-white/74 px-4 py-3 text-xs text-[#6b7280] shadow-[0_14px_30px_rgba(8,17,31,0.04)]">
+          <span>
+            Toplam {unitsResponse.meta.total} daire • Sayfa {unitsResponse.meta.page}/{Math.max(unitsResponse.meta.totalPages, 1)}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={unitsResponse.meta.page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Önceki
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={unitsResponse.meta.page >= unitsResponse.meta.totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Sonraki
+            </Button>
           </div>
         </div>
       )}

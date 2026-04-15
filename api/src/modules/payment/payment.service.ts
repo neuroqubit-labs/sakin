@@ -923,6 +923,8 @@ export class PaymentService {
         currency: true,
         method: true,
         status: true,
+        receiptNumber: true,
+        note: true,
         paidAt: true,
         confirmedAt: true,
         createdAt: true,
@@ -931,6 +933,12 @@ export class PaymentService {
             periodMonth: true,
             periodYear: true,
             description: true,
+          },
+        },
+        unit: {
+          select: {
+            number: true,
+            site: { select: { name: true } },
           },
         },
       },

@@ -8,6 +8,8 @@ export interface TenantContext {
   userTenantRoleId?: string | null
   /** Yalnızca RESIDENT rolü için doldurulur: aktif UnitOccupancy'den gelen daire ID'si */
   unitId?: string | null
+  /** Yalnızca RESIDENT rolü için doldurulur: Resident kaydının ID'si */
+  residentId?: string | null
 }
 
 export interface PaginationMeta {

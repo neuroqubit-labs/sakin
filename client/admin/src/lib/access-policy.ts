@@ -4,13 +4,9 @@ import {
   LayoutDashboard,
   Building2,
   Home,
-  Users,
   Receipt,
-  CreditCard,
   TrendingDown,
-  Megaphone,
   BarChart3,
-  UserCog,
   Settings,
 } from 'lucide-react'
 
@@ -30,25 +26,20 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: '/dashboard', label: 'Genel Bakış', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: LayoutDashboard },
   { href: '/sites', label: 'Siteler', roles: [UserRole.TENANT_ADMIN], icon: Building2 },
   { href: '/units', label: 'Daireler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Home },
-  { href: '/residents', label: 'Sakinler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Users },
-  { href: '/dues', label: 'Aidatlar', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Receipt },
-  { href: '/payments', label: 'Tahsilatlar', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: CreditCard },
+  { href: '/finance', label: 'Tahsilat', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Receipt },
   { href: '/expenses', label: 'Giderler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: TrendingDown },
-  { href: '/announcements', label: 'Duyurular', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Megaphone },
   { href: '/reports', label: 'Raporlar', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: BarChart3 },
-  { href: '/users', label: 'Kullanıcılar', roles: [UserRole.TENANT_ADMIN], icon: UserCog },
   { href: '/settings', label: 'Ayarlar', roles: [UserRole.TENANT_ADMIN], icon: Settings },
 ]
 
 const NAV_GROUPS: Array<{ label: string | null; hrefs: string[] }> = [
   { label: null, hrefs: ['/dashboard'] },
-  { label: 'Yönetim', hrefs: ['/sites', '/units', '/residents'] },
-  { label: 'Finans', hrefs: ['/dues', '/payments', '/expenses'] },
-  { label: 'İletişim', hrefs: ['/announcements'] },
+  { label: 'Yönetim', hrefs: ['/sites', '/units'] },
+  { label: 'Finans', hrefs: ['/finance', '/expenses'] },
   { label: 'Analiz', hrefs: ['/reports'] },
 ]
 
-const BOTTOM_NAV_HREFS = ['/users', '/settings']
+const BOTTOM_NAV_HREFS = ['/settings']
 
 type RouteAccessPolicy = Record<string, UserRole[]>
 
@@ -57,6 +48,7 @@ export const ROLE_ROUTE_POLICY: RouteAccessPolicy = {
   '/sites': [UserRole.TENANT_ADMIN],
   '/units': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/residents': [UserRole.TENANT_ADMIN, UserRole.STAFF],
+  '/finance': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/dues': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/payments': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/expenses': [UserRole.TENANT_ADMIN, UserRole.STAFF],

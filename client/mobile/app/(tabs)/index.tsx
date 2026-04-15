@@ -181,6 +181,16 @@ export default function HomeScreen() {
         </View>
 
         {action.target ? <Text style={styles.heroHelper}>{action.helper}</Text> : null}
+
+        {unpaid.length > 0 ? (
+          <Pressable
+            onPress={() => router.push('/(tabs)/pay' as never)}
+            style={styles.heroAction}
+          >
+            <Text style={styles.heroActionText}>Odemeye git</Text>
+            <Ionicons color={colors.brandDeep} name="arrow-forward" size={16} />
+          </Pressable>
+        ) : null}
       </LinearGradient>
 
       {duesQuery.isLoading && !duesQuery.data ? (
@@ -381,6 +391,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     maxWidth: 280,
+  },
+  heroAction: {
+    marginTop: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: '#ffffff',
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
+  },
+  heroActionText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.brandDeep,
   },
   loadingCard: {
     flexDirection: 'row',

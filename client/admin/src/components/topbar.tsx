@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Bell, Search, Check } from 'lucide-react'
+import { Bell, Search, Check, Plus } from 'lucide-react'
 import { useSiteContext } from '@/providers/site-provider'
 import { useCommandPalette } from '@/components/command-palette'
 import { SiteSwitcher } from '@/components/site-switcher'
@@ -159,13 +159,23 @@ export function Topbar({ onPaymentClick }: TopbarProps) {
                   <p className="text-[11px] text-[#6b7280] mt-0.5">{relativeTime(item.createdAt)}</p>
                 </div>
               ))}
-              <Link
-                href="/announcements"
-                onClick={() => setNotifOpen(false)}
-                className="mt-2 block rounded-2xl border border-white/80 bg-[#f3f7fb] py-2 text-center text-xs font-medium text-[#0c1427] transition-colors hover:bg-[#edf3fa]"
-              >
-                Tümünü Gör
-              </Link>
+              <div className="mt-2 flex gap-2">
+                <Link
+                  href="/announcements"
+                  onClick={() => setNotifOpen(false)}
+                  className="flex-1 block rounded-2xl border border-white/80 bg-[#f3f7fb] py-2 text-center text-xs font-medium text-[#0c1427] transition-colors hover:bg-[#edf3fa]"
+                >
+                  Tümünü Gör
+                </Link>
+                <Link
+                  href="/announcements?new=1"
+                  onClick={() => setNotifOpen(false)}
+                  className="flex items-center justify-center gap-1 rounded-2xl border border-[#17345a]/12 bg-[linear-gradient(135deg,#12203a_0%,#1d3b67_46%,#4f7df7_100%)] px-3 py-2 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(79,125,247,0.2)] transition-all duration-200 hover:-translate-y-0.5"
+                >
+                  <Plus className="h-3 w-3" />
+                  Yeni Duyuru
+                </Link>
+              </div>
             </PopoverContent>
           </Popover>
         </div>

@@ -52,7 +52,7 @@ export class TenantMiddleware implements NestMiddleware {
           return next()
         }
 
-        // TENANT_ADMIN bypass
+        // TENANT_ADMIN / RESIDENT bypass
         const tenant = await this.prisma.tenant.findUnique({
           where: { id: devTenantId },
           select: { id: true, isActive: true },
@@ -61,6 +61,29 @@ export class TenantMiddleware implements NestMiddleware {
           if (!tenant.isActive) {
             throw new UnauthorizedException('Bu tenant askıya alınmıştır.')
           }
+
+          const devRole = req.headers['x-dev-role'] as string | undefined
+          const devResidentId = req.headers['x-dev-resident-id'] as string | undefined
+
+          // RESIDENT bypass: x-dev-role: RESIDENT + x-dev-resident-id header
+          if (devRole === UserRole.RESIDENT && devResidentId) {
+            // Sakin'in aktif dairesini bul
+            const occupancy = await this.prisma.unitOccupancy.findFirst({
+              where: { tenantId: devTenantId, residentId: devResidentId, isActive: true },
+              select: { unitId: true },
+            })
+            req.tenantContext = {
+              tenantId: devTenantId,
+              userId: `dev-resident-${devResidentId}`,
+              role: UserRole.RESIDENT,
+              firebaseUid: 'dev-bypass',
+              userTenantRoleId: null,
+              unitId: occupancy?.unitId ?? null,
+              residentId: devResidentId,
+            }
+            return next()
+          }
+
           const tenantRole = await this.prisma.userTenantRole.findFirst({
             where: {
               tenantId: devTenantId,

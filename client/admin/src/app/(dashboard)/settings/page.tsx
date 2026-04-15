@@ -1,15 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Building, CreditCard, Bell, BarChart3, Shield } from 'lucide-react'
+import { Building, CreditCard, Bell, BarChart3, Shield, UserCog } from 'lucide-react'
 import { PageHeader } from '@/components/surface'
 import { ProfileSection } from './_sections/profile-section'
 import { PaymentSection } from './_sections/payment-section'
 import { NotificationsSection } from './_sections/notifications-section'
 import { PlanSection } from './_sections/plan-section'
 import { SecuritySection } from './_sections/security-section'
+import { UsersSection } from './_sections/users-section'
 
-type SettingsSection = 'profile' | 'payment' | 'notifications' | 'plan' | 'security'
+type SettingsSection = 'profile' | 'payment' | 'notifications' | 'plan' | 'security' | 'users'
 
 const SETTINGS_NAV: Array<{ key: SettingsSection; label: string; icon: typeof Building }> = [
   { key: 'profile', label: 'Şirket Profili', icon: Building },
@@ -17,6 +18,7 @@ const SETTINGS_NAV: Array<{ key: SettingsSection; label: string; icon: typeof Bu
   { key: 'notifications', label: 'Bildirim Ayarları', icon: Bell },
   { key: 'plan', label: 'Plan & Abonelik', icon: BarChart3 },
   { key: 'security', label: 'Güvenlik', icon: Shield },
+  { key: 'users', label: 'Kullanıcılar', icon: UserCog },
 ]
 
 export default function SettingsPage() {
@@ -70,6 +72,7 @@ export default function SettingsPage() {
           {section === 'notifications' && <NotificationsSection />}
           {section === 'plan' && <PlanSection />}
           {section === 'security' && <SecuritySection />}
+          {section === 'users' && <UsersSection />}
         </div>
       </div>
     </div>

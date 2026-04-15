@@ -4,7 +4,7 @@ import { View, ActivityIndicator } from 'react-native'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, type AuthSession } from '@/contexts/auth-context'
-import { registerUser, setUnauthorizedHandler } from '@/lib/api'
+import { registerUser, setUnauthorizedHandler, setDevResidentId } from '@/lib/api'
 import { getFirebaseAuth, isFirebaseNativeAvailable } from '@/lib/firebase-auth'
 import { queryClient } from '@/lib/query-client'
 import { ErrorBoundary } from '@/components/error-boundary'
@@ -21,6 +21,8 @@ function useAuth() {
 
   const setSession = useCallback((next: AuthSession | null) => {
     setSessionState(next)
+    // Dev RESIDENT bypass: residentId'yi api modülüne ilet
+    setDevResidentId(next?.residentId ?? null)
     if (next) {
       void saveSession(next)
     } else {
@@ -45,7 +47,10 @@ function useAuth() {
     let cancelled = false
     void loadSession().then((persisted) => {
       if (cancelled) return
-      if (persisted) setSessionState(persisted)
+      if (persisted) {
+        setSessionState(persisted)
+        setDevResidentId(persisted.residentId ?? null)
+      }
     })
     return () => {
       cancelled = true
@@ -143,6 +148,10 @@ export default function RootLayout() {
                   headerTintColor: colors.ink,
                   headerTitleStyle: { fontWeight: '700' },
                 }}
+              />
+              <StackNavigator.Screen
+                name="receipt/[id]"
+                options={{ headerShown: false }}
               />
             </StackNavigator>
           </AuthProvider>

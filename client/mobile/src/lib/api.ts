@@ -47,6 +47,12 @@ async function getToken(): Promise<string | null> {
 
 type UnauthorizedHandler = () => void
 let unauthorizedHandler: UnauthorizedHandler | null = null
+let devResidentId: string | null = null
+
+/** Dev modda RESIDENT bypass için residentId'yi set eder. */
+export function setDevResidentId(id: string | null) {
+  devResidentId = id
+}
 
 /** _layout.tsx 401 tepkisini (logout + login redirect) burada kayıt ediyor. */
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
@@ -96,6 +102,11 @@ export async function apiClient<T>(
   } else if (tenantId && DEV_BYPASS_ENABLED) {
     // Prod bundle'da kapalı — DEV_BYPASS_ENABLED iki kilit birden açıksa true.
     headers['x-dev-tenant-id'] = tenantId
+    // Dev RESIDENT bypass: session-store'dan residentId varsa header ekle
+    if (devResidentId) {
+      headers['x-dev-role'] = 'RESIDENT'
+      headers['x-dev-resident-id'] = devResidentId
+    }
   }
 
   const response = await fetch(url, { ...fetchOptions, headers })
@@ -126,12 +137,22 @@ export interface RegisterResponse {
   role: string
 }
 
+export interface DevResident {
+  residentId: string
+  name: string
+  phone: string
+  unitId: string
+  unitNumber: string
+  siteName: string
+}
+
 export interface DevBootstrapResponse {
   ready: boolean
   tenantId?: string
   tenantName?: string
   tenantSlug?: string
   message?: string
+  devResident?: DevResident | null
 }
 
 export async function registerUser(): Promise<RegisterResponse | null> {

@@ -4,6 +4,7 @@ export interface AuthSession {
   userId: string
   tenantId: string | null
   role: string
+  residentId?: string | null
 }
 
 interface AuthContextValue {

@@ -15,7 +15,7 @@ import { PrimaryButton, SurfaceCard } from '@/components'
 import { useAuthSession } from '@/contexts/auth-context'
 import { DEV_BYPASS_ENABLED } from '@/lib/env'
 import { getFirebaseAuth, isFirebaseNativeAvailable } from '@/lib/firebase-auth'
-import { getDevBootstrap } from '@/lib/api'
+import { getDevBootstrap, setDevResidentId } from '@/lib/api'
 import { colors, radii, spacing, typography } from '@/theme'
 
 export default function LoginScreen() {
@@ -62,7 +62,7 @@ export default function LoginScreen() {
     }
   }
 
-  async function signInWithDevBypass() {
+  async function signInWithDevBypass(asResident = false) {
     setLoading(true)
     setFeedback(null)
     try {
@@ -71,11 +71,27 @@ export default function LoginScreen() {
         setFeedback(bootstrap.message ?? 'Test tenant bulunamadı.')
         return
       }
-      setSession({
-        userId: 'dev-user',
-        tenantId: bootstrap.tenantId,
-        role: 'TENANT_ADMIN',
-      })
+
+      if (asResident) {
+        if (!bootstrap.devResident) {
+          setFeedback('Veritabanında aktif sakin bulunamadı. Önce seed çalıştırın.')
+          return
+        }
+        setDevResidentId(bootstrap.devResident.residentId)
+        setSession({
+          userId: `dev-resident-${bootstrap.devResident.residentId}`,
+          tenantId: bootstrap.tenantId,
+          role: 'RESIDENT',
+          residentId: bootstrap.devResident.residentId,
+        })
+      } else {
+        setDevResidentId(null)
+        setSession({
+          userId: 'dev-user',
+          tenantId: bootstrap.tenantId,
+          role: 'TENANT_ADMIN',
+        })
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Dev giriş başarısız.'
       setFeedback(message)
@@ -131,17 +147,30 @@ export default function LoginScreen() {
                 disabled={loading}
               />
               {showDevBypass ? (
-                <Pressable
-                  style={[styles.devButton, loading && styles.buttonDisabled]}
-                  onPress={() => void signInWithDevBypass()}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={colors.brand} />
-                  ) : (
-                    <Text style={styles.devButtonText}>Firebase olmadan test girişi</Text>
-                  )}
-                </Pressable>
+                <>
+                  <Pressable
+                    style={[styles.devButton, loading && styles.buttonDisabled]}
+                    onPress={() => void signInWithDevBypass(false)}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color={colors.brand} />
+                    ) : (
+                      <Text style={styles.devButtonText}>Yonetici olarak test girisi</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    style={[styles.devButton, styles.devButtonResident, loading && styles.buttonDisabled]}
+                    onPress={() => void signInWithDevBypass(true)}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color={colors.brand} />
+                    ) : (
+                      <Text style={styles.devButtonText}>Sakin olarak test girisi</Text>
+                    )}
+                  </Pressable>
+                </>
               ) : null}
             </>
           ) : (
@@ -271,6 +300,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.lineStrong,
     backgroundColor: colors.surfaceTint,
+  },
+  devButtonResident: {
+    marginTop: spacing.sm,
   },
   devButtonText: {
     color: colors.brand,
