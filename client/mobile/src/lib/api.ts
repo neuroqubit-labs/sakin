@@ -1,4 +1,5 @@
 import { getFirebaseAuth } from '@/lib/firebase-auth'
+import { DEV_BYPASS_ENABLED } from '@/lib/env'
 import { NativeModules } from 'react-native'
 
 const expoApiUrl = (
@@ -44,6 +45,25 @@ async function getToken(): Promise<string | null> {
   }
 }
 
+type UnauthorizedHandler = () => void
+let unauthorizedHandler: UnauthorizedHandler | null = null
+
+/** _layout.tsx 401 tepkisini (logout + login redirect) burada kayıt ediyor. */
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  unauthorizedHandler = handler
+}
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
 export async function apiClient<T>(
   path: string,
   options: FetchOptions = {},
@@ -73,16 +93,27 @@ export async function apiClient<T>(
     if (tenantId) {
       headers['x-tenant-id'] = tenantId
     }
-  } else if (tenantId) {
-    // Development-only bypass handled by backend middleware.
+  } else if (tenantId && DEV_BYPASS_ENABLED) {
+    // Prod bundle'da kapalı — DEV_BYPASS_ENABLED iki kilit birden açıksa true.
     headers['x-dev-tenant-id'] = tenantId
   }
 
   const response = await fetch(url, { ...fetchOptions, headers })
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({ message: 'Bilinmeyen hata' }))
-    throw new Error((errorBody as { message?: string }).message ?? `HTTP ${response.status}`)
+    const errorBody = (await response.json().catch(() => ({}))) as {
+      message?: string
+      code?: string
+      details?: unknown
+    }
+    if (response.status === 401 && unauthorizedHandler) {
+      unauthorizedHandler()
+    }
+    throw new ApiError(
+      errorBody.message ?? `HTTP ${response.status}`,
+      response.status,
+      errorBody.code,
+    )
   }
 
   const json = (await response.json()) as { data: T }

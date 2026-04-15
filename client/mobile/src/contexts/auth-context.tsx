@@ -9,11 +9,13 @@ export interface AuthSession {
 interface AuthContextValue {
   session: AuthSession | null
   setSession: (session: AuthSession | null) => void
+  signOut: () => void
 }
 
 export const AuthContext = createContext<AuthContextValue>({
   session: null,
   setSession: () => undefined,
+  signOut: () => undefined,
 })
 
 export function useAuthSession() {
@@ -23,11 +25,15 @@ export function useAuthSession() {
 export function AuthProvider({
   session,
   setSession,
+  signOut,
   children,
 }: {
   session: AuthSession | null
   setSession: (session: AuthSession | null) => void
+  signOut: () => void
   children: ReactNode
 }) {
-  return <AuthContext.Provider value={{ session, setSession }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ session, setSession, signOut }}>{children}</AuthContext.Provider>
+  )
 }

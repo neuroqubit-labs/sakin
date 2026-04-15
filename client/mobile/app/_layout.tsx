@@ -1,18 +1,60 @@
-import { useEffect, useState, useRef, type ComponentType } from 'react'
+import { useCallback, useEffect, useState, useRef, type ComponentType } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { View, ActivityIndicator } from 'react-native'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, type AuthSession } from '@/contexts/auth-context'
-import { registerUser } from '@/lib/api'
+import { registerUser, setUnauthorizedHandler } from '@/lib/api'
 import { getFirebaseAuth, isFirebaseNativeAvailable } from '@/lib/firebase-auth'
+import { queryClient } from '@/lib/query-client'
+import { ErrorBoundary } from '@/components/error-boundary'
+import { clearSession, loadSession, saveSession } from '@/lib/session-store'
 
 type FirebaseUser = { uid: string } | null
 
 function useAuth() {
   const [user, setUser] = useState<FirebaseUser>(null)
-  const [session, setSession] = useState<AuthSession | null>(null)
+  const [session, setSessionState] = useState<AuthSession | null>(null)
   const [loading, setLoading] = useState(true)
-  // Track last registered uid to avoid re-registering on token refresh
   const registeredUid = useRef<string | null>(null)
+
+  const setSession = useCallback((next: AuthSession | null) => {
+    setSessionState(next)
+    if (next) {
+      void saveSession(next)
+    } else {
+      void clearSession()
+    }
+  }, [])
+
+  const signOut = useCallback(() => {
+    registeredUid.current = null
+    setSession(null)
+    queryClient.clear()
+    const auth = getFirebaseAuth()
+    // Firebase signOut yalnız native modülde — yoksa sessiz.
+    const fbSignOut = (auth as unknown as { signOut?: () => Promise<void> } | null)?.signOut
+    if (typeof fbSignOut === 'function') {
+      void fbSignOut()
+    }
+  }, [setSession])
+
+  // Cold start: SecureStore'dan session hydrate et
+  useEffect(() => {
+    let cancelled = false
+    void loadSession().then((persisted) => {
+      if (cancelled) return
+      if (persisted) setSessionState(persisted)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // 401 tepkisi: global logout
+  useEffect(() => {
+    setUnauthorizedHandler(signOut)
+    return () => setUnauthorizedHandler(null)
+  }, [signOut])
 
   useEffect(() => {
     const auth = getFirebaseAuth()
@@ -32,7 +74,7 @@ function useAuth() {
             setSession({ userId: result.userId, tenantId: result.tenantId, role: result.role })
           }
         } catch {
-          // Registration failed — user can still browse, API calls will fail gracefully
+          // kayıt başarısız — API çağrıları gracefully hata döner
         }
       } else if (!u) {
         registeredUid.current = null
@@ -42,13 +84,13 @@ function useAuth() {
       setLoading(false)
     })
     return unsubscribe
-  }, [])
+  }, [setSession])
 
-  return { user, session, setSession, loading }
+  return { user, session, setSession, signOut, loading }
 }
 
 export default function RootLayout() {
-  const { user, session, setSession, loading } = useAuth()
+  const { user, session, setSession, signOut, loading } = useAuth()
   const segments = useSegments()
   const router = useRouter()
   const StackNavigator = Stack as unknown as ComponentType<any> & { Screen: ComponentType<any> }
@@ -57,7 +99,6 @@ export default function RootLayout() {
     if (loading) return
 
     const inAuthGroup = segments[0] === '(auth)'
-
     const isAuthenticated = Boolean(user) || Boolean(session)
 
     if (!isAuthenticated && !inAuthGroup) {
@@ -76,21 +117,25 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider session={session} setSession={setSession}>
-      <StackNavigator screenOptions={{ headerShown: false }}>
-        <StackNavigator.Screen name="(auth)/login" />
-        <StackNavigator.Screen name="(tabs)" />
-        <StackNavigator.Screen
-          name="payment-history"
-          options={{
-            headerShown: true,
-            title: 'Ödeme Geçmişi',
-            headerStyle: { backgroundColor: '#0D4F3C' },
-            headerTintColor: '#ffffff',
-            headerTitleStyle: { fontWeight: '700' },
-          }}
-        />
-      </StackNavigator>
-    </AuthProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider session={session} setSession={setSession} signOut={signOut}>
+          <StackNavigator screenOptions={{ headerShown: false }}>
+            <StackNavigator.Screen name="(auth)/login" />
+            <StackNavigator.Screen name="(tabs)" />
+            <StackNavigator.Screen
+              name="payment-history"
+              options={{
+                headerShown: true,
+                title: 'Ödeme Geçmişi',
+                headerStyle: { backgroundColor: '#0D4F3C' },
+                headerTintColor: '#ffffff',
+                headerTitleStyle: { fontWeight: '700' },
+              }}
+            />
+          </StackNavigator>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }

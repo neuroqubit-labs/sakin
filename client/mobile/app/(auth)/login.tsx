@@ -13,9 +13,10 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { useAuthSession } from '@/contexts/auth-context'
 import { getFirebaseAuth, isFirebaseNativeAvailable } from '@/lib/firebase-auth'
 import { getDevBootstrap } from '@/lib/api'
+import { DEV_BYPASS_ENABLED } from '@/lib/env'
 
 export default function LoginScreen() {
-  const showDevBypass = __DEV__
+  const showDevBypass = DEV_BYPASS_ENABLED
   const { setSession } = useAuthSession()
   const [phoneNumber, setPhoneNumber] = useState('')
   const [code, setCode] = useState('')
