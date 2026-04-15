@@ -14,17 +14,27 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.sakin.app"
+      "bundleIdentifier": "com.sakin.app",
+      "associatedDomains": ["applinks:sakin.app"]
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.sakin.app"
+      "package": "com.sakin.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "sakin", "host": "payment" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "plugins": [
       "expo-router",
+      "expo-secure-store",
       "@react-native-firebase/app",
       "@react-native-firebase/auth"
     ],

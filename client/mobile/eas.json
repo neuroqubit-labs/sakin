@@ -3,13 +3,26 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://localhost:3001/api/v1",
+        "EXPO_PUBLIC_ENV": "development"
+      }
     },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.staging.sakin.app/api/v1",
+        "EXPO_PUBLIC_ENV": "staging"
+      }
     },
-    "production": {}
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.sakin.app/api/v1",
+        "EXPO_PUBLIC_ENV": "production"
+      }
+    }
   },
   "submit": {
     "production": {}
