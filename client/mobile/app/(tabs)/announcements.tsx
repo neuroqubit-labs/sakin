@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   View,
   Text,
@@ -11,23 +11,7 @@ import {
   ScrollView,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import { apiClient } from '@/lib/api'
-import { useAuthSession } from '@/contexts/auth-context'
-
-// ─── Tipler ──────────────────────────────────────────────────────────────────
-
-interface Announcement {
-  id: string
-  title: string
-  content: string
-  createdAt: string
-  createdByUserId: string
-}
-
-interface AnnouncementsResponse {
-  data: Announcement[]
-  meta: { total: number; page: number; limit: number }
-}
+import { useAnnouncements, type Announcement } from '@/features/announcement/queries'
 
 // ─── Yardımcılar ─────────────────────────────────────────────────────────────
 
@@ -107,37 +91,16 @@ function AnnouncementModal({
 // ─── Ana Ekran ───────────────────────────────────────────────────────────────
 
 export default function AnnouncementsScreen() {
-  const { session } = useAuthSession()
-  const [announcements, setAnnouncements] = useState<Announcement[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const query = useAnnouncements()
   const [selected, setSelected] = useState<Announcement | null>(null)
 
-  async function load() {
-    if (!session) return
-    setError(null)
-    try {
-      const res = await apiClient<AnnouncementsResponse>(
-        '/announcements',
-        { params: { limit: 30, page: 1 } },
-        session.tenantId,
-      )
-      setAnnouncements(res.data)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Duyurular yüklenemedi')
-    }
-  }
-
-  useEffect(() => {
-    setLoading(true)
-    void load().finally(() => setLoading(false))
-  }, [session])
+  const loading = query.isLoading
+  const refreshing = query.isRefetching
+  const error = query.error ? (query.error as Error).message : null
+  const announcements: Announcement[] = query.data?.data ?? []
 
   async function onRefresh() {
-    setRefreshing(true)
-    await load()
-    setRefreshing(false)
+    await query.refetch()
   }
 
   return (

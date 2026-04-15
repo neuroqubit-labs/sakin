@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -9,30 +8,7 @@ import {
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { PaymentMethod } from '@sakin/shared'
-import { apiClient } from '@/lib/api'
-import { useAuthSession } from '@/contexts/auth-context'
-
-// ─── Tipler ──────────────────────────────────────────────────────────────────
-
-interface PaymentItem {
-  id: string
-  amount: string | number
-  currency: string
-  method: PaymentMethod
-  status: string
-  paidAt: string | null
-  confirmedAt: string | null
-  createdAt: string
-  dues: {
-    periodMonth: number
-    periodYear: number
-    description: string | null
-  } | null
-}
-
-interface PaymentHistoryResponse {
-  data: PaymentItem[]
-}
+import { useMyPayments, type PaymentItem } from '@/features/payment/queries'
 
 // ─── Yardımcılar ─────────────────────────────────────────────────────────────
 
@@ -101,36 +77,15 @@ function PaymentRow({ item }: { item: PaymentItem }) {
 // ─── Ana Ekran ───────────────────────────────────────────────────────────────
 
 export default function PaymentHistoryScreen() {
-  const { session } = useAuthSession()
-  const [payments, setPayments] = useState<PaymentItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const query = useMyPayments()
 
-  async function load() {
-    if (!session) return
-    setError(null)
-    try {
-      const res = await apiClient<PaymentHistoryResponse>(
-        '/payments/my',
-        { params: { limit: 50 } },
-        session.tenantId,
-      )
-      setPayments(res.data)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ödeme geçmişi yüklenemedi')
-    }
-  }
-
-  useEffect(() => {
-    setLoading(true)
-    void load().finally(() => setLoading(false))
-  }, [session])
+  const loading = query.isLoading
+  const refreshing = query.isRefetching
+  const error = query.error ? (query.error as Error).message : null
+  const payments: PaymentItem[] = query.data?.data ?? []
 
   async function onRefresh() {
-    setRefreshing(true)
-    await load()
-    setRefreshing(false)
+    await query.refetch()
   }
 
   return (

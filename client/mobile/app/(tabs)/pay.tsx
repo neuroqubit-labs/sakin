@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   View,
   Text,
@@ -11,31 +11,9 @@ import {
 } from 'react-native'
 import { WebView, type WebViewNavigation } from 'react-native-webview'
 import { DuesStatus } from '@sakin/shared'
-import { apiClient } from '@/lib/api'
-import { useAuthSession } from '@/contexts/auth-context'
-
-interface UnpaidDues {
-  id: string
-  periodMonth: number
-  periodYear: number
-  amount: string | number
-  status: DuesStatus
-  unit: { number: string; site: { name: string } }
-}
-
-interface DuesResponse {
-  data: UnpaidDues[]
-  meta: { total: number }
-}
-
-interface CheckoutResponse {
-  paymentId: string
-  attemptId: string
-  token: string
-  checkoutFormContent: string
-  amount: number
-  currency: string
-}
+import { useUnpaidDues, type DuesItem } from '@/features/dues/queries'
+import { useStartPayment } from '@/features/payment/queries'
+import { parseCallbackStatus } from '@/features/payment/callback'
 
 const CALLBACK_BASE = 'sakin://payment'
 
@@ -44,78 +22,56 @@ function toNumber(v: string | number): number {
 }
 
 export default function PayScreen() {
-  const { session } = useAuthSession()
-  const [dues, setDues] = useState<UnpaidDues[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const duesQuery = useUnpaidDues()
+  const startPayment = useStartPayment()
 
   const [checkoutHtml, setCheckoutHtml] = useState<string | null>(null)
-  const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [webviewVisible, setWebviewVisible] = useState(false)
+  const [callbackHandled, setCallbackHandled] = useState(false)
 
-  useEffect(() => {
-    if (!session) return
-    void loadUnpaidDues()
-  }, [session])
+  const loading = duesQuery.isLoading
+  const error = duesQuery.error ? (duesQuery.error as Error).message : null
+  const dues: DuesItem[] = (duesQuery.data?.data ?? []).filter(
+    (d) =>
+      d.status !== DuesStatus.PAID &&
+      d.status !== DuesStatus.CANCELLED &&
+      d.status !== DuesStatus.WAIVED,
+  )
 
-  async function loadUnpaidDues() {
-    setLoading(true)
-    setError(null)
+  async function onStart(duesId: string) {
+    setCallbackHandled(false)
     try {
-      const response = await apiClient<DuesResponse>(
-        '/dues',
-        {
-          params: {
-            limit: 50,
-            status: [DuesStatus.PENDING, DuesStatus.OVERDUE, DuesStatus.PARTIALLY_PAID].join(','),
-          },
-        },
-        session?.tenantId,
-      )
-      const unpaid = response.data.filter((d) => d.status !== DuesStatus.PAID && d.status !== DuesStatus.CANCELLED && d.status !== DuesStatus.WAIVED)
-      setDues(unpaid)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Veriler yüklenemedi')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function startPayment(duesId: string) {
-    setCheckoutLoading(true)
-    try {
-      const checkout = await apiClient<CheckoutResponse>(
-        '/payments/checkout',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            duesId,
-            callbackUrl: `${CALLBACK_BASE}/callback`,
-          }),
-        },
-        session?.tenantId,
-      )
+      const checkout = await startPayment.mutateAsync({
+        duesId,
+        callbackUrl: `${CALLBACK_BASE}/callback`,
+      })
       setCheckoutHtml(checkout.checkoutFormContent)
       setWebviewVisible(true)
     } catch (e) {
       Alert.alert('Hata', e instanceof Error ? e.message : 'Ödeme başlatılamadı')
-    } finally {
-      setCheckoutLoading(false)
     }
   }
 
   function handleWebviewNavigation(event: WebViewNavigation) {
     const { url } = event
-    if (url.startsWith(CALLBACK_BASE)) {
-      setWebviewVisible(false)
-      setCheckoutHtml(null)
-      const success = url.includes('status=success') || !url.includes('status=failure')
-      if (success) {
-        Alert.alert('Ödeme Alındı', 'Ödemeniz işleme alındı. Onay için kısa süre bekleyiniz.')
-        void loadUnpaidDues()
-      } else {
-        Alert.alert('Ödeme Başarısız', 'İşlem tamamlanamadı. Tekrar deneyin.')
-      }
+    if (!url.startsWith(CALLBACK_BASE)) return
+    if (callbackHandled) return
+    setCallbackHandled(true)
+    setWebviewVisible(false)
+    setCheckoutHtml(null)
+
+    const status = parseCallbackStatus(url)
+    if (status === 'success') {
+      Alert.alert('Ödeme Alındı', 'Ödemeniz işleme alındı. Onay için kısa süre bekleyiniz.')
+      void duesQuery.refetch()
+    } else if (status === 'failure') {
+      Alert.alert('Ödeme Başarısız', 'İşlem tamamlanamadı. Tekrar deneyin.')
+    } else {
+      Alert.alert(
+        'Ödeme Durumu Belirsiz',
+        'İşleminizin sonucu doğrulanıyor. Borç listeniz birazdan güncellenir.',
+      )
+      void duesQuery.refetch()
     }
   }
 
@@ -154,34 +110,47 @@ export default function PayScreen() {
             <View key={item.id} style={[styles.card, isOverdue && styles.cardOverdue]}>
               <View style={styles.cardRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.period}>{item.periodMonth}/{item.periodYear}</Text>
-                  <Text style={styles.siteName}>{item.unit.site.name} · Daire {item.unit.number}</Text>
+                  <Text style={styles.period}>
+                    {item.periodMonth}/{item.periodYear}
+                  </Text>
+                  <Text style={styles.siteName}>
+                    {item.unit.site.name} · Daire {item.unit.number}
+                  </Text>
                 </View>
                 <Text style={[styles.amount, isOverdue && styles.amountOverdue]}>
                   ₺{amount.toLocaleString('tr-TR')}
                 </Text>
               </View>
               <TouchableOpacity
-                style={[styles.payButton, checkoutLoading && styles.payButtonDisabled]}
-                onPress={() => void startPayment(item.id)}
-                disabled={checkoutLoading}
+                style={[styles.payButton, startPayment.isPending && styles.payButtonDisabled]}
+                onPress={() => void onStart(item.id)}
+                disabled={startPayment.isPending}
               >
-                {checkoutLoading
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={styles.payButtonText}>Kartla Öde</Text>
-                }
+                {startPayment.isPending ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.payButtonText}>Kartla Öde</Text>
+                )}
               </TouchableOpacity>
             </View>
           )
         })}
       </ScrollView>
 
-      {/* iyzico checkout WebView */}
-      <Modal visible={webviewVisible} animationType="slide" onRequestClose={() => setWebviewVisible(false)}>
+      <Modal
+        visible={webviewVisible}
+        animationType="slide"
+        onRequestClose={() => setWebviewVisible(false)}
+      >
         <View style={{ flex: 1 }}>
           <View style={styles.webviewHeader}>
             <Text style={styles.webviewTitle}>Güvenli Ödeme</Text>
-            <TouchableOpacity onPress={() => { setWebviewVisible(false); setCheckoutHtml(null) }}>
+            <TouchableOpacity
+              onPress={() => {
+                setWebviewVisible(false)
+                setCheckoutHtml(null)
+              }}
+            >
               <Text style={styles.webviewClose}>Kapat</Text>
             </TouchableOpacity>
           </View>
@@ -206,7 +175,18 @@ const styles = StyleSheet.create({
   header: { padding: 20, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 'bold', color: '#111827' },
   subtitle: { fontSize: 13, color: '#6b7280', marginTop: 2 },
-  card: { margin: 12, marginTop: 8, backgroundColor: '#fff', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  card: {
+    margin: 12,
+    marginTop: 8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
   cardOverdue: { borderLeftWidth: 3, borderLeftColor: '#ef4444' },
   cardRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   period: { fontSize: 16, fontWeight: '600', color: '#374151' },
@@ -220,7 +200,15 @@ const styles = StyleSheet.create({
   errorText: { color: '#dc2626', fontSize: 14 },
   emptyBox: { padding: 40, alignItems: 'center' },
   emptyText: { color: '#6b7280', fontSize: 15 },
-  webviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#e5e7eb', backgroundColor: '#fff' },
+  webviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    backgroundColor: '#fff',
+  },
   webviewTitle: { fontSize: 16, fontWeight: '600', color: '#111827' },
   webviewClose: { fontSize: 15, color: '#2563eb' },
 })
