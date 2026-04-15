@@ -1,0 +1,53 @@
+name: Mobile Preview Build
+
+# Manuel tetikli — her PR'da çalışmaz. EAS credit tüketimini düşük tut.
+# Kullanım: Actions sekmesinden "Run workflow" ile tetikle.
+#
+# Gerekli secret: EXPO_TOKEN (expo.dev → Access tokens → Create)
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Build edilecek platform'
+        required: true
+        default: 'android'
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+
+jobs:
+  preview:
+    name: EAS preview build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package
+        run: pnpm --filter=@sakin/shared build
+
+      - name: EAS preview build
+        working-directory: client/mobile
+        run: eas build --profile preview --platform ${{ inputs.platform }} --non-interactive --no-wait
