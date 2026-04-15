@@ -1,264 +1,256 @@
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
   ActivityIndicator,
+  FlatList,
   RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native'
-import { LinearGradient } from 'expo-linear-gradient'
+import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PaymentMethod } from '@sakin/shared'
+import { EmptyState, SurfaceCard } from '@/components'
 import { useMyPayments, type PaymentItem } from '@/features/payment/queries'
-
-// ─── Yardımcılar ─────────────────────────────────────────────────────────────
+import { colors, radii, spacing, typography } from '@/theme'
 
 const METHOD_LABELS: Record<string, string> = {
-  [PaymentMethod.ONLINE_CARD]: 'Kredi/Banka Kartı',
-  [PaymentMethod.BANK_TRANSFER]: 'Banka Transferi',
+  [PaymentMethod.ONLINE_CARD]: 'Kredi veya banka karti',
+  [PaymentMethod.BANK_TRANSFER]: 'Banka transferi',
   [PaymentMethod.CASH]: 'Nakit',
   [PaymentMethod.POS]: 'POS',
 }
 
-const METHOD_ICONS: Record<string, string> = {
-  [PaymentMethod.ONLINE_CARD]: '💳',
-  [PaymentMethod.BANK_TRANSFER]: '🏦',
-  [PaymentMethod.CASH]: '💵',
-  [PaymentMethod.POS]: '🖥️',
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('tr-TR', {
+function formatDate(value: string | null) {
+  if (!value) return 'Tarih bekleniyor'
+  return new Date(value).toLocaleDateString('tr-TR', {
     day: '2-digit',
     month: 'long',
     year: 'numeric',
   })
 }
 
-function toNumber(v: string | number): number {
-  return typeof v === 'string' ? Number(v) : v
+function formatCurrency(value: string | number) {
+  return `₺${Number(value).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}`
 }
 
-// ─── Ödeme Satırı ─────────────────────────────────────────────────────────────
-
-function PaymentRow({ item }: { item: PaymentItem }) {
-  const amount = toNumber(item.amount)
-  const date = formatDate(item.paidAt ?? item.confirmedAt ?? item.createdAt)
-  const icon = METHOD_ICONS[item.method] ?? '💰'
-  const label = METHOD_LABELS[item.method] ?? item.method
+export default function PaymentHistoryScreen() {
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
+  const query = useMyPayments()
+  const payments: PaymentItem[] = [...(query.data?.data ?? [])].sort((a, b) => {
+    const dateA = a.paidAt ?? a.confirmedAt ?? a.createdAt
+    const dateB = b.paidAt ?? b.confirmedAt ?? b.createdAt
+    return new Date(dateB).getTime() - new Date(dateA).getTime()
+  })
 
   return (
-    <View style={styles.row}>
-      {/* Sol: ikon */}
-      <View style={styles.rowIcon}>
-        <Text style={styles.rowIconText}>{icon}</Text>
-      </View>
-
-      {/* Orta: dönem + yöntem */}
-      <View style={styles.rowBody}>
-        {item.dues ? (
-          <Text style={styles.rowTitle}>
-            {item.dues.periodMonth}/{item.dues.periodYear} Aidatı
-          </Text>
-        ) : (
-          <Text style={styles.rowTitle}>Ödeme</Text>
+    <View style={styles.screen}>
+      <FlatList
+        data={payments}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => (
+          <PaymentRow item={item} last={index === payments.length - 1} />
         )}
-        <Text style={styles.rowSub}>{label} · {date}</Text>
-      </View>
-
-      {/* Sağ: tutar */}
-      <Text style={styles.rowAmount}>
-        ₺{amount.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
-      </Text>
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom: insets.bottom + 32,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={query.isRefetching}
+            onRefresh={() => void query.refetch()}
+            tintColor={colors.brand}
+          />
+        }
+        ListHeaderComponent={
+          <SurfaceCard tone="tinted" style={styles.summaryCard}>
+            <Text style={styles.summaryEyebrow}>Ödeme geçmişi</Text>
+            <Text style={styles.summaryTitle}>Tüm makbuzların ve geçmiş işlemlerin tek yerde.</Text>
+            <View style={styles.summaryStats}>
+              <HistoryMetric
+                label="Toplam"
+                value={formatCurrency(
+                  payments.reduce((sum, item) => sum + Number(item.amount), 0),
+                )}
+              />
+              <HistoryMetric label="İşlem" value={String(payments.length)} />
+            </View>
+          </SurfaceCard>
+        }
+        ListEmptyComponent={
+          query.isLoading ? (
+            <SurfaceCard style={styles.centerCard}>
+              <ActivityIndicator color={colors.brand} />
+              <Text style={styles.centerText}>Ödeme kayıtları yükleniyor...</Text>
+            </SurfaceCard>
+          ) : query.error ? (
+            <SurfaceCard tone="danger" style={styles.centerCard}>
+              <Text style={styles.errorTitle}>Geçmiş şimdilik açılamadı.</Text>
+              <Text style={styles.errorText}>
+                {query.error instanceof Error ? query.error.message : 'Tekrar deneyin.'}
+              </Text>
+            </SurfaceCard>
+          ) : (
+            <SurfaceCard style={styles.centerCard}>
+              <EmptyState
+                icon="receipt-outline"
+                title="Henüz ödeme geçmişin yok."
+                body="Onaylanan ödemeler burada zaman sırası ile görünecek."
+                primary={{
+                  label: 'Açık ödemeleri gör',
+                  onPress: () => router.push('/(tabs)/pay' as never),
+                }}
+                secondary={{
+                  label: "Bugün'e dön",
+                  onPress: () => router.replace('/(tabs)' as never),
+                }}
+              />
+            </SurfaceCard>
+          )
+        }
+      />
     </View>
   )
 }
 
-// ─── Ana Ekran ───────────────────────────────────────────────────────────────
-
-export default function PaymentHistoryScreen() {
-  const query = useMyPayments()
-
-  const loading = query.isLoading
-  const refreshing = query.isRefetching
-  const error = query.error ? (query.error as Error).message : null
-  const payments: PaymentItem[] = query.data?.data ?? []
-
-  async function onRefresh() {
-    await query.refetch()
-  }
+function PaymentRow({ item, last }: { item: PaymentItem; last: boolean }) {
+  const date = formatDate(item.paidAt ?? item.confirmedAt ?? item.createdAt)
+  const label = METHOD_LABELS[item.method] ?? item.method
 
   return (
-    <LinearGradient colors={['#0D4F3C', '#1A7A5E', '#2BA87E']} style={styles.gradient}>
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="rgba(255,255,255,0.8)" />
+    <SurfaceCard style={styles.rowCard} padding="lg">
+      <View style={[styles.row, !last && styles.rowWithGap]}>
+        <View style={styles.rowIcon}>
+          <Ionicons color={colors.brand} name="card-outline" size={18} />
         </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowTitle}>
+            {item.dues
+              ? `${item.dues.periodMonth}/${item.dues.periodYear} ödemesi`
+              : 'Ödeme işlemi'}
+          </Text>
+          <Text style={styles.rowSub}>{label} · {date}</Text>
         </View>
-      ) : (
-        <FlatList
-          data={payments}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <PaymentRow item={item} />}
-          contentContainerStyle={
-            payments.length === 0 ? styles.emptyContainer : styles.listContainer
-          }
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => void onRefresh()}
-              tintColor="rgba(255,255,255,0.8)"
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.emptyIcon}>🧾</Text>
-              <Text style={styles.emptyTitle}>Henüz ödeme yok</Text>
-              <Text style={styles.emptySub}>
-                Onaylanan ödemeleriniz burada görünecek.
-              </Text>
-            </View>
-          }
-          ListHeaderComponent={
-            payments.length > 0 ? (
-              <View style={styles.summary}>
-                <Text style={styles.summaryLabel}>Toplam Ödenen</Text>
-                <Text style={styles.summaryAmount}>
-                  ₺
-                  {payments
-                    .reduce((sum, p) => sum + toNumber(p.amount), 0)
-                    .toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
-                </Text>
-                <Text style={styles.summaryCount}>{payments.length} işlem</Text>
-              </View>
-            ) : null
-          }
-        />
-      )}
-    </LinearGradient>
+        <Text style={styles.rowAmount}>{formatCurrency(item.amount)}</Text>
+      </View>
+    </SurfaceCard>
   )
 }
 
-// ─── Stiller ─────────────────────────────────────────────────────────────────
-
-const GLASS_BG = 'rgba(255, 255, 255, 0.12)'
-const GLASS_BORDER = 'rgba(255, 255, 255, 0.2)'
+function HistoryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.metric}>
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  )
+}
 
 const styles = StyleSheet.create({
-  gradient: {
+  screen: {
     flex: 1,
+    backgroundColor: colors.canvas,
   },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
+  content: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: 28,
+    paddingBottom: 48,
+    gap: spacing.md,
   },
-
-  // Liste
-  listContainer: {
-    padding: 16,
-    paddingBottom: 40,
+  summaryCard: {
+    marginBottom: spacing.lg,
   },
-  emptyContainer: {
-    flex: 1,
-  },
-
-  // Özet başlık
-  summary: {
-    backgroundColor: GLASS_BG,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: GLASS_BORDER,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  summaryLabel: {
+  summaryEyebrow: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  summaryAmount: {
-    fontSize: 40,
     fontWeight: '800',
-    color: '#ffffff',
-    marginTop: 4,
+    color: colors.brand,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    marginBottom: 8,
   },
-  summaryCount: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.55)',
-    marginTop: 2,
+  summaryTitle: {
+    ...typography.heading,
+    color: colors.ink,
+    lineHeight: 30,
   },
-
-  // Satır
+  summaryStats: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xl,
+  },
+  metric: {
+    flex: 1,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
+  },
+  metricValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.ink,
+    marginBottom: 6,
+  },
+  metricLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.inkMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  rowCard: {
+    marginBottom: spacing.sm,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: GLASS_BG,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: GLASS_BORDER,
-    padding: 16,
-    marginBottom: 10,
+    gap: spacing.md,
   },
+  rowWithGap: {},
   rowIcon: {
     width: 42,
     height: 42,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceTint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
-  },
-  rowIconText: {
-    fontSize: 20,
-  },
-  rowBody: {
-    flex: 1,
   },
   rowTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.ink,
   },
   rowSub: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.55)',
-    marginTop: 2,
+    color: colors.inkSecondary,
+    marginTop: 4,
   },
   rowAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#6ee7b7',
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.brand,
   },
-
-  // Boş durum
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
+  centerCard: {
+    alignItems: 'center',
+    gap: spacing.md,
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 8,
-  },
-  emptySub: {
+  centerText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.55)',
-    textAlign: 'center',
-    lineHeight: 20,
+    color: colors.inkSecondary,
   },
-
-  // Hata
-  errorText: {
-    color: '#fca5a5',
+  errorTitle: {
     fontSize: 15,
+    fontWeight: '800',
+    color: colors.dangerInk,
+  },
+  errorText: {
+    fontSize: 13,
+    color: colors.dangerInk,
+    lineHeight: 20,
     textAlign: 'center',
   },
 })

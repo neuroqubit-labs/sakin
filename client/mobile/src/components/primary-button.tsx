@@ -33,9 +33,9 @@ export function PrimaryButton({
       activeOpacity={0.85}
     >
       {loading ? (
-        <ActivityIndicator color={colors.textPrimary} />
+        <ActivityIndicator color={variant === 'secondary' ? colors.brand : colors.textPrimary} />
       ) : (
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, variant === 'secondary' && styles.labelSecondary]}>{label}</Text>
       )}
     </TouchableOpacity>
   )
@@ -43,17 +43,23 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   base: {
-    backgroundColor: colors.glassBgStrong,
-    borderRadius: radii.md,
+    backgroundColor: colors.brand,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.glassBorderStrong,
+    borderColor: colors.brandDeep,
     paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#0f1e17',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 3,
   },
   secondary: {
-    backgroundColor: 'rgba(0,0,0,0.12)',
-    borderColor: colors.glassBorder,
+    backgroundColor: colors.surface,
+    borderColor: colors.lineStrong,
     paddingVertical: spacing.md,
   },
   disabled: { opacity: 0.5 },
@@ -62,5 +68,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.3,
+  },
+  labelSecondary: {
+    color: colors.brand,
   },
 })

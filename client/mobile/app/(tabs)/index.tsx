@@ -1,248 +1,497 @@
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
+  Pressable,
   RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { DuesStatus } from '@sakin/shared'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { DuesStatus, TicketStatus } from '@sakin/shared'
+import { MetricPill, SurfaceCard } from '@/components'
+import { useResidencies } from '@/features/auth/queries'
 import { useUnpaidDues } from '@/features/dues/queries'
 import { useUnreadNotificationCount } from '@/features/notification/queries'
-import { useResidencies } from '@/features/auth/queries'
+import { useMyPayments } from '@/features/payment/queries'
+import { usePaymentFlow } from '@/features/payment/flow-state'
+import { resolveSmartAction } from '@/features/shell/smart-action'
+import { useMyTickets } from '@/features/ticket/queries'
+import { colors, radii, spacing, typography } from '@/theme'
 
-function GlassCard({
-  onPress,
-  children,
-  style,
+function formatCurrency(value: number) {
+  return `₺${value.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}`
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return 'Bugün'
+  return new Date(value).toLocaleDateString('tr-TR', {
+    day: '2-digit',
+    month: 'long',
+  })
+}
+
+function buildHeroCopy({
+  state,
+  totalDebt,
+  dueCount,
+  overdueCount,
 }: {
-  onPress?: () => void
-  children: React.ReactNode
-  style?: object
+  state: ReturnType<typeof resolveSmartAction>['state']
+  totalDebt: number
+  dueCount: number
+  overdueCount: number
 }) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={onPress ? 0.75 : 1}
-      style={[styles.glassCard, style]}
-    >
-      {children}
-    </TouchableOpacity>
-  )
+  if (state === 'resume_payment') {
+    return {
+      eyebrow: 'Devam eden ödeme',
+      title: 'Son ödemen hâlâ netleşiyor olabilir.',
+      body: 'Durumu yenileyip işlemin tamamlanıp tamamlanmadığını birlikte kontrol edelim.',
+    }
+  }
+
+  if (state === 'pay_overdue') {
+    return {
+      eyebrow: 'Öncelikli aksiyon',
+      title: `${overdueCount} gecikmiş ödeme bekliyor.`,
+      body: `${formatCurrency(totalDebt)} açık borç içinden önce bunları kapatmak en doğru adım.`,
+    }
+  }
+
+  if (state === 'pay_due') {
+    return {
+      eyebrow: 'Hazır ödemeler',
+      title: `${dueCount} ödeme şu anda hazır.`,
+      body: `${formatCurrency(totalDebt)} açık tutarı tek akışta kontrol edip ödemeye geçebilirsin.`,
+    }
+  }
+
+  return {
+    eyebrow: 'Bugün sakin',
+    title: 'Açık borcun yok, her şey düzende görünüyor.',
+    body: 'Son ödemelerini, makbuzlarını ve diğer süreçlerini buradan takip etmeye devam edebilirsin.',
+  }
 }
 
 export default function HomeScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const duesQuery = useUnpaidDues()
   const unreadQuery = useUnreadNotificationCount()
   const residenciesQuery = useResidencies()
-
-  const loading = duesQuery.isLoading
-  const refreshing = duesQuery.isRefetching || unreadQuery.isRefetching || residenciesQuery.isRefetching
-  const error = duesQuery.error ? (duesQuery.error as Error).message : null
+  const ticketsQuery = useMyTickets()
+  const paymentsQuery = useMyPayments()
+  const paymentFlowQuery = usePaymentFlow()
 
   const unpaid = duesQuery.data?.data ?? []
-  const totalDebt = unpaid.reduce((sum, d) => sum + Number(d.amount), 0)
-  const overdueCount = unpaid.filter((d) => d.status === DuesStatus.OVERDUE).length
+  const totalDebt = unpaid.reduce((sum, item) => sum + Number(item.amount), 0)
+  const overdueCount = unpaid.filter((item) => item.status === DuesStatus.OVERDUE).length
+  const action = resolveSmartAction({
+    overdueCount,
+    dueCount: unpaid.length,
+    paymentFlow: paymentFlowQuery.data ?? null,
+  })
+  const heroCopy = buildHeroCopy({
+    state: action.state,
+    totalDebt,
+    dueCount: unpaid.length,
+    overdueCount,
+  })
 
-  // Residency'yi dues'tan değil kendi endpoint'inden türet — borç yokken de daire göster.
   const residencies = residenciesQuery.data?.data ?? []
-  const primary = residencies.find((r) => r.isPrimaryResponsible) ?? residencies[0]
-  const fallbackUnit = unpaid[0]?.unit
-  const siteName = primary?.siteName ?? fallbackUnit?.site.name ?? ''
-  const unitNumber = primary?.unitNumber ?? fallbackUnit?.number ?? ''
-  const extraUnitCount = Math.max(0, residencies.length - 1)
+  const primaryResidency =
+    residencies.find((item) => item.isPrimaryResponsible) ?? residencies[0] ?? null
   const unreadNotifications = unreadQuery.data?.count ?? 0
+  const openTickets = (ticketsQuery.data?.data ?? []).filter(
+    (item) =>
+      item.status !== TicketStatus.RESOLVED &&
+      item.status !== TicketStatus.CLOSED &&
+      item.status !== TicketStatus.CANCELLED,
+  )
+  const lastPayment = [...(paymentsQuery.data?.data ?? [])].sort((a, b) => {
+    const dateA = a.paidAt ?? a.confirmedAt ?? a.createdAt
+    const dateB = b.paidAt ?? b.confirmedAt ?? b.createdAt
+    return new Date(dateB).getTime() - new Date(dateA).getTime()
+  })[0]
+
+  const refreshing =
+    duesQuery.isRefetching ||
+    unreadQuery.isRefetching ||
+    residenciesQuery.isRefetching ||
+    ticketsQuery.isRefetching ||
+    paymentsQuery.isRefetching
 
   async function onRefresh() {
-    await Promise.all([duesQuery.refetch(), unreadQuery.refetch(), residenciesQuery.refetch()])
+    await Promise.all([
+      duesQuery.refetch(),
+      unreadQuery.refetch(),
+      residenciesQuery.refetch(),
+      ticketsQuery.refetch(),
+      paymentsQuery.refetch(),
+    ])
   }
 
   return (
-    <LinearGradient colors={['#0D4F3C', '#1A7A5E', '#2BA87E']} style={styles.gradient}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => void onRefresh()}
-            tintColor="rgba(255,255,255,0.8)"
-          />
-        }
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingTop: Math.max(insets.top + 12, 28),
+          paddingBottom: insets.bottom + 152,
+        },
+      ]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void onRefresh()}
+          tintColor={colors.brand}
+        />
+      }
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.header}>
+        <Text style={styles.pageEyebrow}>Bugün</Text>
+        <Text style={styles.pageTitle}>Neyi önce halletmen gerektiğini tek bakışta gör.</Text>
+        {primaryResidency ? (
+          <Text style={styles.pageSub}>
+            {primaryResidency.siteName} · Daire {primaryResidency.unitNumber}
+            {residencies.length > 1 ? ` · +${residencies.length - 1} daha` : ''}
+          </Text>
+        ) : null}
+      </View>
+
+      <LinearGradient
+        colors={[colors.brandDeep, colors.brand, colors.brandAccent]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
       >
-        <View style={styles.header}>
-          <Text style={styles.brand}>SAKİN</Text>
-          {siteName ? (
-            <View style={styles.unitInfo}>
-              <Text style={styles.siteName}>{siteName}</Text>
-              <Text style={styles.unitNumber}>
-                Daire {unitNumber}
-                {extraUnitCount > 0 ? ` · +${extraUnitCount} daha` : ''}
-              </Text>
-            </View>
-          ) : null}
+        <Text style={styles.heroEyebrow}>{heroCopy.eyebrow}</Text>
+        <Text style={styles.heroTitle}>{heroCopy.title}</Text>
+        <Text style={styles.heroBody}>{heroCopy.body}</Text>
+
+        <View style={styles.heroMetrics}>
+          <MetricPill tone="onBrand" label="Açık ödeme" value={String(unpaid.length)} />
+          <MetricPill tone="onBrand" label="Gecikmiş" value={String(overdueCount)} />
+          <MetricPill tone="onBrand" label="Toplam" value={formatCurrency(totalDebt)} />
         </View>
 
-        <GlassCard style={styles.debtCard}>
-          {loading ? (
-            <ActivityIndicator color="rgba(255,255,255,0.9)" style={{ paddingVertical: 24 }} />
-          ) : error ? (
-            <Text style={styles.errorText}>{error}</Text>
-          ) : (
-            <>
-              <Text style={styles.debtLabel}>Toplam Açık Borç</Text>
-              <Text style={styles.debtAmount}>₺{totalDebt.toLocaleString('tr-TR')}</Text>
-              {unpaid.length > 0 ? (
-                <View style={styles.debtMeta}>
-                  <View style={styles.debtMetaItem}>
-                    <Text style={styles.debtMetaValue}>{unpaid.length}</Text>
-                    <Text style={styles.debtMetaLabel}>bekleyen</Text>
-                  </View>
-                  {overdueCount > 0 && (
-                    <View style={[styles.debtMetaItem, styles.overdueItem]}>
-                      <Text style={[styles.debtMetaValue, styles.overdueValue]}>{overdueCount}</Text>
-                      <Text style={[styles.debtMetaLabel, styles.overdueValue]}>gecikmiş</Text>
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <Text style={styles.allClearText}>Tüm aidatlar ödendi</Text>
-              )}
-              <TouchableOpacity
-                onPress={() => router.push('/payment-history' as never)}
-                style={styles.historyLink}
-              >
-                <Text style={styles.historyLinkText}>Geçmiş ödemeler →</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </GlassCard>
+        {action.target ? <Text style={styles.heroHelper}>{action.helper}</Text> : null}
+      </LinearGradient>
 
-        <View style={styles.actions}>
-          <GlassCard onPress={() => router.push('/(tabs)/pay')} style={styles.actionCard}>
-            <View style={styles.actionIconWrap}>
-              <Text style={styles.actionIcon}>💳</Text>
-            </View>
-            <View style={styles.actionText}>
-              <Text style={styles.actionTitle}>Ödeme Yap</Text>
-              <Text style={styles.actionSub}>
-                {unpaid.length > 0
-                  ? `₺${totalDebt.toLocaleString('tr-TR')} · ${unpaid.length} aidat`
-                  : 'Bekleyen ödeme yok'}
-              </Text>
-            </View>
-            <Text style={styles.actionChevron}>›</Text>
-          </GlassCard>
+      {duesQuery.isLoading && !duesQuery.data ? (
+        <SurfaceCard style={styles.loadingCard}>
+          <ActivityIndicator color={colors.brand} />
+          <Text style={styles.loadingText}>Durumun hazırlanıyor...</Text>
+        </SurfaceCard>
+      ) : null}
 
-          <GlassCard onPress={() => router.push('/(tabs)/tickets')} style={styles.actionCard}>
-            <View style={styles.actionIconWrap}>
-              <Text style={styles.actionIcon}>🔧</Text>
-            </View>
-            <View style={styles.actionText}>
-              <Text style={styles.actionTitle}>Arıza Bildir</Text>
-              <Text style={styles.actionSub}>Talep oluştur</Text>
-            </View>
-            <Text style={styles.actionChevron}>›</Text>
-          </GlassCard>
+      {duesQuery.error ? (
+        <SurfaceCard tone="danger">
+          <Text style={styles.errorTitle}>Borçları şu an çekemedik.</Text>
+          <Text style={styles.errorText}>
+            {duesQuery.error instanceof Error ? duesQuery.error.message : 'Tekrar deneyin.'}
+          </Text>
+        </SurfaceCard>
+      ) : null}
 
-          <GlassCard onPress={() => router.push('/(tabs)/announcements')} style={styles.actionCard}>
-            <View style={styles.actionIconWrap}>
-              <Text style={styles.actionIcon}>📢</Text>
-            </View>
-            <View style={styles.actionText}>
-              <Text style={styles.actionTitle}>Duyurular</Text>
-              <Text style={styles.actionSub}>
-                {unreadNotifications > 0 ? `${unreadNotifications} okunmamış` : 'Tümü okundu'}
-              </Text>
-            </View>
-            {unreadNotifications > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unreadNotifications}</Text>
-              </View>
-            )}
-            <Text style={styles.actionChevron}>›</Text>
-          </GlassCard>
+      <SurfaceCard>
+        <SectionHeader
+          title="Devam edenler"
+          subtitle="Sadece ilgilenmen gereken süreçleri yüzeye çıkarıyoruz."
+        />
+
+        <ActionRow
+          icon="construct-outline"
+          title="Talepler"
+          subtitle={
+            openTickets.length > 0
+              ? `${openTickets.length} aktif süreç devam ediyor`
+              : 'Açık talebin yok'
+          }
+          value={openTickets.length > 0 ? `${openTickets.length}` : 'Temiz'}
+          onPress={() => router.push('/(tabs)/tickets' as never)}
+        />
+        <ActionRow
+          icon="newspaper-outline"
+          title="Duyurular"
+          subtitle={
+            unreadNotifications > 0
+              ? `${unreadNotifications} yeni bildirim bekliyor`
+              : 'Okunmamış duyurun yok'
+          }
+          value={unreadNotifications > 0 ? `${unreadNotifications}` : 'Tamam'}
+          onPress={() => router.push('/(tabs)/announcements' as never)}
+          last
+        />
+      </SurfaceCard>
+
+      <SurfaceCard tone="tinted">
+        <SectionHeader
+          title="Son hareket"
+          subtitle={
+            lastPayment
+              ? `Son ödemen ${formatDate(lastPayment.paidAt ?? lastPayment.confirmedAt ?? lastPayment.createdAt)} tarihinde kayda geçti.`
+              : 'Son ödeme kaydın oluştuğunda burada göreceksin.'
+          }
+        />
+
+        <View style={styles.lastPaymentRow}>
+          <View style={styles.lastPaymentBadge}>
+            <Ionicons color={colors.brand} name="receipt-outline" size={20} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.lastPaymentTitle}>
+              {lastPayment
+                ? formatCurrency(Number(lastPayment.amount))
+                : 'Makbuzların burada toplanacak'}
+            </Text>
+            <Text style={styles.lastPaymentSub}>
+              {lastPayment?.dues
+                ? `${lastPayment.dues.periodMonth}/${lastPayment.dues.periodYear} dönemi`
+                : 'Tüm işlemlerini tek yerde görmek için geçmişe git'}
+            </Text>
+          </View>
+          <Pressable
+            style={styles.inlineLink}
+            onPress={() => router.push('/payment-history' as never)}
+          >
+            <Text style={styles.inlineLinkText}>Aç</Text>
+          </Pressable>
         </View>
-      </ScrollView>
-    </LinearGradient>
+      </SurfaceCard>
+    </ScrollView>
   )
 }
 
-const GLASS_BG = 'rgba(255, 255, 255, 0.12)'
-const GLASS_BORDER = 'rgba(255, 255, 255, 0.25)'
+function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.sectionSubtitle}>{subtitle}</Text>
+    </View>
+  )
+}
+
+function ActionRow({
+  icon,
+  title,
+  subtitle,
+  value,
+  onPress,
+  last = false,
+}: {
+  icon: keyof typeof Ionicons.glyphMap
+  title: string
+  subtitle: string
+  value: string
+  onPress: () => void
+  last?: boolean
+}) {
+  return (
+    <Pressable onPress={onPress} style={[styles.row, !last && styles.rowBorder]}>
+      <View style={styles.rowIcon}>
+        <Ionicons color={colors.brand} name={icon} size={18} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        <Text style={styles.rowSubtitle}>{subtitle}</Text>
+      </View>
+      <View style={styles.rowValueWrap}>
+        <Text style={styles.rowValue}>{value}</Text>
+        <Ionicons color={colors.inkMuted} name="chevron-forward" size={16} />
+      </View>
+    </Pressable>
+  )
+}
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  scroll: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 40 },
-  header: { marginBottom: 28 },
-  brand: { fontSize: 28, fontWeight: '800', color: '#ffffff', letterSpacing: 4 },
-  unitInfo: { marginTop: 4 },
-  siteName: { fontSize: 15, color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
-  unitNumber: { fontSize: 13, color: 'rgba(255,255,255,0.55)' },
-  glassCard: {
-    backgroundColor: GLASS_BG,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: GLASS_BORDER,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
+  screen: {
+    flex: 1,
+    backgroundColor: colors.canvas,
   },
-  debtCard: { padding: 28, marginBottom: 20, alignItems: 'center' },
-  debtLabel: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.65)',
-    letterSpacing: 1,
+  content: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: 28,
+    paddingBottom: 144,
+    gap: spacing.lg,
+  },
+  header: {
+    paddingTop: 8,
+  },
+  pageEyebrow: {
+    color: colors.brand,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.1,
     textTransform: 'uppercase',
     marginBottom: 8,
   },
-  debtAmount: { fontSize: 48, fontWeight: '800', color: '#ffffff', letterSpacing: -1 },
-  debtMeta: { flexDirection: 'row', gap: 20, marginTop: 12 },
-  debtMetaItem: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 12,
+  pageTitle: {
+    ...typography.heading,
+    color: colors.ink,
+    lineHeight: 30,
   },
-  overdueItem: { backgroundColor: 'rgba(239, 68, 68, 0.25)' },
-  debtMetaValue: { fontSize: 18, fontWeight: '700', color: '#ffffff' },
-  debtMetaLabel: { fontSize: 11, color: 'rgba(255,255,255,0.65)' },
-  overdueValue: { color: '#fca5a5' },
-  allClearText: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 8 },
-  historyLink: { marginTop: 16, paddingVertical: 6 },
-  historyLinkText: { fontSize: 13, color: 'rgba(255,255,255,0.55)', letterSpacing: 0.3 },
-  errorText: { color: '#fca5a5', fontSize: 14, textAlign: 'center' },
-  actions: { gap: 12 },
-  actionCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 18, paddingHorizontal: 20 },
-  actionIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+  pageSub: {
+    fontSize: 13,
+    color: colors.inkSecondary,
+    marginTop: 8,
+  },
+  hero: {
+    borderRadius: radii.xxl,
+    padding: spacing.xxl,
+    shadowColor: '#0f1d16',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 28,
+    elevation: 6,
+  },
+  heroEyebrow: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+    color: 'rgba(255,255,255,0.72)',
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#ffffff',
+    lineHeight: 34,
+  },
+  heroBody: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.82)',
+    lineHeight: 22,
+    marginTop: 12,
+  },
+  heroMetrics: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xl,
+  },
+  heroHelper: {
+    marginTop: spacing.xl,
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 12,
+    lineHeight: 18,
+    maxWidth: 280,
+  },
+  loadingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  loadingText: {
+    color: colors.inkSecondary,
+    fontSize: 14,
+  },
+  errorTitle: {
+    color: colors.dangerInk,
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  errorText: {
+    color: colors.dangerInk,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  sectionHeader: {
+    marginBottom: spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.inkMuted,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: colors.inkSecondary,
+    lineHeight: 21,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.lg,
+  },
+  rowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  rowIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceTint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
   },
-  actionIcon: { fontSize: 22 },
-  actionText: { flex: 1 },
-  actionTitle: { fontSize: 16, fontWeight: '700', color: '#ffffff' },
-  actionSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
-  actionChevron: { fontSize: 22, color: 'rgba(255,255,255,0.4)', marginLeft: 8 },
-  badge: {
-    backgroundColor: '#ef4444',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+  rowTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  rowSubtitle: {
+    fontSize: 12,
+    color: colors.inkSecondary,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  rowValueWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  rowValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.brand,
+  },
+  lastPaymentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginTop: spacing.xs,
+  },
+  lastPaymentBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 5,
-    marginRight: 4,
   },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  lastPaymentTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.ink,
+  },
+  lastPaymentSub: {
+    fontSize: 12,
+    color: colors.inkSecondary,
+    marginTop: 4,
+  },
+  inlineLink: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.full,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+  },
+  inlineLinkText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.brand,
+  },
 })

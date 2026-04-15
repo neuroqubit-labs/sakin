@@ -1,21 +1,25 @@
 import { useState } from 'react'
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { PrimaryButton, SurfaceCard } from '@/components'
 import { useAuthSession } from '@/contexts/auth-context'
+import { DEV_BYPASS_ENABLED } from '@/lib/env'
 import { getFirebaseAuth, isFirebaseNativeAvailable } from '@/lib/firebase-auth'
 import { getDevBootstrap } from '@/lib/api'
-import { DEV_BYPASS_ENABLED } from '@/lib/env'
+import { colors, radii, spacing, typography } from '@/theme'
 
 export default function LoginScreen() {
+  const insets = useSafeAreaInsets()
   const showDevBypass = DEV_BYPASS_ENABLED
   const { setSession } = useAuthSession()
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -24,20 +28,22 @@ export default function LoginScreen() {
     null,
   )
   const [loading, setLoading] = useState(false)
+  const [feedback, setFeedback] = useState<string | null>(null)
 
   async function sendCode() {
     if (!phoneNumber.trim()) return
     const auth = getFirebaseAuth()
     if (!auth || !isFirebaseNativeAvailable()) {
-      Alert.alert('Bilgi', 'Expo Go ile native Firebase çalışmaz. Development build kullanın.')
+      setFeedback('Expo Go ile native Firebase çalışmaz. Development build ile devam edin.')
       return
     }
     setLoading(true)
+    setFeedback(null)
     try {
       const confirmation = await auth.signInWithPhoneNumber(phoneNumber)
       setConfirm(confirmation)
     } catch {
-      Alert.alert('Hata', 'SMS gönderilemedi. Numarayı kontrol edin.')
+      setFeedback('SMS gönderilemedi. Telefon numarasını kontrol edip tekrar deneyin.')
     } finally {
       setLoading(false)
     }
@@ -46,10 +52,11 @@ export default function LoginScreen() {
   async function verifyCode() {
     if (!confirm || !code.trim()) return
     setLoading(true)
+    setFeedback(null)
     try {
       await confirm.confirm(code)
     } catch {
-      Alert.alert('Hata', 'Yanlış kod. Tekrar deneyin.')
+      setFeedback('Kod doğrulanamadı. Gelen 6 haneli kodu tekrar kontrol edin.')
     } finally {
       setLoading(false)
     }
@@ -57,10 +64,11 @@ export default function LoginScreen() {
 
   async function signInWithDevBypass() {
     setLoading(true)
+    setFeedback(null)
     try {
       const bootstrap = await getDevBootstrap()
       if (!bootstrap.ready || !bootstrap.tenantId) {
-        Alert.alert('Hata', bootstrap.message ?? 'Test tenant bulunamadı.')
+        setFeedback(bootstrap.message ?? 'Test tenant bulunamadı.')
         return
       }
       setSession({
@@ -70,161 +78,173 @@ export default function LoginScreen() {
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Dev giriş başarısız.'
-      Alert.alert('Hata', message)
+      setFeedback(message)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <LinearGradient colors={['#0D4F3C', '#1A7A5E', '#2BA87E']} style={styles.gradient}>
+    <View style={styles.screen}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.inner}
+        keyboardVerticalOffset={insets.top + 12}
+        style={[
+          styles.inner,
+          {
+            paddingTop: Math.max(insets.top + 12, spacing.xl),
+            paddingBottom: Math.max(insets.bottom + 20, spacing.xxxl),
+          },
+        ]}
       >
-        {/* Marka */}
-        <View style={styles.brandWrap}>
-          <Text style={styles.brand}>SAKİN</Text>
-          <Text style={styles.brandSub}>Bina Yönetim Uygulaması</Text>
-        </View>
+        <LinearGradient
+          colors={[colors.brandDeep, colors.brand, colors.brandAccent]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
+          <Text style={styles.heroEyebrow}>Sakin</Text>
+          <Text style={styles.heroTitle}>Bina ile ilgili kritik işlerini daha sakin bir ritimle yönet.</Text>
+          <Text style={styles.heroSub}>
+            Giriş yaptığında borçlar, ödemeler ve süreçler seni tek karar merkezinde karşılayacak.
+          </Text>
+        </LinearGradient>
 
-        {/* Glass form kartı */}
-        <View style={styles.card}>
+        <SurfaceCard style={styles.card}>
           {!confirm ? (
             <>
               <Text style={styles.cardTitle}>Giriş Yap</Text>
-              <Text style={styles.cardSub}>Telefon numaranıza SMS kodu gönderilecek</Text>
+              <Text style={styles.cardSub}>Telefon numarana tek kullanımlık kod göndereceğiz.</Text>
               <TextInput
                 style={styles.input}
                 placeholder="+90 555 123 4567"
-                placeholderTextColor="rgba(255,255,255,0.4)"
+                placeholderTextColor={colors.inkMuted}
                 value={phoneNumber}
                 onChangeText={setPhoneNumber}
                 keyboardType="phone-pad"
                 autoComplete="tel"
               />
-              <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
+              {feedback ? <Text style={styles.feedbackText}>{feedback}</Text> : null}
+              <PrimaryButton
+                label={loading ? 'Gönderiliyor...' : 'SMS Kodu Gönder'}
                 onPress={() => void sendCode()}
                 disabled={loading}
-              >
-                <Text style={styles.buttonText}>
-                  {loading ? 'Gönderiliyor…' : 'SMS Kodu Gönder'}
-                </Text>
-              </TouchableOpacity>
-              {showDevBypass && (
-                <TouchableOpacity
+              />
+              {showDevBypass ? (
+                <Pressable
                   style={[styles.devButton, loading && styles.buttonDisabled]}
                   onPress={() => void signInWithDevBypass()}
                   disabled={loading}
                 >
-                  <Text style={styles.devButtonText}>Firebase olmadan test giriş</Text>
-                </TouchableOpacity>
-              )}
+                  {loading ? (
+                    <ActivityIndicator color={colors.brand} />
+                  ) : (
+                    <Text style={styles.devButtonText}>Firebase olmadan test girişi</Text>
+                  )}
+                </Pressable>
+              ) : null}
             </>
           ) : (
             <>
               <Text style={styles.cardTitle}>Kodu Girin</Text>
               <Text style={styles.cardSub}>
-                {phoneNumber} numarasına gönderilen 6 haneli kodu girin
+                {phoneNumber} numarasına gönderilen 6 haneli kodu yaz.
               </Text>
               <TextInput
                 style={[styles.input, styles.inputCode]}
                 placeholder="— — — — — —"
-                placeholderTextColor="rgba(255,255,255,0.4)"
+                placeholderTextColor={colors.inkMuted}
                 value={code}
                 onChangeText={setCode}
                 keyboardType="number-pad"
                 maxLength={6}
                 autoFocus
               />
-              <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
+              {feedback ? <Text style={styles.feedbackText}>{feedback}</Text> : null}
+              <PrimaryButton
+                label={loading ? 'Doğrulanıyor...' : 'Doğrula ve Giriş Yap'}
                 onPress={() => void verifyCode()}
                 disabled={loading}
-              >
-                <Text style={styles.buttonText}>
-                  {loading ? 'Doğrulanıyor…' : 'Doğrula ve Giriş Yap'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              />
+              <Pressable
                 style={styles.backButton}
-                onPress={() => { setConfirm(null); setCode('') }}
+                onPress={() => {
+                  setConfirm(null)
+                  setCode('')
+                }}
               >
-                <Text style={styles.backButtonText}>← Farklı numara kullan</Text>
-              </TouchableOpacity>
+                <Text style={styles.backButtonText}>Farklı numara kullan</Text>
+              </Pressable>
             </>
           )}
-        </View>
+        </SurfaceCard>
       </KeyboardAvoidingView>
-    </LinearGradient>
+    </View>
   )
 }
 
-// ─── Stiller ─────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
+  screen: {
+    flex: 1,
+    backgroundColor: colors.canvas,
+  },
   inner: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.lg,
   },
-
-  // Marka
-  brandWrap: {
-    alignItems: 'center',
-    marginBottom: 48,
-  },
-  brand: {
-    fontSize: 40,
-    fontWeight: '800',
-    color: '#ffffff',
-    letterSpacing: 6,
-  },
-  brandSub: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.55)',
-    marginTop: 6,
-    letterSpacing: 0.5,
-  },
-
-  // Glass kart
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-    padding: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
+  hero: {
+    borderRadius: radii.xxl,
+    paddingHorizontal: spacing.xxl,
+    paddingVertical: 30,
+    shadowColor: '#0f1d16',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 28,
     elevation: 6,
   },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+  heroEyebrow: {
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: '800',
     color: '#ffffff',
+    lineHeight: 34,
+  },
+  heroSub: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.82)',
+    lineHeight: 22,
+    marginTop: spacing.md,
+  },
+  card: {},
+  cardTitle: {
+    ...typography.heading,
+    color: colors.ink,
     marginBottom: 6,
   },
   cardSub: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.55)',
+    color: colors.inkSecondary,
     marginBottom: 24,
-    lineHeight: 18,
+    lineHeight: 20,
   },
-
-  // Input
   input: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderColor: colors.lineStrong,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     fontSize: 17,
-    color: '#ffffff',
+    color: colors.ink,
     marginBottom: 16,
   },
   inputCode: {
@@ -233,46 +253,39 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 10,
   },
-
-  // Buton
-  button: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    paddingVertical: 16,
+  feedbackText: {
+    marginBottom: spacing.md,
+    color: colors.dangerInk,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  buttonDisabled: {
+    opacity: 0.55,
+  },
+  devButton: {
+    marginTop: spacing.md,
+    minHeight: 48,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.surfaceTint,
   },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
+  devButtonText: {
+    color: colors.brand,
+    fontSize: 14,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
-
-  // Geri
   backButton: {
     marginTop: 16,
     alignItems: 'center',
     paddingVertical: 4,
   },
   backButtonText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 13,
-  },
-  devButton: {
-    marginTop: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.12)',
-  },
-  devButtonText: {
-    color: 'rgba(255,255,255,0.92)',
     fontSize: 14,
+    color: colors.brand,
     fontWeight: '600',
   },
 })

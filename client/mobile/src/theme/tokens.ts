@@ -7,6 +7,27 @@ export const colors = {
   // Marka gradyanı (açıktan koyuya)
   brandGradient: ['#0D4F3C', '#1A7A5E', '#2BA87E'] as const,
 
+  // Yeni premium yüzey dili
+  canvas: '#F5F4EF',
+  canvasMuted: '#ECEAE1',
+  surface: '#FFFEFB',
+  surfaceElevated: '#FFFFFF',
+  surfaceTint: '#ECF4EE',
+  surfaceTintStrong: '#DDEDE3',
+  line: 'rgba(18, 31, 24, 0.08)',
+  lineStrong: 'rgba(18, 31, 24, 0.14)',
+  ink: '#17231C',
+  inkSecondary: '#506258',
+  inkMuted: '#728378',
+  brand: '#155742',
+  brandDeep: '#0D4031',
+  brandSoft: '#DCEEE3',
+  brandAccent: '#2A8A6A',
+  warning: '#A66A1F',
+  warningSoft: '#FFF0D8',
+  dangerInk: '#9A4B43',
+  dangerSoft: '#FBE9E7',
+
   // Glass yüzeyler
   glassBg: 'rgba(255, 255, 255, 0.12)',
   glassBgStrong: 'rgba(255, 255, 255, 0.18)',
@@ -48,6 +69,7 @@ export const typography = {
   display: { fontSize: 40, fontWeight: '800' as const },
   title: { fontSize: 28, fontWeight: '800' as const },
   heading: { fontSize: 22, fontWeight: '700' as const },
+  subheading: { fontSize: 18, fontWeight: '700' as const },
   body: { fontSize: 15, fontWeight: '500' as const },
   caption: { fontSize: 13, fontWeight: '500' as const },
   small: { fontSize: 11, fontWeight: '500' as const },

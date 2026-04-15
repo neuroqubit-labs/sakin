@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState, useRef, type ComponentType } from 're
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { View, ActivityIndicator } from 'react-native'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, type AuthSession } from '@/contexts/auth-context'
 import { registerUser, setUnauthorizedHandler } from '@/lib/api'
 import { getFirebaseAuth, isFirebaseNativeAvailable } from '@/lib/firebase-auth'
 import { queryClient } from '@/lib/query-client'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { clearSession, loadSession, saveSession } from '@/lib/session-store'
+import { colors } from '@/theme'
 
 type FirebaseUser = { uid: string } | null
 
@@ -110,32 +112,42 @@ export default function RootLayout() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: colors.canvas,
+        }}
+      >
+        <ActivityIndicator size="large" color={colors.brand} />
       </View>
     )
   }
 
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider session={session} setSession={setSession} signOut={signOut}>
-          <StackNavigator screenOptions={{ headerShown: false }}>
-            <StackNavigator.Screen name="(auth)/login" />
-            <StackNavigator.Screen name="(tabs)" />
-            <StackNavigator.Screen
-              name="payment-history"
-              options={{
-                headerShown: true,
-                title: 'Ödeme Geçmişi',
-                headerStyle: { backgroundColor: '#0D4F3C' },
-                headerTintColor: '#ffffff',
-                headerTitleStyle: { fontWeight: '700' },
-              }}
-            />
-          </StackNavigator>
-        </AuthProvider>
-      </QueryClientProvider>
-    </ErrorBoundary>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider session={session} setSession={setSession} signOut={signOut}>
+            <StackNavigator screenOptions={{ headerShown: false }}>
+              <StackNavigator.Screen name="(auth)/login" />
+              <StackNavigator.Screen name="(tabs)" />
+              <StackNavigator.Screen
+                name="payment-history"
+                options={{
+                  headerShown: true,
+                  title: 'Ödeme Geçmişi',
+                  headerStyle: { backgroundColor: colors.surfaceElevated },
+                  headerShadowVisible: false,
+                  headerTintColor: colors.ink,
+                  headerTitleStyle: { fontWeight: '700' },
+                }}
+              />
+            </StackNavigator>
+          </AuthProvider>
+        </QueryClientProvider>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   )
 }
