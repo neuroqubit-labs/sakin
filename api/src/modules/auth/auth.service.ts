@@ -1,8 +1,19 @@
 import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common'
-import * as admin from 'firebase-admin'
+import * as bcrypt from 'bcryptjs'
+import * as jwt from 'jsonwebtoken'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { RegisterDto } from '@sakin/shared'
+import type { LoginDto, RegisterDto, RefreshTokenDto } from '@sakin/shared'
 import { PaymentStatus, UserRole } from '@sakin/shared'
+
+const JWT_SECRET = process.env['JWT_SECRET'] ?? 'dev-jwt-secret-change-me-in-production'
+const JWT_REFRESH_SECRET = process.env['JWT_REFRESH_SECRET'] ?? 'dev-jwt-refresh-secret-change-me'
+const ACCESS_EXPIRES_IN = '15m'
+const REFRESH_EXPIRES_IN = '7d'
+
+interface JwtPayload {
+  sub: string
+  email: string
+}
 
 @Injectable()
 export class AuthService {
@@ -10,22 +21,75 @@ export class AuthService {
 
   private readonly allowedRegisterRoles = new Set<UserRole>([UserRole.RESIDENT, UserRole.STAFF])
 
-  /**
-   * Firebase token ile kullanıcıyı doğrular ve kullanıcı + tenant rol ilişkisi oluşturur.
-   */
-  async register(dto: RegisterDto) {
-    let decoded: admin.auth.DecodedIdToken
+  private generateTokens(userId: string, email: string) {
+    const accessToken = jwt.sign({ sub: userId, email } satisfies JwtPayload, JWT_SECRET, {
+      expiresIn: ACCESS_EXPIRES_IN,
+    })
+    const refreshToken = jwt.sign({ sub: userId, type: 'refresh' }, JWT_REFRESH_SECRET, {
+      expiresIn: REFRESH_EXPIRES_IN,
+    })
+    return { accessToken, refreshToken }
+  }
 
-    try {
-      decoded = await admin.auth().verifyIdToken(dto.firebaseToken)
-    } catch {
-      throw new UnauthorizedException('Geçersiz Firebase token')
-    }
+  verifyAccessToken(token: string): JwtPayload {
+    return jwt.verify(token, JWT_SECRET) as JwtPayload
+  }
 
-    const existingUser = await this.prisma.user.findUnique({
-      where: { firebaseUid: decoded.uid },
+  async login(dto: LoginDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      select: { id: true, email: true, displayName: true, passwordHash: true, isActive: true },
     })
 
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('E-posta veya şifre hatalı')
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Hesabınız devre dışı bırakılmıştır')
+    }
+
+    const valid = await bcrypt.compare(dto.password, user.passwordHash)
+    if (!valid) {
+      throw new UnauthorizedException('E-posta veya şifre hatalı')
+    }
+
+    const tokens = this.generateTokens(user.id, user.email!)
+    return {
+      ...tokens,
+      user: { id: user.id, email: user.email, displayName: user.displayName },
+    }
+  }
+
+  async refresh(dto: RefreshTokenDto) {
+    let decoded: { sub: string; type: string }
+    try {
+      decoded = jwt.verify(dto.refreshToken, JWT_REFRESH_SECRET) as { sub: string; type: string }
+    } catch {
+      throw new UnauthorizedException('Geçersiz veya süresi dolmuş refresh token')
+    }
+
+    if (decoded.type !== 'refresh') {
+      throw new UnauthorizedException('Geçersiz token türü')
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: decoded.sub },
+      select: { id: true, email: true, displayName: true, isActive: true },
+    })
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Kullanıcı bulunamadı veya devre dışı')
+    }
+
+    const tokens = this.generateTokens(user.id, user.email ?? '')
+    return {
+      ...tokens,
+      user: { id: user.id, email: user.email, displayName: user.displayName },
+    }
+  }
+
+  async register(dto: RegisterDto) {
     const requestedRole = dto.role ?? UserRole.RESIDENT
 
     if (!this.allowedRegisterRoles.has(requestedRole)) {
@@ -36,63 +100,21 @@ export class AuthService {
       throw new BadRequestException('STAFF kaydı için tenantId zorunludur')
     }
 
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    })
+
     if (existingUser) {
-      if (dto.tenantId !== undefined) {
-        if (dto.tenantId) {
-          await this.prisma.userTenantRole.upsert({
-            where: {
-              userId_tenantId: {
-                userId: existingUser.id,
-                tenantId: dto.tenantId,
-              },
-            },
-            update: {
-              role: requestedRole,
-              isActive: true,
-            },
-            create: {
-              userId: existingUser.id,
-              tenantId: dto.tenantId,
-              role: requestedRole,
-              isActive: true,
-            },
-          })
-        } else {
-          const existingGlobalRole = await this.prisma.userTenantRole.findFirst({
-            where: { userId: existingUser.id, tenantId: null },
-            select: { id: true },
-          })
-
-          if (existingGlobalRole) {
-            await this.prisma.userTenantRole.update({
-              where: { id: existingGlobalRole.id },
-              data: {
-                role: requestedRole,
-                isActive: true,
-              },
-            })
-          } else {
-            await this.prisma.userTenantRole.create({
-              data: {
-                userId: existingUser.id,
-                tenantId: null,
-                role: requestedRole,
-                isActive: true,
-              },
-            })
-          }
-        }
-      }
-
-      return { userId: existingUser.id, tenantId: dto.tenantId ?? null, role: requestedRole }
+      throw new BadRequestException('Bu e-posta adresi zaten kayıtlı')
     }
+
+    const passwordHash = await bcrypt.hash(dto.password, 10)
 
     const user = await this.prisma.user.create({
       data: {
-        firebaseUid: decoded.uid,
-        email: decoded.email,
-        phoneNumber: decoded.phone_number,
-        displayName: dto.displayName ?? decoded.name,
+        email: dto.email,
+        displayName: dto.displayName,
+        passwordHash,
       },
     })
 
@@ -104,7 +126,11 @@ export class AuthService {
       },
     })
 
-    return { userId: user.id, tenantId: dto.tenantId ?? null, role: requestedRole }
+    const tokens = this.generateTokens(user.id, user.email!)
+    return {
+      ...tokens,
+      user: { id: user.id, email: user.email, displayName: user.displayName },
+    }
   }
 
   async getProfile(userId: string) {
@@ -128,15 +154,9 @@ export class AuthService {
     })
   }
 
-  /**
-   * Kullanıcının aktif ünite(ler)ini döner — mobilin "daire seçici" ve
-   * resident↔tenant↔unit köprüsü için kullanılır. Tek kullanıcı birden fazla
-   * daireden sorumlu olabileceği için array döner.
-   */
   async getResidencies(userId: string, tenantId: string | null, residentId?: string | null) {
     if (!tenantId) return { data: [] }
 
-    // Dev bypass: residentId doğrudan verilmişse kullan, yoksa userId üzerinden bul
     let resident: { id: string } | null = null
     if (residentId) {
       resident = await this.prisma.resident.findFirst({

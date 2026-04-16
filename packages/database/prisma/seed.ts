@@ -24,8 +24,10 @@ import {
   ContractStatus,
 } from '@prisma/client'
 import { randomUUID } from 'node:crypto'
+import { hashSync } from 'bcryptjs'
 
 const prisma = new PrismaClient()
+const DEV_PASSWORD_HASH = hashSync('password123', 10)
 
 async function ensureUserRole(input: {
   userId: string
@@ -70,12 +72,13 @@ async function ensureUser(input: {
 }) {
   if (input.usesLegacyUserColumns) {
     const rows = await prisma.$queryRaw<Array<{ id: string }>>`
-      INSERT INTO "users" ("id", "firebaseUid", "email", "displayName", "isActive", "tenantId", "role", "createdAt", "updatedAt")
-      VALUES (${randomUUID()}, ${input.firebaseUid}, ${input.email}, ${input.displayName}, true, ${input.tenantIdForLegacy}, ${input.role}::"UserRole", NOW(), NOW())
+      INSERT INTO "users" ("id", "firebaseUid", "email", "displayName", "passwordHash", "isActive", "tenantId", "role", "createdAt", "updatedAt")
+      VALUES (${randomUUID()}, ${input.firebaseUid}, ${input.email}, ${input.displayName}, ${DEV_PASSWORD_HASH}, true, ${input.tenantIdForLegacy}, ${input.role}::"UserRole", NOW(), NOW())
       ON CONFLICT ("firebaseUid")
       DO UPDATE SET
         "email" = EXCLUDED."email",
         "displayName" = EXCLUDED."displayName",
+        "passwordHash" = EXCLUDED."passwordHash",
         "isActive" = true,
         "tenantId" = EXCLUDED."tenantId",
         "role" = EXCLUDED."role",
@@ -95,12 +98,14 @@ async function ensureUser(input: {
     update: {
       email: input.email,
       displayName: input.displayName,
+      passwordHash: DEV_PASSWORD_HASH,
       isActive: true,
     },
     create: {
       firebaseUid: input.firebaseUid,
       email: input.email,
       displayName: input.displayName,
+      passwordHash: DEV_PASSWORD_HASH,
     },
     select: { id: true },
   })

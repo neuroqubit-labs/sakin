@@ -4,7 +4,7 @@ export interface TenantContext {
   tenantId: string | null
   userId: string
   role: UserRole
-  firebaseUid: string
+  firebaseUid?: string
   userTenantRoleId?: string | null
   /** Yalnızca RESIDENT rolü için doldurulur: aktif UnitOccupancy'den gelen daire ID'si */
   unitId?: string | null

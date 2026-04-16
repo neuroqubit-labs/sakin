@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { signInWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
+import { setTokens } from '@/lib/api'
+
+const BASE_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001/api/v1'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -17,10 +18,22 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      await signInWithEmailAndPassword(auth, email, password)
+      const response = await fetch(`${BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const json = await response.json() as { data?: { accessToken: string; refreshToken: string }; message?: string }
+
+      if (!response.ok || !json.data) {
+        throw new Error(json.message ?? 'E-posta veya şifre hatalı')
+      }
+
+      setTokens(json.data.accessToken, json.data.refreshToken)
       window.location.href = '/dashboard'
-    } catch {
-      setError('E-posta veya şifre hatalı')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'E-posta veya şifre hatalı')
     } finally {
       setLoading(false)
     }
@@ -75,4 +88,3 @@ export default function LoginPage() {
     </div>
   )
 }
-

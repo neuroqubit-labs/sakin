@@ -99,7 +99,7 @@ export class ResidentController {
 
   @Post(':id/link-user')
   @Roles(UserRole.TENANT_ADMIN)
-  @ApiOperation({ summary: 'Sakini Firebase kullanıcısına bağla (TENANT_ADMIN)' })
+  @ApiOperation({ summary: 'Sakini kullanıcı hesabına bağla (TENANT_ADMIN)' })
   linkUser(
     @Param('id') id: string,
     @Body('userId') userId: string,

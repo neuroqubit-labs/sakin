@@ -80,7 +80,9 @@ export class AppModule implements NestModule {
       .apply(TenantMiddleware)
       .exclude(
         'health',
+        'auth/login',
         'auth/register',
+        'auth/refresh',
         'auth/dev-bootstrap',
         'payments/webhooks/iyzico',
         'internal/v1/notifications/payment-confirmed',

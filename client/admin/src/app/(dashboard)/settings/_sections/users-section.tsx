@@ -39,7 +39,7 @@ interface InviteResult {
   email: string
   displayName: string
   role: UserRole
-  resetLink: string | null
+  tempPassword: string | null
 }
 
 const ROLE_LABELS: Partial<Record<UserRole, string>> = {
@@ -192,19 +192,19 @@ export function UsersSection() {
                 <p className="text-sm font-semibold text-green-800">
                   {inviteResult.displayName} başarıyla eklendi.
                 </p>
-                {inviteResult.resetLink ? (
+                {inviteResult.tempPassword ? (
                   <div className="space-y-1">
                     <p className="text-xs text-green-700">
-                      Aşağıdaki şifre belirleme linkini kullanıcıya iletin.
+                      Aşağıdaki geçici şifreyi kullanıcıya iletin.
                     </p>
                     <div className="flex items-center gap-2 rounded-xl bg-white border border-green-200 px-3 py-2">
-                      <code className="flex-1 truncate text-xs text-[#374151]">{inviteResult.resetLink}</code>
-                      <CopyButton value={inviteResult.resetLink} />
+                      <code className="flex-1 truncate text-xs text-[#374151]">{inviteResult.tempPassword}</code>
+                      <CopyButton value={inviteResult.tempPassword} />
                     </div>
                   </div>
                 ) : (
                   <p className="text-xs text-green-700">
-                    Kullanıcı zaten Firebase üzerinde kayıtlı. Mevcut şifresiyle giriş yapabilir.
+                    Kullanıcı zaten kayıtlı. Mevcut şifresiyle giriş yapabilir.
                   </p>
                 )}
                 <Button size="sm" variant="outline" onClick={() => setInviteResult(null)}>

@@ -1,12 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { signInWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { BrandLockup } from '@/components/brand-lockup'
 import { setSessionCookie } from '@/lib/session'
-import { getDevTenantId, setDevTenantId, BASE_URL } from '@/lib/api'
+import { getDevTenantId, setDevTenantId, setTokens, BASE_URL } from '@/lib/api'
 import { UserRole } from '@sakin/shared'
 
 interface DevBootstrapResponse {
@@ -83,18 +81,26 @@ export default function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!auth) {
-      setError('Firebase ayari eksik. Dev Hizli Giris kullanin.')
-      return
-    }
     setLoading(true)
     setError(null)
 
     try {
-      await signInWithEmailAndPassword(auth, email, password)
+      const response = await fetch(`${BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const json = await response.json() as { data?: { accessToken: string; refreshToken: string }; message?: string }
+
+      if (!response.ok || !json.data) {
+        throw new Error(json.message ?? 'E-posta veya şifre hatalı')
+      }
+
+      setTokens(json.data.accessToken, json.data.refreshToken)
       window.location.href = '/dashboard'
-    } catch {
-      setError('E-posta veya şifre hatalı')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'E-posta veya şifre hatalı')
     } finally {
       setLoading(false)
     }

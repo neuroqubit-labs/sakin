@@ -1,5 +1,5 @@
 import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common'
-import * as admin from 'firebase-admin'
+import * as jwt from 'jsonwebtoken'
 import { PrismaService } from '../../prisma/prisma.service'
 import type { TenantContext } from '@sakin/shared'
 import { AUTH, UserRole } from '@sakin/shared'
@@ -18,6 +18,7 @@ export interface RequestWithTenant {
 const IS_DEV = process.env['NODE_ENV'] !== 'production'
 const DEV_BYPASS_HEADER = 'x-dev-tenant-id'
 const TENANT_SCOPE_HEADER = 'x-tenant-id'
+const JWT_SECRET = process.env['JWT_SECRET'] ?? 'dev-jwt-secret-change-me-in-production'
 
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
@@ -30,7 +31,7 @@ export class TenantMiddleware implements NestMiddleware {
     }
 
     // ─── DEV BYPASS ───────────────────────────────────────────────
-    // Geliştirme ortamında Firebase olmadan çalışmak için:
+    // Geliştirme ortamında JWT olmadan çalışmak için:
     // TENANT_ADMIN: Header: x-dev-tenant-id: <tenantId>
     // SUPER_ADMIN:  Header: x-dev-tenant-id: super
     if (IS_DEV) {
@@ -38,15 +39,14 @@ export class TenantMiddleware implements NestMiddleware {
       if (devTenantId) {
         // SUPER_ADMIN bypass
         if (devTenantId === 'super') {
-          const superAdmin = await this.prisma.user.findUnique({
-            where: { firebaseUid: 'dev-super-admin' },
+          const superAdmin = await this.prisma.user.findFirst({
+            where: { tenantRoles: { some: { role: UserRole.SUPER_ADMIN, isActive: true } } },
             select: { id: true },
           })
           req.tenantContext = {
             tenantId: null,
             userId: superAdmin?.id ?? 'dev-super-admin',
             role: UserRole.SUPER_ADMIN,
-            firebaseUid: 'dev-super-admin',
             userTenantRoleId: null,
           }
           return next()
@@ -67,7 +67,6 @@ export class TenantMiddleware implements NestMiddleware {
 
           // RESIDENT bypass: x-dev-role: RESIDENT + x-dev-resident-id header
           if (devRole === UserRole.RESIDENT && devResidentId) {
-            // Sakin'in aktif dairesini bul
             const occupancy = await this.prisma.unitOccupancy.findFirst({
               where: { tenantId: devTenantId, residentId: devResidentId, isActive: true },
               select: { unitId: true },
@@ -76,7 +75,6 @@ export class TenantMiddleware implements NestMiddleware {
               tenantId: devTenantId,
               userId: `dev-resident-${devResidentId}`,
               role: UserRole.RESIDENT,
-              firebaseUid: 'dev-bypass',
               userTenantRoleId: null,
               unitId: occupancy?.unitId ?? null,
               residentId: devResidentId,
@@ -96,7 +94,6 @@ export class TenantMiddleware implements NestMiddleware {
             tenantId: devTenantId,
             userId: tenantRole?.userId ?? 'dev-user',
             role: (tenantRole?.role as TenantContext['role']) ?? UserRole.TENANT_ADMIN,
-            firebaseUid: 'dev-bypass',
             userTenantRoleId: tenantRole?.id ?? null,
           }
           return next()
@@ -114,10 +111,10 @@ export class TenantMiddleware implements NestMiddleware {
     const token = authHeader.slice(AUTH.BEARER_PREFIX.length)
 
     try {
-      const decoded = await admin.auth().verifyIdToken(token)
+      const decoded = jwt.verify(token, JWT_SECRET) as { sub: string; email: string }
 
       const user = await this.prisma.user.findUnique({
-        where: { firebaseUid: decoded.uid },
+        where: { id: decoded.sub },
         select: {
           id: true,
           isActive: true,
@@ -191,7 +188,6 @@ export class TenantMiddleware implements NestMiddleware {
         tenantId: selectedRole.tenantId ?? null,
         userId: user.id,
         role: selectedRole.role as TenantContext['role'],
-        firebaseUid: decoded.uid,
         userTenantRoleId: selectedRole.id,
         unitId,
       }

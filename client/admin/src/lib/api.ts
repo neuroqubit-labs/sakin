@@ -1,5 +1,3 @@
-import { auth } from './firebase'
-
 export const BASE_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001/api/v1'
 
 export class ApiError extends Error {
@@ -8,19 +6,35 @@ export class ApiError extends Error {
     this.name = 'ApiError'
   }
 }
+
+const ACCESS_TOKEN_KEY = 'sakin-access-token'
+const REFRESH_TOKEN_KEY = 'sakin-refresh-token'
 const DEV_TENANT_ID_KEY = 'dev_tenant_id'
 const SESSION_COOKIE_KEY = 'sakin-session'
 
-async function getToken(): Promise<string | null> {
-  if (!auth) return null
-  const user = auth.currentUser
-  if (!user) return null
-  return user.getIdToken()
+// ─── Token Yönetimi ───────────────────────────────────────────
+
+export function getAccessToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(ACCESS_TOKEN_KEY)
 }
 
-interface FetchOptions extends RequestInit {
-  params?: Record<string, string | number | boolean | undefined>
+export function setTokens(accessToken: string, refreshToken: string): void {
+  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
+  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
 }
+
+export function clearTokens(): void {
+  localStorage.removeItem(ACCESS_TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
+}
+
+function getRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(REFRESH_TOKEN_KEY)
+}
+
+// ─── Dev Bypass ───────────────────────────────────────────────
 
 export function getDevTenantId(): string | null {
   if (typeof window === 'undefined') return null
@@ -48,11 +62,50 @@ export function isDevBypassEnabled(): boolean {
   return process.env['NEXT_PUBLIC_USE_DEV_BYPASS'] === 'true' || process.env['NODE_ENV'] !== 'production'
 }
 
+// ─── Token Refresh ────────────────────────────────────────────
+
+let refreshPromise: Promise<boolean> | null = null
+
+async function tryRefreshToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken()
+    if (!refreshToken) return false
+
+    try {
+      const response = await fetch(`${BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      })
+
+      if (!response.ok) return false
+
+      const json = await response.json() as { data: { accessToken: string; refreshToken: string } }
+      setTokens(json.data.accessToken, json.data.refreshToken)
+      return true
+    } catch {
+      return false
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
+
+// ─── API Client ───────────────────────────────────────────────
+
+interface FetchOptions extends RequestInit {
+  params?: Record<string, string | number | boolean | undefined>
+}
+
 export async function apiClient<T>(
   path: string,
   options: FetchOptions = {},
 ): Promise<T> {
-  const token = await getToken()
+  const token = getAccessToken()
   const devTenantId = getDevTenantId() ?? getDevTenantIdFromSessionCookie()
 
   const { params, ...fetchOptions } = options
@@ -84,8 +137,21 @@ export async function apiClient<T>(
   const response = await fetch(url, { ...fetchOptions, headers })
 
   if (!response.ok) {
-    // 401 → session geçersiz, login'e yönlendir
+    // 401 → token yenilemeyi dene
     if (response.status === 401 && typeof window !== 'undefined') {
+      const refreshed = await tryRefreshToken()
+      if (refreshed) {
+        // Yeni token ile tekrar dene
+        headers['Authorization'] = `Bearer ${getAccessToken()}`
+        const retryResponse = await fetch(url, { ...fetchOptions, headers })
+        if (retryResponse.ok) {
+          const json = await retryResponse.json() as { data: T }
+          return json.data
+        }
+      }
+
+      // Refresh de başarısız → login'e yönlendir
+      clearTokens()
       window.location.href = '/login'
       return undefined as never
     }

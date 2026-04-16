@@ -62,12 +62,13 @@ model Tenant {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  firebaseUid String   @unique
-  email       String?
-  phoneNumber String?
-  displayName String?
-  isActive    Boolean  @default(true)
+  id           String   @id @default(uuid())
+  firebaseUid  String?  @unique
+  email        String?  @unique
+  phoneNumber  String?
+  displayName  String?
+  passwordHash String?
+  isActive     Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

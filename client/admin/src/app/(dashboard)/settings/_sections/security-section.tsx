@@ -62,7 +62,7 @@ export function SecuritySection() {
             <div className="flex items-center gap-3 rounded-[18px] border border-white/85 bg-white/82 px-4 py-3 shadow-[0_12px_26px_rgba(8,17,31,0.03)]">
               <Shield className="h-5 w-5 text-[#0c1427]" />
               <div>
-                <p className="text-sm font-medium text-[#111827]">Firebase Authentication</p>
+                <p className="text-sm font-medium text-[#111827]">JWT Authentication</p>
                 <p className="text-xs text-[#6b7280]">E-posta + şifre ile giriş · Telefon OTP (mobil)</p>
               </div>
             </div>

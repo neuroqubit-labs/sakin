@@ -1,57 +1,57 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged, signOut as firebaseSignOut, type User as FirebaseUser } from 'firebase/auth'
-import { auth } from '@/lib/firebase'
-import { apiClient } from '@/lib/api'
+import { apiClient, getAccessToken, clearTokens } from '@/lib/api'
 import { setSessionCookie, clearSessionCookie } from '@/lib/session'
 import { UserRole } from '@sakin/shared'
 
 interface AuthContextValue {
-  user: FirebaseUser | null
+  user: { id: string; email: string | null; displayName: string | null } | null
   role: UserRole | null
   loading: boolean
-  signOut: () => Promise<void>
+  signOut: () => void
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   role: null,
   loading: true,
-  signOut: async () => {},
+  signOut: () => {},
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<FirebaseUser | null>(null)
+  const [user, setUser] = useState<AuthContextValue['user']>(null)
   const [role, setRole] = useState<UserRole | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser)
+    const token = getAccessToken()
 
-      if (firebaseUser) {
-        try {
-          const profile = await apiClient<{ role: UserRole; tenantId: string | null; id: string }>('/auth/me')
-          setRole(profile.role)
-          setSessionCookie({ userId: profile.id, tenantId: profile.tenantId, role: profile.role })
-        } catch {
-          setRole(null)
+    if (token) {
+      apiClient<{ id: string; email: string | null; displayName: string | null; tenantRoles: { tenantId: string | null; role: UserRole }[] }>('/auth/me')
+        .then((profile) => {
+          setUser({ id: profile.id, email: profile.email, displayName: profile.displayName })
+          const superRole = profile.tenantRoles.find((r) => r.role === UserRole.SUPER_ADMIN)
+          if (superRole) {
+            setRole(superRole.role)
+            setSessionCookie({ userId: profile.id, tenantId: null, role: superRole.role })
+          } else {
+            clearTokens()
+            clearSessionCookie()
+          }
+        })
+        .catch(() => {
+          clearTokens()
           clearSessionCookie()
-        }
-      } else {
-        setRole(null)
-        clearSessionCookie()
-      }
-
+        })
+        .finally(() => setLoading(false))
+    } else {
       setLoading(false)
-    })
-
-    return unsubscribe
+    }
   }, [])
 
-  const signOut = async () => {
-    await firebaseSignOut(auth)
+  const signOut = () => {
+    clearTokens()
     clearSessionCookie()
     window.location.href = '/login'
   }
@@ -66,4 +66,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext)
 }
-

@@ -4,10 +4,11 @@ export default () => ({
   database: {
     url: process.env['DATABASE_URL'],
   },
-  firebase: {
-    projectId: process.env['FIREBASE_PROJECT_ID'],
-    clientEmail: process.env['FIREBASE_CLIENT_EMAIL'],
-    privateKey: process.env['FIREBASE_PRIVATE_KEY']?.replace(/\\n/g, '\n'),
+  jwt: {
+    secret: process.env['JWT_SECRET'] ?? 'dev-jwt-secret-change-me-in-production',
+    refreshSecret: process.env['JWT_REFRESH_SECRET'] ?? 'dev-jwt-refresh-secret-change-me',
+    accessExpiresIn: '15m',
+    refreshExpiresIn: '7d',
   },
   iyzico: {
     apiKey: process.env['IYZICO_API_KEY'],

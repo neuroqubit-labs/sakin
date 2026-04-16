@@ -4,18 +4,32 @@ import { AuthService } from './auth.service'
 import { Tenant } from '../../common/decorators/tenant.decorator'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import type { TenantContext } from '@sakin/shared'
-import { RegisterSchema } from '@sakin/shared'
+import { LoginSchema, RegisterSchema, RefreshTokenSchema } from '@sakin/shared'
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Post('login')
+  @ApiOperation({ summary: 'Email + şifre ile giriş yap' })
+  @UsePipes(new ZodValidationPipe(LoginSchema))
+  async login(@Body() dto: unknown) {
+    return this.authService.login(dto as Parameters<AuthService['login']>[0])
+  }
+
   @Post('register')
-  @ApiOperation({ summary: 'Firebase token ile sisteme kayıt ol' })
+  @ApiOperation({ summary: 'Email + şifre ile kayıt ol' })
   @UsePipes(new ZodValidationPipe(RegisterSchema))
   async register(@Body() dto: unknown) {
     return this.authService.register(dto as Parameters<AuthService['register']>[0])
+  }
+
+  @Post('refresh')
+  @ApiOperation({ summary: 'Refresh token ile yeni access token al' })
+  @UsePipes(new ZodValidationPipe(RefreshTokenSchema))
+  async refresh(@Body() dto: unknown) {
+    return this.authService.refresh(dto as Parameters<AuthService['refresh']>[0])
   }
 
   @Get('me')

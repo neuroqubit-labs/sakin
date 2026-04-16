@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
-import * as admin from 'firebase-admin'
+import * as crypto from 'crypto'
+import * as bcrypt from 'bcryptjs'
 import { PrismaService } from '../../prisma/prisma.service'
 import type { InviteUserDto, UpdateTenantDto, UpdateTenantUserDto, UpsertTenantGatewayConfigDto } from '@sakin/shared'
 import { DuesStatus, LedgerEntryType, LedgerReferenceType, PaymentStatus } from '@sakin/shared'
@@ -414,8 +415,8 @@ export class TenantService {
 
   /**
    * Yeni personel / yönetici davet et.
-   * Firebase'de kullanıcı oluşturur, DB'ye kaydeder ve şifre sıfırlama linki döner.
-   * Yeni kullanıcı bu link üzerinden kendi şifresini belirleyerek giriş yapar.
+   * Geçici şifre ile kullanıcı oluşturur, DB'ye kaydeder.
+   * Admin geçici şifreyi kullanıcıyla paylaşır.
    */
   async inviteUser(tenantId: string, dto: InviteUserDto) {
     // Aynı e-posta bu tenant'a zaten atanmış mı kontrol et
@@ -432,32 +433,31 @@ export class TenantService {
       throw new ConflictException('Bu e-posta adresi zaten bu şirkete kayıtlı')
     }
 
-    // Firebase kullanıcısı oluştur veya mevcut olanı bul
-    let firebaseUser: admin.auth.UserRecord
-    try {
-      firebaseUser = await admin.auth().getUserByEmail(dto.email)
-    } catch {
-      // Kullanıcı Firebase'de yok — oluştur
-      firebaseUser = await admin.auth().createUser({
-        email: dto.email,
-        displayName: dto.displayName,
-        emailVerified: false,
-      })
-    }
+    // Geçici şifre üret
+    const tempPassword = crypto.randomBytes(8).toString('hex')
+    const passwordHash = await bcrypt.hash(tempPassword, 10)
 
     // DB'de User kaydı bul veya oluştur
     let dbUser = await this.prisma.user.findUnique({
-      where: { firebaseUid: firebaseUser.uid },
+      where: { email: dto.email },
     })
 
     if (!dbUser) {
       dbUser = await this.prisma.user.create({
         data: {
-          firebaseUid: firebaseUser.uid,
           email: dto.email,
           displayName: dto.displayName,
+          passwordHash,
         },
       })
+    } else {
+      // Mevcut kullanıcıya şifre atanmamışsa ata
+      if (!dbUser.passwordHash) {
+        await this.prisma.user.update({
+          where: { id: dbUser.id },
+          data: { passwordHash },
+        })
+      }
     }
 
     // Tenant rolü ata (upsert — daha önce pasifleştirilmiş olabilir)
@@ -469,20 +469,12 @@ export class TenantService {
       create: { userId: dbUser.id, tenantId, role: dto.role, isActive: true },
     })
 
-    // Şifre sıfırlama linki üret — kullanıcı bu link ile şifresini belirler
-    let resetLink: string | null = null
-    try {
-      resetLink = await admin.auth().generatePasswordResetLink(dto.email)
-    } catch {
-      // Link üretimi opsiyonel — production'da e-posta servisi devralır
-    }
-
     return {
       userId: dbUser.id,
       email: dto.email,
       displayName: dto.displayName,
       role: dto.role,
-      resetLink,
+      tempPassword,
     }
   }
 

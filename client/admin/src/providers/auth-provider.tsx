@@ -1,18 +1,16 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged, signOut as firebaseSignOut, type User as FirebaseUser } from 'firebase/auth'
-import { auth } from '@/lib/firebase'
-import { apiClient, getDevTenantId, isDevBypassEnabled, setDevTenantId } from '@/lib/api'
+import { apiClient, getAccessToken, clearTokens, getDevTenantId, isDevBypassEnabled, setDevTenantId } from '@/lib/api'
 import { setSessionCookie, clearSessionCookie, getSessionFromCookieString } from '@/lib/session'
 import { UserRole } from '@sakin/shared'
 
 interface AuthContextValue {
-  user: FirebaseUser | null
+  user: { id: string; email: string | null; displayName: string | null } | null
   role: UserRole | null
   tenantId: string | null
   loading: boolean
-  signOut: () => Promise<void>
+  signOut: () => void
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -20,84 +18,62 @@ const AuthContext = createContext<AuthContextValue>({
   role: null,
   tenantId: null,
   loading: true,
-  signOut: async () => {},
+  signOut: () => {},
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<FirebaseUser | null>(null)
+  const [user, setUser] = useState<AuthContextValue['user']>(null)
   const [role, setRole] = useState<UserRole | null>(null)
   const [tenantId, setTenantId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!auth) {
-      const storageTenantId = getDevTenantId()
-      const session = getSessionFromCookieString(document.cookie)
-      const sessionTenantId = session?.tenantId ?? null
-      const devTenantId = storageTenantId ?? sessionTenantId
-      const canUseDevSession = isDevBypassEnabled() && Boolean(session)
+    const token = getAccessToken()
 
-      if (canUseDevSession && session) {
-        if (devTenantId && devTenantId !== 'super') {
-          setDevTenantId(devTenantId)
-        }
-        setRole(session.role)
-        setTenantId(session.tenantId ?? devTenantId ?? null)
-      } else {
-        setRole(null)
-        setTenantId(null)
-        clearSessionCookie()
-      }
-
-      setLoading(false)
+    // JWT token varsa — profili API'den al
+    if (token) {
+      apiClient<{ id: string; email: string | null; displayName: string | null; tenantRoles: { tenantId: string | null; role: UserRole }[] }>('/auth/me')
+        .then((profile) => {
+          setUser({ id: profile.id, email: profile.email, displayName: profile.displayName })
+          const firstRole = profile.tenantRoles[0]
+          if (firstRole) {
+            setRole(firstRole.role)
+            setTenantId(firstRole.tenantId)
+            setSessionCookie({ userId: profile.id, tenantId: firstRole.tenantId, role: firstRole.role })
+          }
+        })
+        .catch(() => {
+          clearTokens()
+          clearSessionCookie()
+        })
+        .finally(() => setLoading(false))
       return
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser)
+    // Dev bypass — token yok ama session cookie var
+    const storageTenantId = getDevTenantId()
+    const session = getSessionFromCookieString(document.cookie)
+    const sessionTenantId = session?.tenantId ?? null
+    const devTenantIdVal = storageTenantId ?? sessionTenantId
+    const canUseDevSession = isDevBypassEnabled() && Boolean(session)
 
-      if (firebaseUser) {
-        try {
-          const profile = await apiClient<{ role: UserRole; tenantId: string | null; id: string }>('/auth/me')
-          setRole(profile.role)
-          setTenantId(profile.tenantId)
-          setSessionCookie({ userId: profile.id, tenantId: profile.tenantId, role: profile.role })
-        } catch {
-          // Kullanıcı kayıtlı değil veya token geçersiz
-          setRole(null)
-          setTenantId(null)
-          clearSessionCookie()
-        }
-      } else {
-        const storageTenantId = getDevTenantId()
-        const session = getSessionFromCookieString(document.cookie)
-        const sessionTenantId = session?.tenantId ?? null
-        const devTenantId = storageTenantId ?? sessionTenantId
-        const canUseDevSession = isDevBypassEnabled() && Boolean(session)
-
-        if (canUseDevSession && session) {
-          if (devTenantId && devTenantId !== 'super') {
-            setDevTenantId(devTenantId)
-          }
-          setRole(session.role)
-          setTenantId(session.tenantId ?? devTenantId ?? null)
-        } else {
-          setRole(null)
-          setTenantId(null)
-          clearSessionCookie()
-        }
+    if (canUseDevSession && session) {
+      if (devTenantIdVal && devTenantIdVal !== 'super') {
+        setDevTenantId(devTenantIdVal)
       }
+      setRole(session.role)
+      setTenantId(session.tenantId ?? devTenantIdVal ?? null)
+    } else {
+      setRole(null)
+      setTenantId(null)
+      clearSessionCookie()
+    }
 
-      setLoading(false)
-    })
-
-    return unsubscribe
+    setLoading(false)
   }, [])
 
-  const signOut = async () => {
-    if (auth) {
-      await firebaseSignOut(auth)
-    }
+  const signOut = () => {
+    clearTokens()
     clearSessionCookie()
     window.location.href = '/login'
   }

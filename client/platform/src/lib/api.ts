@@ -1,11 +1,21 @@
-import { auth } from './firebase'
-
 const BASE_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001/api/v1'
 
-async function getToken(): Promise<string | null> {
-  const user = auth.currentUser
-  if (!user) return null
-  return user.getIdToken()
+const ACCESS_TOKEN_KEY = 'sakin-access-token'
+const REFRESH_TOKEN_KEY = 'sakin-refresh-token'
+
+export function getAccessToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(ACCESS_TOKEN_KEY)
+}
+
+export function setTokens(accessToken: string, refreshToken: string): void {
+  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
+  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
+}
+
+export function clearTokens(): void {
+  localStorage.removeItem(ACCESS_TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
 interface FetchOptions extends RequestInit {
@@ -13,7 +23,7 @@ interface FetchOptions extends RequestInit {
 }
 
 export async function apiClient<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const token = await getToken()
+  const token = getAccessToken()
   const { params, ...fetchOptions } = options
 
   let url = `${BASE_URL}${path}`
@@ -38,6 +48,11 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
   const response = await fetch(url, { ...fetchOptions, headers })
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      clearTokens()
+      window.location.href = '/login'
+      return undefined as never
+    }
     const error = await response.json().catch(() => ({ message: 'Bilinmeyen hata' }))
     throw new Error((error as { message: string }).message ?? 'API hatası')
   }
@@ -45,4 +60,3 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
   const json = await response.json() as { data: T }
   return json.data
 }
-

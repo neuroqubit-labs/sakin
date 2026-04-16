@@ -12,10 +12,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { AppModule } from './app.module'
 import { AllExceptionsFilter } from './common/filters/http-exception.filter'
 import { TransformInterceptor } from './common/interceptors/transform.interceptor'
-import { initializeFirebase } from './modules/auth/firebase.init'
-
 async function bootstrap() {
-  initializeFirebase()
 
   const allowedOrigins = (process.env['CORS_ORIGIN'] ?? 'http://localhost:3000')
     .split(',')
