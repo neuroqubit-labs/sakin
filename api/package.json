@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "nest build",
+    "build": "tsc --project tsconfig.build.json",
     "dev": "nest start --watch",
     "start": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
@@ -27,11 +27,12 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "zod": "^3.24.1",
-    "@nestjs/cli": "^11.0.0"
+    "@nestjs/cli": "^11.0.0",
+    "typescript": "~5.7.3",
+    "@types/node": "^22.10.7"
   },
   "devDependencies": {
-    "@nestjs/testing": "^11.0.1",
-    "@types/node": "^22.10.7",
-    "typescript": "^5.7.3"
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.0.1"
   }
 }
