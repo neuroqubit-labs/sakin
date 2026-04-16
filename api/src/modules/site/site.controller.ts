@@ -6,7 +6,6 @@ import { Roles } from '../../common/decorators/roles.decorator'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import type { TenantContext } from '@sakin/shared'
 import { CreateSiteSchema, UpdateSiteSchema, UserRole } from '@sakin/shared'
-import { UsePipes } from '@nestjs/common'
 
 @ApiTags('sites')
 @ApiBearerAuth()
@@ -22,8 +21,7 @@ export class SiteController {
   @Post()
   @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Yeni site oluştur (TENANT_ADMIN)' })
-  @UsePipes(new ZodValidationPipe(CreateSiteSchema))
-  create(@Body() dto: unknown, @Tenant() ctx: TenantContext) {
+  create(@Body(new ZodValidationPipe(CreateSiteSchema)) dto: unknown, @Tenant() ctx: TenantContext) {
     return this.siteService.create(dto as Parameters<SiteService['create']>[0], this.getTenantId(ctx))
   }
 

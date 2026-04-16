@@ -30,6 +30,7 @@ import { ContractModule } from './modules/contract/contract.module'
 import { CommunicationModule } from './modules/communication/communication.module'
 import { FacilityModule } from './modules/facility/facility.module'
 import { MeetingModule } from './modules/meeting/meeting.module'
+import { HealthModule } from './modules/health/health.module'
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { MeetingModule } from './modules/meeting/meeting.module'
     CommunicationModule,
     FacilityModule,
     MeetingModule,
+    HealthModule,
   ],
   providers: [
     {

@@ -5,9 +5,9 @@ import {
   Building2,
   Home,
   Receipt,
-  TrendingDown,
   BarChart3,
   Settings,
+  CircleDollarSign,
 } from 'lucide-react'
 
 export interface AdminNavItem {
@@ -26,16 +26,16 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: '/dashboard', label: 'Genel Bakış', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: LayoutDashboard },
   { href: '/sites', label: 'Siteler', roles: [UserRole.TENANT_ADMIN], icon: Building2 },
   { href: '/units', label: 'Daireler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Home },
-  { href: '/finance', label: 'Tahsilat', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Receipt },
-  { href: '/expenses', label: 'Giderler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: TrendingDown },
+  { href: '/dues-create', label: 'Aidat & Gider', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: CircleDollarSign },
+  { href: '/finance', label: 'Tahsilat', roles: [UserRole.TENANT_ADMIN], icon: Receipt },
   { href: '/reports', label: 'Raporlar', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: BarChart3 },
   { href: '/settings', label: 'Ayarlar', roles: [UserRole.TENANT_ADMIN], icon: Settings },
 ]
 
 const NAV_GROUPS: Array<{ label: string | null; hrefs: string[] }> = [
   { label: null, hrefs: ['/dashboard'] },
-  { label: 'Yönetim', hrefs: ['/sites', '/units'] },
-  { label: 'Finans', hrefs: ['/finance', '/expenses'] },
+  { label: 'Yönetim', hrefs: ['/sites', '/units', '/dues-create'] },
+  { label: 'Finans', hrefs: ['/finance'] },
   { label: 'Analiz', hrefs: ['/reports'] },
 ]
 
@@ -48,7 +48,8 @@ export const ROLE_ROUTE_POLICY: RouteAccessPolicy = {
   '/sites': [UserRole.TENANT_ADMIN],
   '/units': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/residents': [UserRole.TENANT_ADMIN, UserRole.STAFF],
-  '/finance': [UserRole.TENANT_ADMIN, UserRole.STAFF],
+  '/finance': [UserRole.TENANT_ADMIN],
+  '/dues-create': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/dues': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/payments': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/expenses': [UserRole.TENANT_ADMIN, UserRole.STAFF],

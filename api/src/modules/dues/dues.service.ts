@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import type {
+  BulkUpdateAmountDto,
   CloseDuesPeriodDto,
   CreateDuesPolicyDto,
   DuesFilterDto,
@@ -44,7 +45,9 @@ export class DuesService {
       throw new NotFoundException('Bu siteye ait aktif daire bulunamadı')
     }
 
-    const dueDate = new Date(dto.periodYear, dto.periodMonth - 1, dto.dueDayOfMonth)
+    const dueDate = dto.dueDayOfMonth
+      ? new Date(dto.periodYear, dto.periodMonth - 1, dto.dueDayOfMonth)
+      : new Date()
     let created = 0
 
     for (const unit of units) {
@@ -463,6 +466,67 @@ export class DuesService {
 
       return updated
     })
+  }
+
+  /**
+   * Yıllık plan tutarı değiştiğinde ödenmemiş gelecek ay aidatlarını toplu günceller.
+   * Sadece PENDING statüsündeki kayıtlar güncellenir.
+   */
+  async bulkUpdateAmount(dto: BulkUpdateAmountDto, tenantId: string, userId: string) {
+    const db = this.prisma.forTenant(tenantId)
+
+    const duesList = await db.dues.findMany({
+      where: {
+        status: DuesStatus.PENDING,
+        periodYear: dto.periodYear,
+        periodMonth: { gte: dto.fromMonth },
+        unit: { siteId: dto.siteId },
+      },
+      select: { id: true, unitId: true, amount: true, currency: true },
+    })
+
+    if (duesList.length === 0) {
+      return { updated: 0 }
+    }
+
+    let updated = 0
+    for (const dues of duesList) {
+      if (Number(dues.amount) === dto.newAmount) continue
+
+      // eslint-disable-next-line no-await-in-loop
+      await this.prisma.$transaction(async (tx) => {
+        const diff = dto.newAmount - Number(dues.amount)
+
+        await tx.dues.update({
+          where: { id: dues.id },
+          data: { amount: dto.newAmount },
+        })
+
+        await this.ledgerService.createEntry(
+          {
+            tenantId,
+            unitId: dues.unitId,
+            amount: diff,
+            currency: dues.currency,
+            entryType: LedgerEntryType.ADJUSTMENT,
+            referenceType: LedgerReferenceType.DUES,
+            referenceId: dues.id,
+            idempotencyKey: `dues-bulk-adjust-${dues.id}-${Date.now()}`,
+            createdByUserId: userId,
+            note: `Yıllık plan tutar güncellemesi: ${Number(dues.amount)} → ${dto.newAmount}`,
+            metadata: {
+              previousAmount: Number(dues.amount),
+              newAmount: dto.newAmount,
+              bulkUpdate: true,
+            },
+          },
+          tx as unknown as PrismaService,
+        )
+      })
+      updated += 1
+    }
+
+    return { updated, total: duesList.length }
   }
 
   /**

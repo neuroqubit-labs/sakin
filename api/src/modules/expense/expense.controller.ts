@@ -4,7 +4,7 @@ import { ExpenseService } from './expense.service'
 import { Tenant } from '../../common/decorators/tenant.decorator'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
-import { CreateExpenseSchema, UpdateExpenseSchema, ExpenseFilterSchema, UserRole } from '@sakin/shared'
+import { CreateExpenseSchema, UpdateExpenseSchema, ExpenseFilterSchema, DistributeExpenseSchema, UserRole } from '@sakin/shared'
 import type { TenantContext } from '@sakin/shared'
 
 @ApiTags('expenses')
@@ -22,6 +22,20 @@ export class ExpenseController {
   ) {
     return this.expenseService.create(
       dto as Parameters<ExpenseService['create']>[0],
+      ctx.tenantId!,
+      ctx.userId,
+    )
+  }
+
+  @Post('distribute')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Gider oluştur ve dairelere borç olarak dağıt (TENANT_ADMIN)' })
+  distribute(
+    @Body(new ZodValidationPipe(DistributeExpenseSchema)) dto: unknown,
+    @Tenant() ctx: TenantContext,
+  ) {
+    return this.expenseService.createWithDistribution(
+      dto as Parameters<ExpenseService['createWithDistribution']>[0],
       ctx.tenantId!,
       ctx.userId,
     )

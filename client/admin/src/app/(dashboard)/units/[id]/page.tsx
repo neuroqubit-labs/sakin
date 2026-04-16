@@ -2,11 +2,12 @@
 
 import { useMemo, useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CreateOccupancySchema, CreateResidentSchema, type CreateOccupancyDto, type CreateResidentDto, OccupancyRole, ResidentType } from '@sakin/shared'
-import { Building2, CreditCard, Search, Star, UserPlus, Users, Wallet, LogOut } from 'lucide-react'
+import { Building2, CreditCard, Search, Star, UserPlus, Users, Wallet, LogOut, ExternalLink } from 'lucide-react'
 import { useApiQuery, useApiMutation } from '@/hooks/use-api'
 import { EmptyState } from '@/components/empty-state'
 import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
@@ -278,9 +279,12 @@ function OccupancyPanel({ unitId }: { unitId: string }) {
             <div className="flex items-start justify-between gap-2">
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <p className="text-sm font-semibold text-[#0c1427]">
+                  <Link
+                    href={`/residents/${occ.resident.id}`}
+                    className="text-sm font-semibold text-[#0c1427] hover:text-[#1a56db] hover:underline underline-offset-2 transition-colors"
+                  >
                     {occ.resident.firstName} {occ.resident.lastName}
-                  </p>
+                  </Link>
                   <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-medium ${ROLE_COLORS[occ.role] ?? 'bg-gray-100 text-gray-700'}`}>
                     {ROLE_LABELS[occ.role] ?? occ.role}
                   </span>
@@ -292,11 +296,21 @@ function OccupancyPanel({ unitId }: { unitId: string }) {
                   )}
                 </div>
                 <p className="text-xs text-[#6b7280] mt-0.5">{occ.resident.phoneNumber}</p>
+                {occ.resident.email && (
+                  <p className="text-[11px] text-[#9ca3af]">{occ.resident.email}</p>
+                )}
                 <p className="text-[11px] text-[#9ca3af] mt-0.5">
                   Başlangıç: {formatShortDate(occ.startDate)}
                 </p>
               </div>
-              <div className="shrink-0">
+              <div className="shrink-0 flex flex-col items-end gap-1.5">
+                <Link
+                  href={`/residents/${occ.resident.id}`}
+                  className="inline-flex items-center gap-1 text-[11px] text-[#9ca3af] hover:text-[#1a56db] transition-colors px-2 py-1 rounded hover:bg-[#eff6ff]"
+                >
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                  Profil
+                </Link>
                 {endingId === occ.id ? (
                   <div className="flex items-center gap-1">
                     <button
@@ -345,18 +359,34 @@ function OccupancyPanel({ unitId }: { unitId: string }) {
             {showPastOccupancies && (
               <div className="mt-2 space-y-1.5">
                 {past.map((occ) => (
-                  <div key={occ.id} className="flex items-center justify-between gap-2 rounded-[18px] border border-white/80 bg-white/80 px-3 py-2 shadow-[0_12px_26px_rgba(8,17,31,0.03)]">
-                    <div>
-                      <p className="text-xs font-medium text-[#374151]">
-                        {occ.resident.firstName} {occ.resident.lastName}
-                      </p>
-                      <p className="text-[11px] text-[#9ca3af]">
-                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium mr-1 ${ROLE_COLORS[occ.role] ?? 'bg-gray-100 text-gray-700'}`}>
+                  <div key={occ.id} className="flex items-center justify-between gap-2 rounded-[18px] border border-white/80 bg-white/80 px-3 py-2.5 shadow-[0_12px_26px_rgba(8,17,31,0.03)]">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Link
+                          href={`/residents/${occ.resident.id}`}
+                          className="text-xs font-semibold text-[#374151] hover:text-[#1a56db] hover:underline underline-offset-2 transition-colors"
+                        >
+                          {occ.resident.firstName} {occ.resident.lastName}
+                        </Link>
+                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${ROLE_COLORS[occ.role] ?? 'bg-gray-100 text-gray-700'}`}>
                           {ROLE_LABELS[occ.role] ?? occ.role}
                         </span>
+                      </div>
+                      <p className="text-[11px] text-[#9ca3af] mt-0.5">
                         {formatShortDate(occ.startDate)} → {occ.endDate ? formatShortDate(occ.endDate) : '…'}
                       </p>
+                      {occ.resident.phoneNumber && (
+                        <p className="text-[11px] text-[#9ca3af]">{occ.resident.phoneNumber}</p>
+                      )}
                     </div>
+                    <Link
+                      href={`/residents/${occ.resident.id}`}
+                      className="shrink-0 inline-flex items-center gap-1 text-[11px] text-[#9ca3af] hover:text-[#1a56db] transition-colors px-2 py-1 rounded hover:bg-[#eff6ff]"
+                      title="Sakin profilini görüntüle"
+                    >
+                      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      Profil
+                    </Link>
                   </div>
                 ))}
               </div>

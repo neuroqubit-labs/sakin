@@ -9,7 +9,7 @@ export const GenerateDuesSchema = z.object({
   amount: z.number().positive(),
   currency: z.string().length(3).default('TRY'),
   type: z.nativeEnum(DuesType).default(DuesType.AIDAT),
-  dueDayOfMonth: z.number().int().min(1).max(28).default(10),
+  dueDayOfMonth: z.number().int().min(1).max(28).optional(),
   description: z.string().max(500).optional(),
 })
 
@@ -80,6 +80,13 @@ export const CloseDuesPeriodSchema = z.object({
   forceOverdue: z.boolean().default(true),
 })
 
+export const BulkUpdateAmountSchema = z.object({
+  siteId: z.string().uuid(),
+  periodYear: z.number().int().min(2020).max(2100),
+  newAmount: z.number().positive(),
+  fromMonth: z.number().int().min(1).max(12),
+})
+
 export type GenerateDuesDto = z.infer<typeof GenerateDuesSchema>
 export type UpdateDuesDto = z.infer<typeof UpdateDuesSchema>
 export type WaiveDuesDto = z.infer<typeof WaiveDuesSchema>
@@ -89,3 +96,4 @@ export type CreateDuesPolicyDto = z.infer<typeof CreateDuesPolicySchema>
 export type UpdateDuesPolicyDto = z.infer<typeof UpdateDuesPolicySchema>
 export type OpenDuesPeriodDto = z.infer<typeof OpenDuesPeriodSchema>
 export type CloseDuesPeriodDto = z.infer<typeof CloseDuesPeriodSchema>
+export type BulkUpdateAmountDto = z.infer<typeof BulkUpdateAmountSchema>

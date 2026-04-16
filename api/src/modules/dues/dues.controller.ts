@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, UsePipes, ForbiddenException } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Param, Body, Query, ForbiddenException } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger'
 import { DuesService } from './dues.service'
 import { Tenant } from '../../common/decorators/tenant.decorator'
@@ -16,6 +16,7 @@ import {
   UpdateDuesPolicySchema,
   OpenDuesPeriodSchema,
   CloseDuesPeriodSchema,
+  BulkUpdateAmountSchema,
 } from '@sakin/shared'
 
 @ApiTags('dues')
@@ -32,8 +33,7 @@ export class DuesController {
   @Post('generate')
   @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Siteye toplu aidat oluştur (TENANT_ADMIN)' })
-  @UsePipes(new ZodValidationPipe(GenerateDuesSchema))
-  async generate(@Body() dto: unknown, @Tenant() ctx: TenantContext) {
+  async generate(@Body(new ZodValidationPipe(GenerateDuesSchema)) dto: unknown, @Tenant() ctx: TenantContext) {
     return this.duesService.generate(
       dto as Parameters<DuesService['generate']>[0],
       this.getTenantId(ctx),
@@ -114,6 +114,20 @@ export class DuesController {
   async waive(@Param('id') id: string, @Body() body: unknown, @Tenant() ctx: TenantContext) {
     const dto = WaiveDuesSchema.parse(body)
     return this.duesService.waive(id, dto, this.getTenantId(ctx), ctx.userId)
+  }
+
+  @Patch('bulk-update-amount')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Ödenmemiş aidatların tutarını toplu güncelle (TENANT_ADMIN)' })
+  async bulkUpdateAmount(
+    @Body(new ZodValidationPipe(BulkUpdateAmountSchema)) dto: unknown,
+    @Tenant() ctx: TenantContext,
+  ) {
+    return this.duesService.bulkUpdateAmount(
+      dto as Parameters<DuesService['bulkUpdateAmount']>[0],
+      this.getTenantId(ctx),
+      ctx.userId,
+    )
   }
 
   @Post('mark-overdue')

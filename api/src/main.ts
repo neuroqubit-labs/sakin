@@ -17,7 +17,9 @@ import { initializeFirebase } from './modules/auth/firebase.init'
 async function bootstrap() {
   initializeFirebase()
 
-  const corsOrigin = process.env['CORS_ORIGIN'] ?? 'http://localhost:3000'
+  const allowedOrigins = (process.env['CORS_ORIGIN'] ?? 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
 
   const adapter = new FastifyAdapter({ logger: process.env['NODE_ENV'] !== 'production' })
 
@@ -25,8 +27,8 @@ async function bootstrap() {
   // NestJS middleware exception'ları dahil — hiçbir response CORS header'sız çıkmaz
   adapter.getInstance().addHook('onRequest', async (request, reply) => {
     const origin = request.headers['origin']
-    if (origin === corsOrigin) {
-      reply.header('access-control-allow-origin', corsOrigin)
+    if (origin && allowedOrigins.includes(origin)) {
+      reply.header('access-control-allow-origin', origin)
       reply.header('access-control-allow-credentials', 'true')
     }
 

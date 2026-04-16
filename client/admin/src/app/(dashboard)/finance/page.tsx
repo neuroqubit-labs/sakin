@@ -9,10 +9,10 @@ import { PageHeader, KpiCard } from '@/components/surface'
 import { formatTry } from '@/lib/formatters'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DuesPolicyPanel } from '../dues/_components/dues-policy-panel'
-import { DuesPeriodPanel } from '../dues/_components/dues-period-panel'
 import { DuesRecordsPanel } from '../dues/_components/dues-records-panel'
 import { PaymentsPanel } from './_components/payments-panel'
+import { DuesCreatePanel } from './_components/dues-create-panel'
+import { ExpensesPanel } from './_components/expenses-panel'
 
 interface DuesKpiResponse {
   kpi: {
@@ -89,11 +89,11 @@ export default function FinancePage() {
           <TabsTrigger value="payments">
             Tahsilatlar
           </TabsTrigger>
-          <TabsTrigger value="definitions">
-            Tanımlar
+          <TabsTrigger value="create">
+            Aidat & Gider Oluştur
           </TabsTrigger>
-          <TabsTrigger value="period">
-            Dönem İşlemleri
+          <TabsTrigger value="expenses">
+            Giderler
           </TabsTrigger>
         </TabsList>
 
@@ -105,12 +105,12 @@ export default function FinancePage() {
           <PaymentsPanel siteId={selectedSiteId} />
         </TabsContent>
 
-        <TabsContent value="definitions" className="mt-4">
-          <DuesPolicyPanel siteId={selectedSiteId} />
+        <TabsContent value="create" className="mt-4">
+          <DuesCreatePanel siteId={selectedSiteId} />
         </TabsContent>
 
-        <TabsContent value="period" className="mt-4">
-          <DuesPeriodPanel siteId={selectedSiteId} />
+        <TabsContent value="expenses" className="mt-4">
+          <ExpensesPanel siteId={selectedSiteId} />
         </TabsContent>
       </Tabs>
     </div>

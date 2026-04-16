@@ -71,16 +71,21 @@ interface PaymentsPanelProps {
   siteId: string
 }
 
+const PAYMENTS_LIMIT = 20
+
 export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
   const [search, setSearch] = useState('')
   const [committedSearch, setCommittedSearch] = useState('')
   const [methodFilter, setMethodFilter] = useState<'ALL' | PaymentMethod>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | PaymentStatus>('ALL')
+  const [page, setPage] = useState(1)
+
+  const resetPage = () => setPage(1)
 
   const listParams = {
     siteId,
-    page: 1,
-    limit: 50,
+    page,
+    limit: PAYMENTS_LIMIT,
     search: committedSearch.trim() || undefined,
     method: methodFilter === 'ALL' ? undefined : methodFilter,
     status: statusFilter === 'ALL' ? undefined : statusFilter,
@@ -109,7 +114,18 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
 
   const handleFilter = () => {
     setCommittedSearch(search)
+    resetPage()
   }
+
+  const handleClearFilters = () => {
+    setSearch('')
+    setCommittedSearch('')
+    setMethodFilter('ALL')
+    setStatusFilter('ALL')
+    resetPage()
+  }
+
+  const hasActiveFilters = committedSearch || methodFilter !== 'ALL' || statusFilter !== 'ALL'
 
   const downloadCsv = async (kind: 'receipt' | 'audit') => {
     try {
@@ -162,7 +178,7 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
           <p className="ledger-label">Filtreleme</p>
           <p className="mt-1 text-sm text-[#6b7d93]">Makbuz, yöntem ve durum filtresiyle tahsilat akışını daralt.</p>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -172,7 +188,7 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
           />
           <select
             value={methodFilter}
-            onChange={(e) => setMethodFilter(e.target.value as typeof methodFilter)}
+            onChange={(e) => { setMethodFilter(e.target.value as typeof methodFilter); resetPage() }}
             className="ledger-input bg-white"
           >
             <option value="ALL">Tüm Yöntemler</option>
@@ -183,7 +199,7 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
           </select>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+            onChange={(e) => { setStatusFilter(e.target.value as typeof statusFilter); resetPage() }}
             className="ledger-input bg-white"
           >
             <option value="ALL">Tüm Durumlar</option>
@@ -193,9 +209,16 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
             <option value={PaymentStatus.CANCELLED}>İptal Edildi</option>
             <option value={PaymentStatus.REFUNDED}>İade Edildi</option>
           </select>
-          <Button type="button" onClick={handleFilter}>
-            Filtrele
-          </Button>
+          <div className="flex gap-2">
+            <Button type="button" className="flex-1" onClick={handleFilter}>
+              Filtrele
+            </Button>
+            {hasActiveFilters && (
+              <Button type="button" variant="outline" onClick={handleClearFilters}>
+                Temizle
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -212,7 +235,7 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
       </div>
 
       <div className="ledger-panel overflow-x-auto">
-        <SectionTitle title="Tahsilat Akışı" subtitle="Filtreye uyan ödeme kayıtları ve durumları." />
+        <SectionTitle title="Tahsilat Akışı" subtitle={payments?.meta ? `${payments.meta.total} kayıt bulundu.` : 'Filtreye uyan ödeme kayıtları ve durumları.'} />
         <div className="min-w-[800px]">
           <div className="grid grid-cols-12 px-5 py-3 ledger-table-head">
             <span className="col-span-2">Daire</span>
@@ -256,6 +279,60 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
               />
             )}
           </div>
+
+          {/* Pagination */}
+          {payments?.meta && payments.meta.totalPages > 1 && (
+            <div className="px-5 py-3 flex items-center justify-between border-t border-[#e5e7eb]">
+              <p className="text-xs text-[#6b7280]">
+                Sayfa {payments.meta.page} / {payments.meta.totalPages} · Toplam {payments.meta.total} kayıt
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Önceki
+                </Button>
+                {Array.from({ length: payments.meta.totalPages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === payments.meta.totalPages || Math.abs(p - page) <= 1)
+                  .reduce<(number | 'dots')[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('dots')
+                    acc.push(p)
+                    return acc
+                  }, [])
+                  .map((item, idx) =>
+                    item === 'dots' ? (
+                      <span key={`dots-${idx}`} className="px-1 text-xs text-[#9ca3af]">…</span>
+                    ) : (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setPage(item)}
+                        className={`h-8 min-w-[32px] rounded text-xs font-medium transition-colors ${
+                          item === page
+                            ? 'bg-[#0c1427] text-white'
+                            : 'text-[#6b7280] hover:bg-[#f3f4f6]'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    ),
+                  )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= payments.meta.totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Sonraki
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

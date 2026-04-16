@@ -6,7 +6,7 @@ import { useApiQuery } from '@/hooks/use-api'
 import { apiClient } from '@/lib/api'
 import { useAuth } from '@/providers/auth-provider'
 import { UserRole } from '@sakin/shared'
-import { FileText } from 'lucide-react'
+import { FileText, Search } from 'lucide-react'
 import { EmptyState } from '@/components/empty-state'
 import { Button } from '@/components/ui/button'
 import { KpiCard, SectionTitle, StatusPill } from '@/components/surface'
@@ -45,22 +45,52 @@ const STATUS_OPTIONS = [
   { value: 'WAIVED', label: 'Affedildi' },
 ]
 
+const LIMIT = 20
+
 export function DuesRecordsPanel({ siteId }: DuesRecordsPanelProps) {
   const { role } = useAuth()
   const queryClient = useQueryClient()
   const isTenantAdmin = role === UserRole.TENANT_ADMIN
+
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [page, setPage] = useState(1)
   const [waivingId, setWaivingId] = useState<string | null>(null)
 
+  // Search & period filters
+  const [searchInput, setSearchInput] = useState('')
+  const [committedSearch, setCommittedSearch] = useState('')
+  const [periodMonth, setPeriodMonth] = useState('')
+  const [periodYear, setPeriodYear] = useState('')
+
+  const resetPage = () => setPage(1)
+
+  const handleApplyFilters = () => {
+    setCommittedSearch(searchInput)
+    resetPage()
+  }
+
+  const handleClearFilters = () => {
+    setSearchInput('')
+    setCommittedSearch('')
+    setStatusFilter('ALL')
+    setPeriodMonth('')
+    setPeriodYear('')
+    resetPage()
+  }
+
+  const hasActiveFilters = committedSearch || statusFilter !== 'ALL' || periodMonth || periodYear
+
   const { data: duesData, isLoading } = useApiQuery<DuesListResponse>(
-    ['dues-list', siteId, statusFilter, page],
+    ['dues-list', siteId, statusFilter, committedSearch, periodMonth, periodYear, page],
     '/dues',
     {
       siteId,
       status: statusFilter === 'ALL' ? undefined : statusFilter,
+      search: committedSearch.trim() || undefined,
+      periodMonth: periodMonth ? Number(periodMonth) : undefined,
+      periodYear: periodYear ? Number(periodYear) : undefined,
       page,
-      limit: 50,
+      limit: LIMIT,
     },
   )
 
@@ -88,6 +118,10 @@ export function DuesRecordsPanel({ siteId }: DuesRecordsPanelProps) {
   const openAmount = rows.reduce((sum, row) => sum + Math.max(0, Number(row.remainingAmount)), 0)
   const overdueCount = rows.filter((row) => row.status === 'OVERDUE').length
 
+  // Generate year options (current year +/- 3)
+  const currentYear = new Date().getFullYear()
+  const yearOptions = Array.from({ length: 7 }, (_, i) => currentYear - 3 + i)
+
   return (
     <div className="space-y-4">
       {/* Summary */}
@@ -97,22 +131,72 @@ export function DuesRecordsPanel({ siteId }: DuesRecordsPanelProps) {
         <KpiCard label="Gecikmiş" value={overdueCount} hint="Vadesi geçmiş aidat adedi." icon={FileText} tone="rose" />
       </div>
 
+      {/* Filters */}
+      <div className="ledger-panel-soft p-3 md:p-4">
+        <div className="mb-3">
+          <p className="ledger-label">Filtreleme</p>
+          <p className="mt-1 text-sm text-[#6b7d93]">Daire no, dönem ve durum filtresiyle aidat kayıtlarını daraltın.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
+          <div className="relative lg:col-span-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#9ca3af]" aria-hidden="true" />
+            <input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleApplyFilters() }}
+              className="ledger-input bg-white w-full pl-8"
+              placeholder="Daire no, site adı, açıklama…"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); resetPage() }}
+            className="ledger-input bg-white"
+          >
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <select
+            value={periodMonth}
+            onChange={(e) => { setPeriodMonth(e.target.value); resetPage() }}
+            className="ledger-input bg-white"
+          >
+            <option value="">Tüm Aylar</option>
+            {Array.from({ length: 12 }, (_, i) => (
+              <option key={i + 1} value={String(i + 1)}>
+                {new Date(2000, i).toLocaleString('tr-TR', { month: 'long' })}
+              </option>
+            ))}
+          </select>
+          <select
+            value={periodYear}
+            onChange={(e) => { setPeriodYear(e.target.value); resetPage() }}
+            className="ledger-input bg-white"
+          >
+            <option value="">Tüm Yıllar</option>
+            {yearOptions.map((y) => (
+              <option key={y} value={String(y)}>{y}</option>
+            ))}
+          </select>
+          <div className="flex gap-2">
+            <Button type="button" className="flex-1" onClick={handleApplyFilters}>
+              Filtrele
+            </Button>
+            {hasActiveFilters && (
+              <Button type="button" variant="outline" onClick={handleClearFilters}>
+                Temizle
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Table */}
       <div className="ledger-panel overflow-x-auto">
         <SectionTitle
           title="Aidat Kayıtları"
-          subtitle="Daire bazında dönem, tutar ve durum dağılımı."
-          actions={(
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-              className="ledger-input bg-white text-xs"
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          )}
+          subtitle={meta ? `${meta.total} kayıt bulundu.` : 'Daire bazında dönem, tutar ve durum dağılımı.'}
         />
 
         {isLoading ? (
@@ -176,7 +260,7 @@ export function DuesRecordsPanel({ siteId }: DuesRecordsPanelProps) {
                 <p className="text-xs text-[#6b7280]">
                   Sayfa {meta.page} / {meta.totalPages} · Toplam {meta.total} kayıt
                 </p>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-1">
                   <Button
                     type="button"
                     variant="outline"
@@ -186,6 +270,31 @@ export function DuesRecordsPanel({ siteId }: DuesRecordsPanelProps) {
                   >
                     Önceki
                   </Button>
+                  {Array.from({ length: meta.totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === meta.totalPages || Math.abs(p - page) <= 1)
+                    .reduce<(number | 'dots')[]>((acc, p, idx, arr) => {
+                      if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('dots')
+                      acc.push(p)
+                      return acc
+                    }, [])
+                    .map((item, idx) =>
+                      item === 'dots' ? (
+                        <span key={`dots-${idx}`} className="px-1 text-xs text-[#9ca3af]">…</span>
+                      ) : (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setPage(item)}
+                          className={`h-8 min-w-[32px] rounded text-xs font-medium transition-colors ${
+                            item === page
+                              ? 'bg-[#0c1427] text-white'
+                              : 'text-[#6b7280] hover:bg-[#f3f4f6]'
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      ),
+                    )}
                   <Button
                     type="button"
                     variant="outline"
