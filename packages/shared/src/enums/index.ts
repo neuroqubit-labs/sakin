@@ -175,6 +175,12 @@ export enum ExpenseCategory {
   COMMUNICATION = 'COMMUNICATION',
 }
 
+export enum ExpensePayerScope {
+  ALL = 'ALL',
+  OWNERS_ONLY = 'OWNERS_ONLY',
+  TENANTS_ONLY = 'TENANTS_ONLY',
+}
+
 export enum PlanType {
   TRIAL = 'TRIAL',
   STARTER = 'STARTER',

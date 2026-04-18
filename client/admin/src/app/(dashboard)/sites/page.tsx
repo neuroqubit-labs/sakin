@@ -5,6 +5,7 @@ import { useForm, type UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CreateSiteSchema, type CreateSiteDto, type UpdateSiteDto } from '@sakin/shared'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Archive,
   Building2,
@@ -170,6 +171,7 @@ function SiteFormFields({
 }
 
 export default function SitesPage() {
+  const router = useRouter()
   const { selectedSiteId, setSelectedSiteId } = useSiteContext()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -208,8 +210,8 @@ export default function SitesPage() {
 
   const createMutation = useApiMutation<SiteRow, CreateSiteDto>('/sites', {
     invalidateKeys: [['sites'], ['portfolio']],
-    onSuccess: () => {
-      toastSuccess('Site oluşturuldu')
+    onSuccess: (site) => {
+      toastSuccess('Site oluşturuldu — birimleri planlamak için detaya yönlendiriliyorsunuz')
       setShowCreate(false)
       createForm.reset({
         name: '',
@@ -219,6 +221,7 @@ export default function SitesPage() {
         totalUnits: 1,
         hasBlocks: false,
       })
+      if (site?.id) router.push(`/sites/${site.id}`)
     },
   })
 

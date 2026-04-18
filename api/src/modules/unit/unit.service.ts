@@ -1,6 +1,12 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { CreateUnitDto, UpdateUnitDto, UnitFilterDto, CreateBlockDto } from '@sakin/shared'
+import type {
+  CreateUnitDto,
+  UpdateUnitDto,
+  UnitFilterDto,
+  CreateBlockDto,
+  BulkCreateUnitsDto,
+} from '@sakin/shared'
 import { DuesStatus, LedgerReferenceType, PaymentStatus } from '@sakin/shared'
 import { toMoneyNumber } from '../../common/finance/finance.utils'
 import { mapDuesRemainingByLedger } from '../../common/finance/ledger-balance.util'
@@ -254,6 +260,77 @@ export class UnitService {
       include: { _count: { select: { units: true } } },
       orderBy: { name: 'asc' },
     })
+  }
+
+  async createBulk(siteId: string, dto: BulkCreateUnitsDto, tenantId: string) {
+    const db = this.prisma.forTenant(tenantId)
+
+    const site = await db.site.findFirst({ where: { id: siteId } })
+    if (!site) throw new NotFoundException('Site bulunamadı')
+
+    const blockIds = Array.from(
+      new Set(dto.items.map((item) => item.blockId).filter((id): id is string => !!id)),
+    )
+    if (blockIds.length > 0) {
+      if (!site.hasBlocks) throw new BadRequestException('Bu site blok yapısını desteklemiyor')
+      const blocks = await db.block.findMany({ where: { id: { in: blockIds }, siteId } })
+      if (blocks.length !== blockIds.length) throw new NotFoundException('Bir veya daha fazla blok bulunamadı')
+    }
+
+    if (site.hasBlocks && dto.items.some((item) => !item.blockId)) {
+      throw new BadRequestException('Bloklu site için her kalemde blockId zorunlu')
+    }
+
+    const rows: Array<{
+      siteId: string
+      blockId: string | null
+      number: string
+      floor: number | null
+      type: (typeof dto.items)[number]['type']
+      isStaffQuarters: boolean
+      isExemptFromDues: boolean
+      tenantId: string
+    }> = []
+    const seen = new Set<string>()
+
+    for (const item of dto.items) {
+      const prefix = item.numberingPrefix ?? ''
+      for (let i = 0; i < item.count; i += 1) {
+        const number = `${prefix}${item.numberingStart + i}`
+        const key = `${item.blockId ?? ''}:${number}`
+        if (seen.has(key)) {
+          throw new ConflictException(`Aynı numara tekrarlanıyor: ${number}`)
+        }
+        seen.add(key)
+        rows.push({
+          siteId,
+          blockId: item.blockId ?? null,
+          number,
+          floor: item.floorStart !== undefined ? item.floorStart + i : null,
+          type: item.type,
+          isStaffQuarters: item.isStaffQuarters ?? false,
+          isExemptFromDues: item.isExemptFromDues ?? false,
+          tenantId,
+        })
+      }
+    }
+
+    const orConditions = rows.map((row) => ({
+      siteId: row.siteId,
+      blockId: row.blockId,
+      number: row.number,
+    }))
+    const existing = await db.unit.findMany({
+      where: { OR: orConditions },
+      select: { number: true, blockId: true },
+    })
+    if (existing.length > 0) {
+      const label = existing.map((u) => `${u.blockId ?? '-'}/${u.number}`).join(', ')
+      throw new ConflictException(`Bu numaralar zaten mevcut: ${label}`)
+    }
+
+    const created = await db.unit.createMany({ data: rows })
+    return { created: created.count }
   }
 
 }

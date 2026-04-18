@@ -9,9 +9,27 @@ export const CreateUnitSchema = z.object({
   type: z.nativeEnum(UnitType).default(UnitType.APARTMENT),
   area: z.number().positive().optional(),
   description: z.string().max(500).optional(),
+  isStaffQuarters: z.boolean().optional(),
+  isExemptFromDues: z.boolean().optional(),
+  customDuesAmount: z.number().nonnegative().optional(),
 })
 
 export const UpdateUnitSchema = CreateUnitSchema.partial().omit({ siteId: true })
+
+export const BulkCreateUnitsItemSchema = z.object({
+  type: z.nativeEnum(UnitType).default(UnitType.APARTMENT),
+  count: z.number().int().positive().max(500),
+  blockId: z.string().uuid().optional(),
+  numberingPrefix: z.string().max(10).optional(),
+  numberingStart: z.number().int().positive().default(1),
+  floorStart: z.number().int().optional(),
+  isStaffQuarters: z.boolean().optional(),
+  isExemptFromDues: z.boolean().optional(),
+})
+
+export const BulkCreateUnitsSchema = z.object({
+  items: z.array(BulkCreateUnitsItemSchema).min(1).max(20),
+})
 
 export const UnitFilterSchema = z.object({
   siteId: z.string().uuid().optional(),
@@ -34,3 +52,5 @@ export type CreateUnitDto = z.infer<typeof CreateUnitSchema>
 export type UpdateUnitDto = z.infer<typeof UpdateUnitSchema>
 export type UnitFilterDto = z.infer<typeof UnitFilterSchema>
 export type CreateBlockDto = z.infer<typeof CreateBlockSchema>
+export type BulkCreateUnitsItemDto = z.infer<typeof BulkCreateUnitsItemSchema>
+export type BulkCreateUnitsDto = z.infer<typeof BulkCreateUnitsSchema>

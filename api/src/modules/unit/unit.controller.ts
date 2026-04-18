@@ -4,7 +4,14 @@ import { UnitService } from './unit.service'
 import { Tenant } from '../../common/decorators/tenant.decorator'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
-import { CreateUnitSchema, UpdateUnitSchema, UnitFilterSchema, CreateBlockSchema, UserRole } from '@sakin/shared'
+import {
+  CreateUnitSchema,
+  UpdateUnitSchema,
+  UnitFilterSchema,
+  CreateBlockSchema,
+  BulkCreateUnitsSchema,
+  UserRole,
+} from '@sakin/shared'
 import type { TenantContext } from '@sakin/shared'
 
 @ApiTags('units')
@@ -85,5 +92,20 @@ export class UnitController {
   @ApiOperation({ summary: 'Site blok listesi (TENANT_ADMIN, STAFF)' })
   findBlocks(@Param('siteId') siteId: string, @Tenant() ctx: TenantContext) {
     return this.unitService.findBlocks(siteId, ctx.tenantId!)
+  }
+
+  @Post('sites/:siteId/units/bulk')
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Tipli bulk daire oluştur (TENANT_ADMIN)' })
+  createBulk(
+    @Param('siteId') siteId: string,
+    @Body(new ZodValidationPipe(BulkCreateUnitsSchema)) dto: unknown,
+    @Tenant() ctx: TenantContext,
+  ) {
+    return this.unitService.createBulk(
+      siteId,
+      dto as Parameters<UnitService['createBulk']>[1],
+      ctx.tenantId!,
+    )
   }
 }

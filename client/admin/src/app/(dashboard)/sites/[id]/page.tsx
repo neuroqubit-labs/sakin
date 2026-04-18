@@ -7,11 +7,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   CreateUnitSchema,
   CreateBlockSchema,
+  BulkCreateUnitsSchema,
   type CreateUnitDto,
   type CreateBlockDto,
+  type BulkCreateUnitsDto,
   UnitType,
 } from '@sakin/shared'
-import { AlertCircle, Building2, ChevronRight, Home, Layers, Plus, Users } from 'lucide-react'
+import { AlertCircle, Building2, ChevronRight, Home, Layers, Plus, Trash2, UserPlus, Users, Wand2 } from 'lucide-react'
 import { useApiQuery, useApiMutation } from '@/hooks/use-api'
 import { toastSuccess } from '@/lib/toast'
 import { Breadcrumb } from '@/components/breadcrumb'
@@ -79,11 +81,30 @@ function financialChip(status: 'CLEAR' | 'DEBTOR' | 'OVERDUE') {
   return <span className="ledger-chip ledger-chip-danger">Gecikmiş</span>
 }
 
+type BulkPlanRow = {
+  type: UnitType
+  count: number
+  blockId?: string
+  numberingPrefix?: string
+  numberingStart: number
+  floorStart?: number
+  isStaffQuarters: boolean
+}
+
+const EMPTY_BULK_ROW: BulkPlanRow = {
+  type: UnitType.APARTMENT,
+  count: 10,
+  numberingStart: 1,
+  isStaffQuarters: false,
+}
+
 export default function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
 
   const [showAddUnit, setShowAddUnit] = useState(false)
   const [showAddBlock, setShowAddBlock] = useState(false)
+  const [showBulkPlan, setShowBulkPlan] = useState(false)
+  const [bulkRows, setBulkRows] = useState<BulkPlanRow[]>([{ ...EMPTY_BULK_ROW }])
 
   const { data: site, isLoading: siteLoading } = useApiQuery<SiteDetail>(
     ['site-detail', id],
@@ -125,6 +146,39 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
       },
     },
   )
+
+  const bulkUnitsMutation = useApiMutation<{ created: number }, BulkCreateUnitsDto>(
+    `/sites/${id}/units/bulk`,
+    {
+      invalidateKeys: [['site-units', id]],
+      onSuccess: (res) => {
+        toastSuccess(`${res.created} birim oluşturuldu.`)
+        setShowBulkPlan(false)
+        setBulkRows([{ ...EMPTY_BULK_ROW }])
+      },
+    },
+  )
+
+  const bulkTotal = bulkRows.reduce((sum, r) => sum + (r.count || 0), 0)
+  const bulkValid = (() => {
+    const parsed = BulkCreateUnitsSchema.safeParse({ items: bulkRows })
+    if (!parsed.success) return false
+    if (site?.hasBlocks && bulkRows.some((r) => !r.blockId)) return false
+    return true
+  })()
+
+  function updateBulkRow(idx: number, patch: Partial<BulkPlanRow>) {
+    setBulkRows((rows) => rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+  }
+  function addBulkRow() {
+    setBulkRows((rows) => [...rows, { ...EMPTY_BULK_ROW, numberingStart: rows.length * 10 + 1 }])
+  }
+  function removeBulkRow(idx: number) {
+    setBulkRows((rows) => (rows.length === 1 ? rows : rows.filter((_, i) => i !== idx)))
+  }
+  function submitBulkPlan() {
+    bulkUnitsMutation.mutate({ items: bulkRows })
+  }
 
   const unitForm = useForm<CreateUnitDto>({
     resolver: zodResolver(CreateUnitSchema),
@@ -185,6 +239,136 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
             />
           </>
         )}
+      </div>
+
+      <div className="ledger-panel overflow-hidden">
+        <SectionTitle
+          title="Birim Planı"
+          subtitle="Tipli bulk oluşturma: daire, dükkan, depo, ofis ve görevli dairesini tek seferde planla."
+          actions={(
+            <Button size="sm" variant={units.length === 0 ? 'default' : 'outline'} onClick={() => setShowBulkPlan((prev) => !prev)}>
+              <Wand2 className="h-4 w-4" />
+              {showBulkPlan ? 'Kapat' : 'Birim Planı Oluştur'}
+            </Button>
+          )}
+        />
+        {showBulkPlan ? (
+          <div className="p-5 space-y-3">
+            {site?.hasBlocks && blocks.length === 0 ? (
+              <div className="rounded-[14px] bg-[#fff4cf] px-4 py-3 text-xs text-[#7a5300]">
+                Bloklu site: önce en az bir blok ekleyin, sonra birim planlayın.
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              {bulkRows.map((row, idx) => (
+                <div key={idx} className="ledger-panel-soft p-3 md:p-4 grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                  <label className="md:col-span-2 text-xs font-medium text-[#374151]">
+                    Tip
+                    <select
+                      value={row.type}
+                      onChange={(e) => updateBulkRow(idx, { type: e.target.value as UnitType })}
+                      className="ledger-input bg-white w-full h-9 mt-1"
+                    >
+                      {Object.entries(UNIT_TYPE_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="md:col-span-1 text-xs font-medium text-[#374151]">
+                    Adet
+                    <Input
+                      type="number"
+                      min={1}
+                      max={500}
+                      value={row.count}
+                      onChange={(e) => updateBulkRow(idx, { count: Math.max(1, Number(e.target.value) || 1) })}
+                      className="mt-1"
+                    />
+                  </label>
+                  {site?.hasBlocks ? (
+                    <label className="md:col-span-2 text-xs font-medium text-[#374151]">
+                      Blok
+                      <select
+                        value={row.blockId ?? ''}
+                        onChange={(e) => updateBulkRow(idx, { blockId: e.target.value || undefined })}
+                        className="ledger-input bg-white w-full h-9 mt-1"
+                      >
+                        <option value="">Seçiniz</option>
+                        {blocks.map((block) => (
+                          <option key={block.id} value={block.id}>{block.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  <label className="md:col-span-2 text-xs font-medium text-[#374151]">
+                    Numara prefix
+                    <Input
+                      placeholder="örn. D"
+                      value={row.numberingPrefix ?? ''}
+                      onChange={(e) => updateBulkRow(idx, { numberingPrefix: e.target.value || undefined })}
+                      className="mt-1"
+                    />
+                  </label>
+                  <label className="md:col-span-2 text-xs font-medium text-[#374151]">
+                    Başlangıç no
+                    <Input
+                      type="number"
+                      min={1}
+                      value={row.numberingStart}
+                      onChange={(e) => updateBulkRow(idx, { numberingStart: Math.max(1, Number(e.target.value) || 1) })}
+                      className="mt-1"
+                    />
+                  </label>
+                  <label className="md:col-span-1 text-xs font-medium text-[#374151]">
+                    Kat (ops.)
+                    <Input
+                      type="number"
+                      value={row.floorStart ?? ''}
+                      onChange={(e) => updateBulkRow(idx, { floorStart: e.target.value === '' ? undefined : Number(e.target.value) })}
+                      className="mt-1"
+                    />
+                  </label>
+                  <label className="md:col-span-1 flex items-center gap-1.5 text-xs text-[#374151] pb-2">
+                    <input
+                      type="checkbox"
+                      checked={row.isStaffQuarters}
+                      onChange={(e) => updateBulkRow(idx, { isStaffQuarters: e.target.checked })}
+                    />
+                    Görevli
+                  </label>
+                  <div className="md:col-span-1 flex justify-end pb-2">
+                    <button
+                      type="button"
+                      onClick={() => removeBulkRow(idx)}
+                      disabled={bulkRows.length === 1}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-[#9ca3af] hover:bg-[#fee2e2] hover:text-[#ba1a1a] transition-colors disabled:opacity-30"
+                      aria-label="Satırı kaldır"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button type="button" variant="outline" size="sm" onClick={addBulkRow}>
+                <Plus className="h-4 w-4" />
+                Satır Ekle
+              </Button>
+              <span className="text-xs text-[#6b7280]">
+                Toplam <strong className="text-[#0c1427]">{bulkTotal}</strong> birim oluşturulacak
+              </span>
+              <div className="ml-auto flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowBulkPlan(false)}>
+                  İptal
+                </Button>
+                <Button type="button" onClick={submitBulkPlan} disabled={!bulkValid || bulkUnitsMutation.isPending}>
+                  {bulkUnitsMutation.isPending ? 'Oluşturuluyor...' : 'Birimleri Oluştur'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="ledger-panel overflow-hidden">
@@ -349,7 +533,13 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   </div>
                   <div className="col-span-4">
                     {unit.residents.length === 0 ? (
-                      <span className="text-xs italic text-[#9ca3af]">Sakin ataması yok</span>
+                      <Link
+                        href={`/units/${unit.id}`}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-[#1a56db] hover:underline"
+                      >
+                        <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
+                        Sakin Ata
+                      </Link>
                     ) : (
                       <div className="space-y-0.5">
                         {unit.residents.slice(0, 2).map((resident) => (

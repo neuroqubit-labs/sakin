@@ -212,6 +212,9 @@ model Unit {
   type        UnitType @default(APARTMENT)
   area        Float?
   description String?
+  isStaffQuarters  Boolean  @default(false)
+  isExemptFromDues Boolean  @default(false)
+  customDuesAmount Decimal? @db.Decimal(12, 2)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -516,6 +519,7 @@ model Expense {
   contractId  String?
   amount      Decimal         @db.Decimal(12, 2)
   category    ExpenseCategory
+  payerScope  ExpensePayerScope @default(ALL)
   description String
   date        DateTime
   receiptUrl  String?
@@ -1245,6 +1249,12 @@ enum ExpenseCategory {
   RENOVATION
   EQUIPMENT
   COMMUNICATION
+}
+
+enum ExpensePayerScope {
+  ALL
+  OWNERS_ONLY
+  TENANTS_ONLY
 }
 
 enum PlanType {

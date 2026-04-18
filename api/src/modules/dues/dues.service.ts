@@ -37,12 +37,12 @@ export class DuesService {
     const db = this.prisma.forTenant(tenantId)
 
     const units = await db.unit.findMany({
-      where: { siteId: dto.siteId, isActive: true },
-      select: { id: true },
+      where: { siteId: dto.siteId, isActive: true, isExemptFromDues: false },
+      select: { id: true, customDuesAmount: true },
     })
 
     if (units.length === 0) {
-      throw new NotFoundException('Bu siteye ait aktif daire bulunamadı')
+      throw new NotFoundException('Bu siteye ait aidata tabi aktif daire bulunamadı')
     }
 
     const dueDate = dto.dueDayOfMonth
@@ -63,6 +63,8 @@ export class DuesService {
 
       if (existing) continue
 
+      const unitAmount = unit.customDuesAmount != null ? Number(unit.customDuesAmount) : dto.amount
+
       // eslint-disable-next-line no-await-in-loop
       await this.prisma.$transaction(async (tx) => {
         const dues = await tx.dues.create({
@@ -70,7 +72,7 @@ export class DuesService {
             tenantId,
             unitId: unit.id,
             duesDefinitionId: dto.duesDefinitionId,
-            amount: dto.amount,
+            amount: unitAmount,
             currency: dto.currency,
             dueDate,
             periodMonth: dto.periodMonth,
@@ -84,7 +86,7 @@ export class DuesService {
           {
             tenantId,
             unitId: unit.id,
-            amount: dto.amount,
+            amount: unitAmount,
             currency: dto.currency,
             entryType: LedgerEntryType.CHARGE,
             referenceType: LedgerReferenceType.DUES,
