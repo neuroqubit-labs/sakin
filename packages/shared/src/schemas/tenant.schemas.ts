@@ -12,9 +12,22 @@ export const CreateTenantSchema = z.object({
   contactPhone: z.string().min(10).max(15),
   city: z.string().min(2).max(100),
   address: z.string().max(500).optional(),
+  admin: z.object({
+    email: z.string().email('Geçerli bir e-posta adresi girin'),
+    displayName: z.string().min(2, 'Ad en az 2 karakter olmalı').max(100),
+  }),
 })
 
-export const UpdateTenantSchema = CreateTenantSchema.partial().omit({ slug: true })
+export const UpdateTenantSchema = CreateTenantSchema
+  .partial()
+  .omit({ slug: true, admin: true })
+  .extend({
+    activityNotes: z.string().max(2000).optional().nullable(),
+  })
+
+export const SuspendTenantSchema = z.object({
+  reason: z.string().min(3, 'Lütfen askıya alma sebebi girin').max(500),
+})
 
 export const UpdateTenantPlanSchema = z.object({
   planType: z.nativeEnum(PlanType).optional(),
@@ -66,6 +79,7 @@ export const TenantFilterSchema = z.object({
 export type CreateTenantDto = z.infer<typeof CreateTenantSchema>
 export type UpdateTenantDto = z.infer<typeof UpdateTenantSchema>
 export type UpdateTenantPlanDto = z.infer<typeof UpdateTenantPlanSchema>
+export type SuspendTenantDto = z.infer<typeof SuspendTenantSchema>
 export type TenantFilterDto = z.infer<typeof TenantFilterSchema>
 export type UpsertTenantGatewayConfigDto = z.infer<typeof UpsertTenantGatewayConfigSchema>
 export type AssignUserTenantRoleDto = z.infer<typeof AssignUserTenantRoleSchema>

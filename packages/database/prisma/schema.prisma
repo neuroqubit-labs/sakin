@@ -20,6 +20,10 @@ model Tenant {
   city         String
   address      String?
   isActive     Boolean  @default(true)
+  suspendedAt     DateTime?
+  suspendedReason String?
+  suspendedBy     String?
+  activityNotes   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
