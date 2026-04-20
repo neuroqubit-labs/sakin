@@ -14,49 +14,60 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PrimaryButton, SurfaceCard } from '@/components'
 import { useAuthSession } from '@/contexts/auth-context'
 import { DEV_BYPASS_ENABLED } from '@/lib/env'
-import { getFirebaseAuth, isFirebaseNativeAvailable } from '@/lib/firebase-auth'
-import { getDevBootstrap, setDevResidentId } from '@/lib/api'
+import { ApiError, getDevBootstrap, requestOtp, verifyOtp } from '@/lib/api'
 import { colors, radii, spacing, typography } from '@/theme'
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets()
   const showDevBypass = DEV_BYPASS_ENABLED
-  const { setSession } = useAuthSession()
+  const { signIn } = useAuthSession()
   const [phoneNumber, setPhoneNumber] = useState('')
   const [code, setCode] = useState('')
-  const [confirm, setConfirm] = useState<{ confirm: (code: string) => Promise<unknown> } | null>(
-    null,
-  )
+  const [otpSent, setOtpSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [devCode, setDevCode] = useState<string | null>(null)
 
   async function sendCode() {
     if (!phoneNumber.trim()) return
-    const auth = getFirebaseAuth()
-    if (!auth || !isFirebaseNativeAvailable()) {
-      setFeedback('Expo Go ile native Firebase çalışmaz. Development build ile devam edin.')
-      return
-    }
     setLoading(true)
     setFeedback(null)
+    setDevCode(null)
     try {
-      const confirmation = await auth.signInWithPhoneNumber(phoneNumber)
-      setConfirm(confirmation)
-    } catch {
-      setFeedback('SMS gönderilemedi. Telefon numarasını kontrol edip tekrar deneyin.')
+      const result = await requestOtp(phoneNumber.trim())
+      setOtpSent(true)
+      if (result.devCode) {
+        setDevCode(result.devCode)
+      }
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : 'SMS gönderilemedi. Tekrar deneyin.'
+      setFeedback(message)
     } finally {
       setLoading(false)
     }
   }
 
   async function verifyCode() {
-    if (!confirm || !code.trim()) return
+    if (!code.trim()) return
     setLoading(true)
     setFeedback(null)
     try {
-      await confirm.confirm(code)
-    } catch {
-      setFeedback('Kod doğrulanamadı. Gelen 6 haneli kodu tekrar kontrol edin.')
+      const result = await verifyOtp(phoneNumber.trim(), code.trim())
+      // verify sonrası tenantId doğrudan dönmüyor; /auth/me veya residencies ile öğrenilir.
+      // Session token'larıyla kaydediyoruz; residencies sorgusu bir sonraki ekranda (home) tetiklenecek.
+      // tenantId şimdilik null — middleware kullanıcının tenantRole'unu otomatik çözüyor.
+      signIn({
+        userId: result.user.id,
+        tenantId: null,
+        role: 'RESIDENT',
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      })
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : 'Kod doğrulanamadı. Tekrar deneyin.'
+      setFeedback(message)
     } finally {
       setLoading(false)
     }
@@ -77,19 +88,21 @@ export default function LoginScreen() {
           setFeedback('Veritabanında aktif sakin bulunamadı. Önce seed çalıştırın.')
           return
         }
-        setDevResidentId(bootstrap.devResident.residentId)
-        setSession({
+        signIn({
           userId: `dev-resident-${bootstrap.devResident.residentId}`,
           tenantId: bootstrap.tenantId,
           role: 'RESIDENT',
           residentId: bootstrap.devResident.residentId,
+          accessToken: null,
+          refreshToken: null,
         })
       } else {
-        setDevResidentId(null)
-        setSession({
+        signIn({
           userId: 'dev-user',
           tenantId: bootstrap.tenantId,
           role: 'TENANT_ADMIN',
+          accessToken: null,
+          refreshToken: null,
         })
       }
     } catch (error) {
@@ -127,10 +140,12 @@ export default function LoginScreen() {
         </LinearGradient>
 
         <SurfaceCard style={styles.card}>
-          {!confirm ? (
+          {!otpSent ? (
             <>
               <Text style={styles.cardTitle}>Giriş Yap</Text>
-              <Text style={styles.cardSub}>Telefon numarana tek kullanımlık kod göndereceğiz.</Text>
+              <Text style={styles.cardSub}>
+                Yöneticinizin kayıtlı olduğu telefon numaranıza 6 haneli kod göndereceğiz.
+              </Text>
               <TextInput
                 style={styles.input}
                 placeholder="+90 555 123 4567"
@@ -179,6 +194,9 @@ export default function LoginScreen() {
               <Text style={styles.cardSub}>
                 {phoneNumber} numarasına gönderilen 6 haneli kodu yaz.
               </Text>
+              {devCode ? (
+                <Text style={styles.devCodeText}>Dev kodu: {devCode}</Text>
+              ) : null}
               <TextInput
                 style={[styles.input, styles.inputCode]}
                 placeholder="— — — — — —"
@@ -198,8 +216,10 @@ export default function LoginScreen() {
               <Pressable
                 style={styles.backButton}
                 onPress={() => {
-                  setConfirm(null)
+                  setOtpSent(false)
                   setCode('')
+                  setDevCode(null)
+                  setFeedback(null)
                 }}
               >
                 <Text style={styles.backButtonText}>Farklı numara kullan</Text>
@@ -287,6 +307,12 @@ const styles = StyleSheet.create({
     color: colors.dangerInk,
     fontSize: 13,
     lineHeight: 20,
+  },
+  devCodeText: {
+    marginBottom: spacing.md,
+    color: colors.brand,
+    fontSize: 13,
+    fontWeight: '700',
   },
   buttonDisabled: {
     opacity: 0.55,

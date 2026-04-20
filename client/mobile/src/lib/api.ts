@@ -1,4 +1,3 @@
-import { getFirebaseAuth } from '@/lib/firebase-auth'
 import { DEV_BYPASS_ENABLED } from '@/lib/env'
 import { NativeModules } from 'react-native'
 
@@ -29,25 +28,30 @@ function resolveBaseUrl() {
 }
 
 const BASE_URL = resolveBaseUrl()
+export const API_BASE_URL = BASE_URL
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>
 }
 
-async function getToken(): Promise<string | null> {
-  const auth = getFirebaseAuth()
-  const user = auth?.currentUser ?? null
-  if (!user) return null
-  try {
-    return await user.getIdToken()
-  } catch {
-    return null
-  }
+type UnauthorizedHandler = () => void
+type TokenRefresher = () => Promise<string | null>
+
+let unauthorizedHandler: UnauthorizedHandler | null = null
+let accessToken: string | null = null
+let tokenRefresher: TokenRefresher | null = null
+let refreshInFlight: Promise<string | null> | null = null
+let devResidentId: string | null = null
+
+/** SecureStore'dan yüklenen / OTP verify sonrası elde edilen access token'ı buraya yaz. */
+export function setAccessToken(token: string | null) {
+  accessToken = token
 }
 
-type UnauthorizedHandler = () => void
-let unauthorizedHandler: UnauthorizedHandler | null = null
-let devResidentId: string | null = null
+/** Refresh token ile yeni access token alma fonksiyonunu (_layout.tsx tarafından) kaydeder. */
+export function setTokenRefresher(refresher: TokenRefresher | null) {
+  tokenRefresher = refresher
+}
 
 /** Dev modda RESIDENT bypass için residentId'yi set eder. */
 export function setDevResidentId(id: string | null) {
@@ -70,13 +74,22 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiClient<T>(
-  path: string,
-  options: FetchOptions = {},
-  tenantId?: string | null,
-): Promise<T> {
-  const token = await getToken()
+async function tryRefreshToken(): Promise<string | null> {
+  if (!tokenRefresher) return null
+  if (!refreshInFlight) {
+    refreshInFlight = tokenRefresher().finally(() => {
+      refreshInFlight = null
+    })
+  }
+  return refreshInFlight
+}
 
+async function rawFetch(
+  path: string,
+  options: FetchOptions,
+  tenantId: string | null | undefined,
+  tokenOverride: string | null,
+): Promise<Response> {
   const { params, ...fetchOptions } = options
 
   let url = `${BASE_URL}${path}`
@@ -94,22 +107,37 @@ export async function apiClient<T>(
     ...(fetchOptions.headers as Record<string, string> | undefined),
   }
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+  if (tokenOverride) {
+    headers['Authorization'] = `Bearer ${tokenOverride}`
     if (tenantId) {
       headers['x-tenant-id'] = tenantId
     }
   } else if (tenantId && DEV_BYPASS_ENABLED) {
-    // Prod bundle'da kapalı — DEV_BYPASS_ENABLED iki kilit birden açıksa true.
     headers['x-dev-tenant-id'] = tenantId
-    // Dev RESIDENT bypass: session-store'dan residentId varsa header ekle
     if (devResidentId) {
       headers['x-dev-role'] = 'RESIDENT'
       headers['x-dev-resident-id'] = devResidentId
     }
   }
 
-  const response = await fetch(url, { ...fetchOptions, headers })
+  return fetch(url, { ...fetchOptions, headers })
+}
+
+export async function apiClient<T>(
+  path: string,
+  options: FetchOptions = {},
+  tenantId?: string | null,
+): Promise<T> {
+  let response = await rawFetch(path, options, tenantId, accessToken)
+
+  if (response.status === 401 && accessToken) {
+    // Access token süresi bittiyse bir kez refresh denemesi.
+    const refreshed = await tryRefreshToken()
+    if (refreshed) {
+      accessToken = refreshed
+      response = await rawFetch(path, options, tenantId, refreshed)
+    }
+  }
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => ({}))) as {
@@ -131,10 +159,60 @@ export async function apiClient<T>(
   return json.data
 }
 
-export interface RegisterResponse {
-  userId: string
-  tenantId: string | null
-  role: string
+/** JSON body'sini unwrap etmeden, {data, ...meta} bekleyen endpointler için (ör. auth/otp). */
+export async function apiRaw<T>(
+  path: string,
+  options: FetchOptions = {},
+  tenantId?: string | null,
+): Promise<T> {
+  const response = await rawFetch(path, options, tenantId, accessToken)
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => ({}))) as { message?: string; code?: string }
+    throw new ApiError(
+      errorBody.message ?? `HTTP ${response.status}`,
+      response.status,
+      errorBody.code,
+    )
+  }
+  return (await response.json()) as T
+}
+
+export interface OtpRequestResponse {
+  ok: boolean
+  phoneNumber: string
+  devCode?: string
+}
+
+export interface AuthTokenResponse {
+  accessToken: string
+  refreshToken: string
+  user: {
+    id: string
+    email: string | null
+    phoneNumber: string | null
+    displayName: string | null
+  }
+}
+
+export async function requestOtp(phoneNumber: string): Promise<OtpRequestResponse> {
+  return apiRaw<OtpRequestResponse>('/auth/otp/request', {
+    method: 'POST',
+    body: JSON.stringify({ phoneNumber }),
+  })
+}
+
+export async function verifyOtp(phoneNumber: string, code: string): Promise<AuthTokenResponse> {
+  return apiRaw<AuthTokenResponse>('/auth/otp/verify', {
+    method: 'POST',
+    body: JSON.stringify({ phoneNumber, code }),
+  })
+}
+
+export async function refreshAccessToken(refreshToken: string): Promise<AuthTokenResponse> {
+  return apiRaw<AuthTokenResponse>('/auth/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken }),
+  })
 }
 
 export interface DevResident {
@@ -153,23 +231,6 @@ export interface DevBootstrapResponse {
   tenantSlug?: string
   message?: string
   devResident?: DevResident | null
-}
-
-export async function registerUser(): Promise<RegisterResponse | null> {
-  const auth = getFirebaseAuth()
-  const user = auth?.currentUser ?? null
-  if (!user) return null
-  const token = await user.getIdToken()
-
-  const response = await fetch(`${BASE_URL}/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ firebaseToken: token }),
-  })
-
-  if (!response.ok) return null
-  const json = (await response.json()) as { data: RegisterResponse }
-  return json.data
 }
 
 export async function getDevBootstrap(): Promise<DevBootstrapResponse> {

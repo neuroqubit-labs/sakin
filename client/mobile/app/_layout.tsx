@@ -1,27 +1,35 @@
-import { useCallback, useEffect, useState, useRef, type ComponentType } from 'react'
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { View, ActivityIndicator } from 'react-native'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, type AuthSession } from '@/contexts/auth-context'
-import { registerUser, setUnauthorizedHandler, setDevResidentId } from '@/lib/api'
-import { getFirebaseAuth, isFirebaseNativeAvailable } from '@/lib/firebase-auth'
+import {
+  refreshAccessToken,
+  setAccessToken,
+  setDevResidentId,
+  setTokenRefresher,
+  setUnauthorizedHandler,
+} from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { clearSession, loadSession, saveSession } from '@/lib/session-store'
+import { clearPushToken, loadPushToken } from '@/lib/push-token-store'
+import { unregisterDeviceTokenDirect } from '@/features/notification/queries'
 import { colors } from '@/theme'
-
-type FirebaseUser = { uid: string } | null
+import { usePushRegistration } from '@/features/notification/use-push-registration'
 
 function useAuth() {
-  const [user, setUser] = useState<FirebaseUser>(null)
   const [session, setSessionState] = useState<AuthSession | null>(null)
   const [loading, setLoading] = useState(true)
-  const registeredUid = useRef<string | null>(null)
+  const refreshTokenRef = useRef<string | null>(null)
+  const sessionRef = useRef<AuthSession | null>(null)
 
   const setSession = useCallback((next: AuthSession | null) => {
     setSessionState(next)
-    // Dev RESIDENT bypass: residentId'yi api modülüne ilet
+    sessionRef.current = next
+    setAccessToken(next?.accessToken ?? null)
+    refreshTokenRef.current = next?.refreshToken ?? null
     setDevResidentId(next?.residentId ?? null)
     if (next) {
       void saveSession(next)
@@ -31,15 +39,21 @@ function useAuth() {
   }, [])
 
   const signOut = useCallback(() => {
-    registeredUid.current = null
+    // Push token'ı önce backend'den sil — access token hâlâ geçerli.
+    const current = sessionRef.current
+    if (current?.accessToken) {
+      void (async () => {
+        const pushToken = await loadPushToken()
+        if (pushToken) {
+          await unregisterDeviceTokenDirect(pushToken, current.tenantId)
+        }
+        await clearPushToken()
+      })()
+    } else {
+      void clearPushToken()
+    }
     setSession(null)
     queryClient.clear()
-    const auth = getFirebaseAuth()
-    // Firebase signOut yalnız native modülde — yoksa sessiz.
-    const fbSignOut = (auth as unknown as { signOut?: () => Promise<void> } | null)?.signOut
-    if (typeof fbSignOut === 'function') {
-      void fbSignOut()
-    }
   }, [setSession])
 
   // Cold start: SecureStore'dan session hydrate et
@@ -49,8 +63,12 @@ function useAuth() {
       if (cancelled) return
       if (persisted) {
         setSessionState(persisted)
+        sessionRef.current = persisted
+        setAccessToken(persisted.accessToken ?? null)
+        refreshTokenRef.current = persisted.refreshToken ?? null
         setDevResidentId(persisted.residentId ?? null)
       }
+      setLoading(false)
     })
     return () => {
       cancelled = true
@@ -63,41 +81,43 @@ function useAuth() {
     return () => setUnauthorizedHandler(null)
   }, [signOut])
 
+  // Token refresh: 401'de api.ts bunu çağırır. Yeni token SecureStore'a da yazılır.
   useEffect(() => {
-    const auth = getFirebaseAuth()
-    if (!auth || !isFirebaseNativeAvailable()) {
-      setLoading(false)
-      return
-    }
-
-    const unsubscribe = auth.onAuthStateChanged(async (u) => {
-      setUser(u)
-
-      if (u && u.uid !== registeredUid.current) {
-        try {
-          const result = await registerUser()
-          if (result) {
-            registeredUid.current = u.uid
-            setSession({ userId: result.userId, tenantId: result.tenantId, role: result.role })
+    setTokenRefresher(async () => {
+      const refreshToken = refreshTokenRef.current
+      if (!refreshToken) return null
+      try {
+        const result = await refreshAccessToken(refreshToken)
+        refreshTokenRef.current = result.refreshToken
+        setSessionState((prev) => {
+          if (!prev) return prev
+          const next: AuthSession = {
+            ...prev,
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
           }
-        } catch {
-          // kayıt başarısız — API çağrıları gracefully hata döner
-        }
-      } else if (!u) {
-        registeredUid.current = null
-        setSession(null)
+          sessionRef.current = next
+          void saveSession(next)
+          return next
+        })
+        return result.accessToken
+      } catch {
+        return null
       }
-
-      setLoading(false)
     })
-    return unsubscribe
-  }, [setSession])
+    return () => setTokenRefresher(null)
+  }, [])
 
-  return { user, session, setSession, signOut, loading }
+  return { session, setSession, signOut, loading }
+}
+
+function PushBootstrap() {
+  usePushRegistration()
+  return null
 }
 
 export default function RootLayout() {
-  const { user, session, setSession, signOut, loading } = useAuth()
+  const { session, setSession, signOut, loading } = useAuth()
   const segments = useSegments()
   const router = useRouter()
   const StackNavigator = Stack as unknown as ComponentType<any> & { Screen: ComponentType<any> }
@@ -106,14 +126,14 @@ export default function RootLayout() {
     if (loading) return
 
     const inAuthGroup = segments[0] === '(auth)'
-    const isAuthenticated = Boolean(user) || Boolean(session)
+    const isAuthenticated = Boolean(session)
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/login')
     } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)')
     }
-  }, [user, session, loading, segments, router])
+  }, [session, loading, segments, router])
 
   if (loading) {
     return (
@@ -134,7 +154,8 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider session={session} setSession={setSession} signOut={signOut}>
+          <AuthProvider session={session} signIn={setSession} signOut={signOut}>
+            <PushBootstrap />
             <StackNavigator screenOptions={{ headerShown: false }}>
               <StackNavigator.Screen name="(auth)/login" />
               <StackNavigator.Screen name="(tabs)" />
@@ -151,6 +172,10 @@ export default function RootLayout() {
               />
               <StackNavigator.Screen
                 name="receipt/[id]"
+                options={{ headerShown: false }}
+              />
+              <StackNavigator.Screen
+                name="ticket/[id]"
                 options={{ headerShown: false }}
               />
             </StackNavigator>

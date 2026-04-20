@@ -40,3 +40,23 @@ export const CreateTicketCommentSchema = z.object({
   isInternal: z.boolean().optional(),
 })
 export type CreateTicketCommentDto = z.infer<typeof CreateTicketCommentSchema>
+
+// Foto yükleme. Base64 gövde; backend ~5MB sınırında kesiyor.
+// MIME izin listesi imge ile sınırlı — PDF/video kabul edilmiyor.
+export const ALLOWED_TICKET_ATTACHMENT_MIME = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+] as const
+export const TICKET_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
+export const TICKET_ATTACHMENT_MAX_PER_TICKET = 3
+
+export const UploadTicketAttachmentSchema = z.object({
+  mimeType: z.enum(ALLOWED_TICKET_ATTACHMENT_MIME),
+  originalName: z.string().max(255).optional(),
+  // data: base64-encoded dosya içeriği (data URL değil, sadece base64 gövdesi).
+  data: z.string().min(1),
+})
+export type UploadTicketAttachmentDto = z.infer<typeof UploadTicketAttachmentSchema>

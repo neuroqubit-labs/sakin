@@ -1,12 +1,15 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { NotificationService } from './notification.service'
+import { DeviceTokenService } from './device-token.service'
 import { Tenant } from '../../common/decorators/tenant.decorator'
 import { Roles } from '../../common/decorators/roles.decorator'
 import type { TenantContext } from '@sakin/shared'
 import {
   CreateNotificationBroadcastSchema,
   NotificationHistoryFilterSchema,
+  RegisterDeviceTokenSchema,
+  UnregisterDeviceTokenSchema,
   UserRole,
 } from '@sakin/shared'
 
@@ -14,7 +17,26 @@ import {
 @ApiBearerAuth()
 @Controller('notifications')
 export class NotificationController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly deviceTokens: DeviceTokenService,
+  ) {}
+
+  @Post('devices')
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Push cihaz token kaydet/yenile' })
+  registerDevice(@Tenant() ctx: TenantContext, @Body() body: unknown) {
+    const dto = RegisterDeviceTokenSchema.parse(body)
+    return this.deviceTokens.register(ctx.userId, ctx.tenantId ?? null, dto)
+  }
+
+  @Delete('devices')
+  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Push cihaz token sil (logout sirasinda)' })
+  unregisterDevice(@Tenant() ctx: TenantContext, @Body() body: unknown) {
+    const dto = UnregisterDeviceTokenSchema.parse(body)
+    return this.deviceTokens.unregister(ctx.userId, dto.token)
+  }
 
   @Get()
   @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)

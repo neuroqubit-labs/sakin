@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { NotificationService } from '../notification/notification.service'
 import { UserRole } from '@sakin/shared'
 import type { CreateAnnouncementDto, UpdateAnnouncementDto, AnnouncementFilterDto } from '@sakin/shared'
 
@@ -10,7 +11,10 @@ interface AccessContext {
 
 @Injectable()
 export class AnnouncementService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationService,
+  ) {}
 
   async create(dto: CreateAnnouncementDto, tenantId: string, userId: string) {
     const db = this.prisma.forTenant(tenantId)
@@ -20,7 +24,7 @@ export class AnnouncementService {
       if (!site) throw new NotFoundException('Site bulunamadı')
     }
 
-    return db.announcement.create({
+    const created = await db.announcement.create({
       data: {
         ...dto,
         tenantId,
@@ -29,6 +33,20 @@ export class AnnouncementService {
       },
       include: { site: { select: { name: true } } },
     })
+
+    // Fan-out notifications for residents when the announcement is already published.
+    // Scheduled-future publishes are handled lazily: mobile hides them via publishedAt filter,
+    // and residents will see them the next time the announcement is opened (no separate cron yet).
+    if (created.publishedAt && created.publishedAt <= new Date()) {
+      await this.notifications.createForAnnouncement(
+        tenantId,
+        created.id,
+        created.siteId,
+        created.title,
+      )
+    }
+
+    return created
   }
 
   async findAll(filter: AnnouncementFilterDto, tenantId: string, access?: AccessContext) {

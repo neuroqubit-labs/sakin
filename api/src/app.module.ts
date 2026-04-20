@@ -31,6 +31,9 @@ import { CommunicationModule } from './modules/communication/communication.modul
 import { FacilityModule } from './modules/facility/facility.module'
 import { MeetingModule } from './modules/meeting/meeting.module'
 import { HealthModule } from './modules/health/health.module'
+import { StorageModule } from './common/storage/storage.module'
+import { SmsModule } from './common/sms/sms.module'
+import { PushModule } from './common/push/push.module'
 
 @Module({
   imports: [
@@ -40,6 +43,9 @@ import { HealthModule } from './modules/health/health.module'
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    StorageModule,
+    SmsModule,
+    PushModule,
     AuthModule,
     TenantModule,
     PlatformModule,
@@ -83,6 +89,8 @@ export class AppModule implements NestModule {
         'auth/login',
         'auth/register',
         'auth/refresh',
+        'auth/otp/request',
+        'auth/otp/verify',
         'auth/dev-bootstrap',
         'payments/webhooks/iyzico',
         'internal/v1/notifications/payment-confirmed',

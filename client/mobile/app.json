@@ -15,7 +15,9 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.sakin.app",
-      "associatedDomains": ["applinks:sakin.app"]
+      "associatedDomains": [
+        "applinks:sakin.app"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -27,19 +29,31 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "sakin", "host": "payment" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "sakin",
+              "host": "payment"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store",
-      "@react-native-firebase/app",
-      "@react-native-firebase/auth"
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "310720d1-32aa-47bb-baf4-40713f10c2a9"
+      }
     }
   }
 }

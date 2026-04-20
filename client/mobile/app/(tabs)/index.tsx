@@ -86,6 +86,12 @@ export default function HomeScreen() {
   const paymentsQuery = useMyPayments()
   const paymentFlowQuery = usePaymentFlow()
 
+  const residencies = residenciesQuery.data?.data ?? []
+  const hasNoResidency = !residenciesQuery.isLoading && residencies.length === 0
+  if (hasNoResidency) {
+    return <EmptyResidencyScreen insets={insets} />
+  }
+
   const unpaid = duesQuery.data?.data ?? []
   const totalDebt = unpaid.reduce((sum, item) => sum + Number(item.amount), 0)
   const overdueCount = unpaid.filter((item) => item.status === DuesStatus.OVERDUE).length
@@ -101,7 +107,6 @@ export default function HomeScreen() {
     overdueCount,
   })
 
-  const residencies = residenciesQuery.data?.data ?? []
   const primaryResidency =
     residencies.find((item) => item.isPrimaryResponsible) ?? residencies[0] ?? null
   const unreadNotifications = unreadQuery.data?.count ?? 0
@@ -273,6 +278,53 @@ export default function HomeScreen() {
             <Text style={styles.inlineLinkText}>Aç</Text>
           </Pressable>
         </View>
+      </SurfaceCard>
+    </ScrollView>
+  )
+}
+
+function EmptyResidencyScreen({
+  insets,
+}: {
+  insets: { top: number; bottom: number; left: number; right: number }
+}) {
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: Math.max(insets.top + 32, 48), paddingBottom: insets.bottom + 96 },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.header}>
+        <Text style={styles.pageEyebrow}>Hoş geldiniz</Text>
+        <Text style={styles.pageTitle}>Hesabınız henüz bir daireyle eşleşmedi.</Text>
+        <Text style={styles.pageSub}>
+          Borç bilgisi, ödeme ve talep akışı için yönetim şirketinizin sizi sisteme eklemesi
+          gerekiyor. Aşağıdaki adımları takip edin.
+        </Text>
+      </View>
+
+      <SurfaceCard>
+        <SectionHeader
+          title="1. Telefonunuz doğrulandı"
+          subtitle="Giriş yaptığınız için hesabınız oluşturuldu."
+        />
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <SectionHeader
+          title="2. Yönetim şirketinizle iletişime geçin"
+          subtitle="Telefon numaranızı onlara iletin. Sizi daireye bağladıklarında bu ekran anında yenilenir."
+        />
+      </SurfaceCard>
+
+      <SurfaceCard tone="tinted">
+        <SectionHeader
+          title="3. Otomatik olarak yüklenir"
+          subtitle="Bağlantı kurulduğunda ana ekrana çıkan açık borç, ödeme ve duyuru akışına erişeceksiniz."
+        />
       </SurfaceCard>
     </ScrollView>
   )

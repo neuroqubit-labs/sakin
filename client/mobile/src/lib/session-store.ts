@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store'
 import type { AuthSession } from '@/contexts/auth-context'
 
-const SESSION_KEY = 'sakin.session.v2'
+const SESSION_KEY = 'sakin.session.v3'
 
 export async function saveSession(session: AuthSession): Promise<void> {
   try {
@@ -21,6 +21,9 @@ export async function loadSession(): Promise<AuthSession | null> {
       userId: parsed.userId,
       tenantId: parsed.tenantId ?? null,
       role: parsed.role,
+      residentId: parsed.residentId ?? null,
+      accessToken: parsed.accessToken ?? null,
+      refreshToken: parsed.refreshToken ?? null,
     }
   } catch {
     return null

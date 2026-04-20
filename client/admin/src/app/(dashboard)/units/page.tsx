@@ -3,15 +3,16 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { AlertTriangle, Building2, Home, ShieldCheck, Wallet, ToggleLeft, ToggleRight } from 'lucide-react'
+import { AlertTriangle, Building2, Home, Plus, ShieldCheck, Wallet, ToggleLeft, ToggleRight } from 'lucide-react'
 import { useApiQuery } from '@/hooks/use-api'
 import { useSiteContext } from '@/providers/site-provider'
 import { useAuth } from '@/providers/auth-provider'
-import { UserRole } from '@sakin/shared'
+import { UnitType, UserRole } from '@sakin/shared'
 import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
 import { EmptyState } from '@/components/empty-state'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { apiClient } from '@/lib/api'
 import { toastSuccess, toastError } from '@/lib/toast'
 import { formatShortDate, formatTry } from '@/lib/formatters'
@@ -55,6 +56,7 @@ export default function WorkUnitsPage() {
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<string[]>([])
   const [bulkLoading, setBulkLoading] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
 
   const queryParams = {
     siteId: selectedSiteId ?? undefined,
@@ -82,6 +84,20 @@ export default function WorkUnitsPage() {
     { enabled: hydrated && !!selectedSiteId },
   )
   const blocks = blocksData ?? []
+
+  const { data: siteDetail, refetch: refetchSite } = useApiQuery<{
+    totalUnits: number
+    units: Array<{ id: string }>
+  }>(
+    ['site-detail', selectedSiteId],
+    `/sites/${selectedSiteId}`,
+    undefined,
+    { enabled: hydrated && !!selectedSiteId },
+  )
+  const siteCapacity = siteDetail?.totalUnits ?? 0
+  const siteUnitCount = siteDetail?.units?.length ?? 0
+  const capacityRemaining = Math.max(0, siteCapacity - siteUnitCount)
+  const capacityFull = siteCapacity > 0 && capacityRemaining === 0
 
   const selectedSet = useMemo(() => new Set(selected), [selected])
 
@@ -136,6 +152,27 @@ export default function WorkUnitsPage() {
         title="Daire Yönetimi ve Finans"
         eyebrow="Portföy Operasyonu"
         subtitle="Daire operasyonu, sakin bilgisi ve finansal sağlık tek tabloda."
+        actions={
+          isTenantAdmin ? (
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                disabled={!selectedSiteId || capacityFull}
+                title={capacityFull ? `Kapasite dolu (${siteCapacity} daire). Site bilgisinden toplam daire sayısını artırın.` : undefined}
+              >
+                <Plus className="h-4 w-4" />
+                Daire Ekle
+              </Button>
+              {selectedSiteId && siteCapacity > 0 ? (
+                <span className={`text-[11px] ${capacityFull ? 'text-[#ba1a1a]' : 'text-[#6b7280]'}`}>
+                  {siteUnitCount} / {siteCapacity} daire
+                  {capacityFull ? ' — kapasite dolu' : ` · ${capacityRemaining} kalan`}
+                </span>
+              ) : null}
+            </div>
+          ) : undefined
+        }
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -329,6 +366,21 @@ export default function WorkUnitsPage() {
         </>
       )}
 
+      {createOpen && selectedSiteId && (
+        <CreateUnitDialog
+          siteId={selectedSiteId}
+          blocks={blocks}
+          capacityRemaining={capacityRemaining}
+          siteCapacity={siteCapacity}
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => {
+            setCreateOpen(false)
+            void refetch()
+            void refetchSite()
+          }}
+        />
+      )}
+
       {unitsResponse?.meta && (
         <div className="flex items-center justify-between rounded-[22px] border border-white/80 bg-white/74 px-4 py-3 text-xs text-[#6b7280] shadow-[0_14px_30px_rgba(8,17,31,0.04)]">
           <span>
@@ -358,5 +410,204 @@ export default function WorkUnitsPage() {
       )}
 
     </div>
+  )
+}
+
+const UNIT_TYPE_OPTIONS: Array<{ value: UnitType; label: string }> = [
+  { value: UnitType.APARTMENT, label: 'Daire' },
+  { value: UnitType.DUPLEX, label: 'Dubleks' },
+  { value: UnitType.PENTHOUSE, label: 'Penthouse' },
+  { value: UnitType.GARDEN_FLOOR, label: 'Bahçe Katı' },
+  { value: UnitType.COMMERCIAL, label: 'Dükkan' },
+  { value: UnitType.OFFICE, label: 'Ofis' },
+  { value: UnitType.STORAGE, label: 'Depo' },
+  { value: UnitType.PARKING, label: 'Otopark' },
+]
+
+interface CreateUnitDialogProps {
+  siteId: string
+  blocks: BlockRow[]
+  capacityRemaining: number
+  siteCapacity: number
+  onClose: () => void
+  onCreated: () => void
+}
+
+function CreateUnitDialog({ siteId, blocks, capacityRemaining, siteCapacity, onClose, onCreated }: CreateUnitDialogProps) {
+  const [number, setNumber] = useState('')
+  const [blockId, setBlockId] = useState<string>('')
+  const [floor, setFloor] = useState<string>('')
+  const [type, setType] = useState<UnitType>(UnitType.APARTMENT)
+  const [area, setArea] = useState<string>('')
+  const [description, setDescription] = useState('')
+  const [isStaffQuarters, setIsStaffQuarters] = useState(false)
+  const [isExemptFromDues, setIsExemptFromDues] = useState(false)
+  const [customDuesAmount, setCustomDuesAmount] = useState<string>('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!number.trim()) {
+      setError('Daire numarası zorunludur.')
+      return
+    }
+    if (capacityRemaining <= 0) {
+      setError(`Site kapasitesi dolu (${siteCapacity} daire). Önce site bilgisinden toplam daire sayısını artırın.`)
+      return
+    }
+    setError(null)
+    setSubmitting(true)
+    try {
+      await apiClient('/units', {
+        method: 'POST',
+        body: JSON.stringify({
+          siteId,
+          number: number.trim(),
+          blockId: blockId || undefined,
+          floor: floor.trim() ? Number(floor) : undefined,
+          type,
+          area: area.trim() ? Number(area) : undefined,
+          description: description.trim() || undefined,
+          isStaffQuarters: isStaffQuarters || undefined,
+          isExemptFromDues: isExemptFromDues || undefined,
+          customDuesAmount: customDuesAmount.trim() ? Number(customDuesAmount) : undefined,
+        }),
+      })
+      toastSuccess(`Daire ${number.trim()} eklendi`)
+      onCreated()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Daire oluşturulamadı'
+      setError(message)
+      toastError(message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open onClose={() => { if (!submitting) onClose() }}>
+      <form onSubmit={handleSubmit}>
+        <DialogHeader>
+          <DialogTitle>Yeni Daire Ekle</DialogTitle>
+        </DialogHeader>
+        <DialogContent className="space-y-4">
+          {siteCapacity > 0 ? (
+            <div className={`rounded-xl border px-3 py-2 text-xs ${capacityRemaining <= 0 ? 'border-[#f3c0c0] bg-[#fff4f4] text-[#ba1a1a]' : 'border-[#dce7f6] bg-[#f7faff] text-[#17345a]'}`}>
+              Site kapasitesi: {siteCapacity} daire · Kalan: {capacityRemaining}
+              {capacityRemaining <= 0 ? ' — kapasite dolu, önce site bilgisinden artırın.' : ''}
+            </div>
+          ) : null}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[#4e5d6d]">Daire No *</label>
+              <input
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+                className="ledger-input w-full bg-white"
+                placeholder="Ör: 12"
+                maxLength={20}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[#4e5d6d]">Kat</label>
+              <input
+                type="number"
+                value={floor}
+                onChange={(e) => setFloor(e.target.value)}
+                className="ledger-input w-full bg-white"
+                placeholder="Ör: 3"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[#4e5d6d]">Blok</label>
+              <select
+                value={blockId}
+                onChange={(e) => setBlockId(e.target.value)}
+                className="ledger-input w-full bg-white"
+              >
+                <option value="">Bloksuz</option>
+                {blocks.map((block) => (
+                  <option key={block.id} value={block.id}>{block.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[#4e5d6d]">Tip</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as UnitType)}
+                className="ledger-input w-full bg-white"
+              >
+                {UNIT_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[#4e5d6d]">Alan (m²)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={area}
+                onChange={(e) => setArea(e.target.value)}
+                className="ledger-input w-full bg-white"
+                placeholder="Ör: 120"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[#4e5d6d]">Özel Aidat (₺)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={customDuesAmount}
+                onChange={(e) => setCustomDuesAmount(e.target.value)}
+                className="ledger-input w-full bg-white"
+                placeholder="Boş → site geneli"
+                disabled={isExemptFromDues}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#4e5d6d]">Açıklama</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="ledger-input w-full bg-white"
+              rows={2}
+              maxLength={500}
+            />
+          </div>
+          <div className="flex flex-wrap gap-4 text-sm text-[#374151]">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={isStaffQuarters}
+                onChange={(e) => setIsStaffQuarters(e.target.checked)}
+              />
+              Personel dairesi
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={isExemptFromDues}
+                onChange={(e) => setIsExemptFromDues(e.target.checked)}
+              />
+              Aidattan muaf
+            </label>
+          </div>
+          {error ? <p className="text-sm text-[#ba1a1a]">{error}</p> : null}
+        </DialogContent>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+            Vazgeç
+          </Button>
+          <Button type="submit" disabled={submitting || capacityRemaining <= 0}>
+            {submitting ? 'Kaydediliyor...' : 'Daireyi Ekle'}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Dialog>
   )
 }

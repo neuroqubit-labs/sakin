@@ -27,6 +27,13 @@ export class UnitService {
       if (!block) throw new NotFoundException('Blok bulunamadı')
     }
 
+    const existingCount = await db.unit.count({ where: { siteId: dto.siteId } })
+    if (existingCount >= site.totalUnits) {
+      throw new ConflictException(
+        `Site kapasitesi dolu: ${site.totalUnits} daire tanımlı, ${existingCount} daire eklenmiş. Önce site bilgisindeki toplam daire sayısını güncelleyin.`,
+      )
+    }
+
     return db.unit.create({ data: { ...dto, tenantId } })
   }
 
@@ -327,6 +334,14 @@ export class UnitService {
     if (existing.length > 0) {
       const label = existing.map((u) => `${u.blockId ?? '-'}/${u.number}`).join(', ')
       throw new ConflictException(`Bu numaralar zaten mevcut: ${label}`)
+    }
+
+    const existingCount = await db.unit.count({ where: { siteId } })
+    if (existingCount + rows.length > site.totalUnits) {
+      const remaining = Math.max(0, site.totalUnits - existingCount)
+      throw new ConflictException(
+        `Site kapasitesi yetersiz: ${site.totalUnits} daire tanımlı, ${existingCount} daire eklenmiş, eklenebilir ${remaining}. Talep edilen ${rows.length} daire kapasiteyi aşıyor.`,
+      )
     }
 
     const created = await db.unit.createMany({ data: rows })

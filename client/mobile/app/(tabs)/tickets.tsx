@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,11 +15,31 @@ import {
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
+import * as ImagePicker from 'expo-image-picker'
+import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { TicketCategory, TicketPriority, TicketStatus } from '@sakin/shared'
+import {
+  TICKET_ATTACHMENT_MAX_BYTES,
+  TICKET_ATTACHMENT_MAX_PER_TICKET,
+  TicketCategory,
+  TicketPriority,
+  TicketStatus,
+} from '@sakin/shared'
 import { PrimaryButton, SurfaceCard } from '@/components'
-import { useCreateTicket, useMyTickets, type TicketItem } from '@/features/ticket/queries'
+import {
+  useCreateTicket,
+  useMyTickets,
+  useUploadTicketAttachment,
+  type TicketItem,
+} from '@/features/ticket/queries'
 import { colors, radii, spacing, typography } from '@/theme'
+
+interface PickedPhoto {
+  uri: string
+  base64: string
+  mimeType: string
+  sizeBytes: number
+}
 
 const CATEGORY_LABELS: Record<TicketCategory, string> = {
   [TicketCategory.ELEVATOR]: 'Asansör',
@@ -92,6 +113,7 @@ function priorityLabel(priority: TicketPriority) {
 export default function TicketsScreen() {
   const query = useMyTickets()
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const [modalVisible, setModalVisible] = useState(false)
 
   const tickets = query.data?.data ?? []
@@ -192,7 +214,12 @@ export default function TicketsScreen() {
           ) : null}
 
           {tickets.map((item, index) => (
-            <TicketRow key={item.id} item={item} last={index === tickets.length - 1} />
+            <TicketRow
+              key={item.id}
+              item={item}
+              last={index === tickets.length - 1}
+              onPress={() => router.push(`/ticket/${item.id}` as never)}
+            />
           ))}
         </SurfaceCard>
       </ScrollView>
@@ -211,10 +238,18 @@ function Metric({ value, label }: { value: string; label: string }) {
   )
 }
 
-function TicketRow({ item, last }: { item: TicketItem; last: boolean }) {
+function TicketRow({
+  item,
+  last,
+  onPress,
+}: {
+  item: TicketItem
+  last: boolean
+  onPress: () => void
+}) {
   const statusTone = STATUS_TONE[item.status]
   return (
-    <View style={[styles.ticketRow, !last && styles.rowBorder]}>
+    <Pressable onPress={onPress} style={[styles.ticketRow, !last && styles.rowBorder]}>
       <View style={styles.ticketTop}>
         <View style={{ flex: 1 }}>
           <Text style={styles.ticketTitle} numberOfLines={2}>
@@ -251,7 +286,7 @@ function TicketRow({ item, last }: { item: TicketItem; last: boolean }) {
           </View>
         ) : null}
       </View>
-    </View>
+    </Pressable>
   )
 }
 
@@ -264,10 +299,12 @@ function NewTicketModal({
 }) {
   const insets = useSafeAreaInsets()
   const createTicket = useCreateTicket()
+  const uploadAttachment = useUploadTicketAttachment()
   const [category, setCategory] = useState<TicketCategory>(TicketCategory.OTHER)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState<TicketPriority>(TicketPriority.MEDIUM)
+  const [photos, setPhotos] = useState<PickedPhoto[]>([])
   const [feedback, setFeedback] = useState<string | null>(null)
 
   function reset() {
@@ -275,7 +312,50 @@ function NewTicketModal({
     setTitle('')
     setDescription('')
     setPriority(TicketPriority.MEDIUM)
+    setPhotos([])
     setFeedback(null)
+  }
+
+  async function pickPhoto() {
+    if (photos.length >= TICKET_ATTACHMENT_MAX_PER_TICKET) {
+      setFeedback(`En fazla ${TICKET_ATTACHMENT_MAX_PER_TICKET} fotoğraf ekleyebilirsin.`)
+      return
+    }
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!permission.granted) {
+      setFeedback('Galeri izni verilmedi.')
+      return
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.7,
+      base64: true,
+    })
+    if (result.canceled || !result.assets?.length) return
+
+    const asset = result.assets[0]!
+    if (!asset.base64) {
+      setFeedback('Fotoğraf okunamadı.')
+      return
+    }
+    const sizeBytes = Math.floor((asset.base64.length * 3) / 4)
+    if (sizeBytes > TICKET_ATTACHMENT_MAX_BYTES) {
+      setFeedback(
+        `Fotoğraf en fazla ${Math.floor(TICKET_ATTACHMENT_MAX_BYTES / (1024 * 1024))} MB olabilir.`,
+      )
+      return
+    }
+    const mimeType = asset.mimeType ?? 'image/jpeg'
+    setPhotos((prev) => [
+      ...prev,
+      { uri: asset.uri, base64: asset.base64!, mimeType, sizeBytes },
+    ])
+    setFeedback(null)
+  }
+
+  function removePhoto(index: number) {
+    setPhotos((prev) => prev.filter((_, idx) => idx !== index))
   }
 
   async function submit() {
@@ -285,12 +365,21 @@ function NewTicketModal({
     }
 
     try {
-      await createTicket.mutateAsync({
+      const created = await createTicket.mutateAsync({
         category,
         priority,
         title: title.trim(),
         description: description.trim(),
       })
+
+      // Fotoğraflar varsa sırayla yükle. Bir tanesi başarısız olsa da ticket kaydı durur.
+      for (const photo of photos) {
+        await uploadAttachment.mutateAsync({
+          ticketId: created.id,
+          data: photo.base64,
+          mimeType: photo.mimeType,
+        })
+      }
       reset()
       onClose()
     } catch (error) {
@@ -402,12 +491,36 @@ function NewTicketModal({
                 textAlignVertical="top"
               />
 
+              <Text style={[styles.formLabel, styles.formLabelGap]}>
+                Fotoğraf ({photos.length}/{TICKET_ATTACHMENT_MAX_PER_TICKET})
+              </Text>
+              <View style={styles.photoRow}>
+                {photos.map((photo, index) => (
+                  <View key={photo.uri} style={styles.photoThumb}>
+                    <Image source={{ uri: photo.uri }} style={styles.photoImg} />
+                    <Pressable
+                      onPress={() => removePhoto(index)}
+                      style={styles.photoRemove}
+                      hitSlop={8}
+                    >
+                      <Ionicons color="#fff" name="close" size={14} />
+                    </Pressable>
+                  </View>
+                ))}
+                {photos.length < TICKET_ATTACHMENT_MAX_PER_TICKET ? (
+                  <Pressable onPress={() => void pickPhoto()} style={styles.photoAdd}>
+                    <Ionicons color={colors.brand} name="camera-outline" size={22} />
+                    <Text style={styles.photoAddText}>Foto ekle</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
               {feedback ? <Text style={styles.feedbackText}>{feedback}</Text> : null}
 
               <PrimaryButton
                 label="Talebi Gönder"
                 onPress={() => void submit()}
-                loading={createTicket.isPending}
+                loading={createTicket.isPending || uploadAttachment.isPending}
                 style={styles.submit}
               />
             </SurfaceCard>
@@ -724,5 +837,49 @@ const styles = StyleSheet.create({
   },
   submit: {
     marginTop: spacing.xl,
+  },
+  photoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  photoThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: radii.md,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: colors.canvasMuted,
+  },
+  photoImg: {
+    width: '100%',
+    height: '100%',
+  },
+  photoRemove: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoAdd: {
+    width: 72,
+    height: 72,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.brandAccent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  photoAddText: {
+    fontSize: 10,
+    color: colors.brand,
+    fontWeight: '700',
   },
 })

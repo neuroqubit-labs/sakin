@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiClient } from '@/lib/api'
+import { apiClient, ApiError } from '@/lib/api'
 import { useAuthSession } from '@/contexts/auth-context'
 
 export interface NotificationItem {
@@ -72,4 +72,53 @@ export function useMarkAllNotificationsRead() {
       void qc.invalidateQueries({ queryKey: notificationKeys.all })
     },
   })
+}
+
+export interface RegisterDevicePayload {
+  token: string
+  platform: 'IOS' | 'ANDROID' | 'WEB'
+  appVersion?: string
+}
+
+export function useRegisterDeviceToken() {
+  const { session } = useAuthSession()
+  return useMutation({
+    mutationFn: (payload: RegisterDevicePayload) =>
+      apiClient<{ id: string; reused: boolean }>(
+        '/notifications/devices',
+        { method: 'POST', body: JSON.stringify(payload) },
+        session?.tenantId,
+      ),
+  })
+}
+
+export function useUnregisterDeviceToken() {
+  const { session } = useAuthSession()
+  return useMutation({
+    mutationFn: (token: string) =>
+      apiClient<{ removed: number }>(
+        '/notifications/devices',
+        { method: 'DELETE', body: JSON.stringify({ token }) },
+        session?.tenantId,
+      ),
+  })
+}
+
+/**
+ * Hook-dışı: logout anında çağrılır. Hata yutar — logout akışını hiçbir durumda bloklamamalı.
+ */
+export async function unregisterDeviceTokenDirect(
+  token: string,
+  tenantId: string | null,
+): Promise<void> {
+  try {
+    await apiClient<{ removed: number }>(
+      '/notifications/devices',
+      { method: 'DELETE', body: JSON.stringify({ token }) },
+      tenantId,
+    )
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return
+    // Diğer hatalar: logout'u bloklamayalım.
+  }
 }

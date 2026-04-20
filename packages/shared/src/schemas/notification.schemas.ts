@@ -31,6 +31,21 @@ export const NotificationHistoryFilterSchema = z.object({
   limit: z.coerce.number().int().positive().max(200).default(20),
 })
 
+export const DevicePlatformSchema = z.enum(['IOS', 'ANDROID', 'WEB'])
+
+export const RegisterDeviceTokenSchema = z.object({
+  token: z.string().min(8).max(4096),
+  platform: DevicePlatformSchema,
+  appVersion: z.string().max(32).optional(),
+})
+
+export const UnregisterDeviceTokenSchema = z.object({
+  token: z.string().min(8).max(4096),
+})
+
 export type NotificationBroadcastTarget = z.infer<typeof NotificationBroadcastTargetSchema>
 export type CreateNotificationBroadcastDto = z.infer<typeof CreateNotificationBroadcastSchema>
 export type NotificationHistoryFilterDto = z.infer<typeof NotificationHistoryFilterSchema>
+export type DevicePlatform = z.infer<typeof DevicePlatformSchema>
+export type RegisterDeviceTokenDto = z.infer<typeof RegisterDeviceTokenSchema>
+export type UnregisterDeviceTokenDto = z.infer<typeof UnregisterDeviceTokenSchema>

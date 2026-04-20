@@ -5,17 +5,19 @@ export interface AuthSession {
   tenantId: string | null
   role: string
   residentId?: string | null
+  accessToken?: string | null
+  refreshToken?: string | null
 }
 
 interface AuthContextValue {
   session: AuthSession | null
-  setSession: (session: AuthSession | null) => void
+  signIn: (session: AuthSession) => void
   signOut: () => void
 }
 
 export const AuthContext = createContext<AuthContextValue>({
   session: null,
-  setSession: () => undefined,
+  signIn: () => undefined,
   signOut: () => undefined,
 })
 
@@ -25,16 +27,16 @@ export function useAuthSession() {
 
 export function AuthProvider({
   session,
-  setSession,
+  signIn,
   signOut,
   children,
 }: {
   session: AuthSession | null
-  setSession: (session: AuthSession | null) => void
+  signIn: (session: AuthSession) => void
   signOut: () => void
   children: ReactNode
 }) {
   return (
-    <AuthContext.Provider value={{ session, setSession, signOut }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ session, signIn, signOut }}>{children}</AuthContext.Provider>
   )
 }

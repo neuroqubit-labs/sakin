@@ -18,7 +18,11 @@ async function bootstrap() {
     .split(',')
     .map((o) => o.trim())
 
-  const adapter = new FastifyAdapter({ logger: process.env['NODE_ENV'] !== 'production' })
+  // bodyLimit 10MB: ticket attachment base64 gövdesi (~5MB dosya + encoding overhead) için.
+  const adapter = new FastifyAdapter({
+    logger: process.env['NODE_ENV'] !== 'production',
+    bodyLimit: 10 * 1024 * 1024,
+  })
 
   // Fastify hook ile tüm response'lara CORS header ekle
   // NestJS middleware exception'ları dahil — hiçbir response CORS header'sız çıkmaz

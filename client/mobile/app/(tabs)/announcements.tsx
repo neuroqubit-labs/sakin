@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
@@ -16,7 +16,11 @@ import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { EmptyState, SurfaceCard } from '@/components'
 import { useAnnouncements, type Announcement } from '@/features/announcement/queries'
-import { useUnreadNotificationCount } from '@/features/notification/queries'
+import {
+  useMarkNotificationRead,
+  useNotifications,
+  useUnreadNotificationCount,
+} from '@/features/notification/queries'
 import { colors, radii, spacing, typography } from '@/theme'
 
 function formatDate(value: string) {
@@ -36,11 +40,28 @@ export default function AnnouncementsScreen() {
   const router = useRouter()
   const query = useAnnouncements()
   const unreadQuery = useUnreadNotificationCount()
+  const notificationsQuery = useNotifications()
+  const markRead = useMarkNotificationRead()
   const insets = useSafeAreaInsets()
   const [selected, setSelected] = useState<Announcement | null>(null)
 
   const announcements = query.data?.data ?? []
   const unreadCount = unreadQuery.data?.count ?? 0
+
+  // Modal açıldığında seçili duyuruya bağlı okunmamış notification'ı okundu işaretle.
+  useEffect(() => {
+    if (!selected) return
+    const notifications = notificationsQuery.data ?? []
+    const match = notifications.find((item) => {
+      if (item.readAt) return false
+      if (item.templateKey !== 'announcement.published') return false
+      const payload = item.payload as { announcementId?: string } | null
+      return payload?.announcementId === selected.id
+    })
+    if (match) {
+      markRead.mutate(match.id)
+    }
+  }, [selected, notificationsQuery.data, markRead])
 
   return (
     <View style={styles.screen}>

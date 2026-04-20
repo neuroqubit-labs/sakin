@@ -8,10 +8,91 @@ import {
   type NotificationBroadcastTarget,
   type NotificationHistoryFilterDto,
 } from '@sakin/shared'
+import { NotificationDispatcher } from './notification.dispatcher'
 
 @Injectable()
 export class NotificationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dispatcher: NotificationDispatcher,
+  ) {}
+
+  /**
+   * Creates in-app notifications for a published announcement.
+   * Broadcasts to all active primary-responsible residents whose unit is either
+   * in the targeted site, or — when the announcement is tenant-wide (siteId null) —
+   * any site in the tenant. Idempotent: repeated calls for the same announcementId
+   * skip residents who already have a row.
+   */
+  async createForAnnouncement(
+    tenantId: string,
+    announcementId: string,
+    siteId: string | null,
+    title: string,
+  ): Promise<{ created: number; skipped: number }> {
+    const occupancies = await this.prisma.unitOccupancy.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        isPrimaryResponsible: true,
+        ...(siteId ? { unit: { siteId } } : {}),
+      },
+      select: {
+        unitId: true,
+        residentId: true,
+        resident: { select: { userId: true } },
+      },
+      distinct: ['residentId', 'unitId'],
+    })
+
+    if (occupancies.length === 0) {
+      return { created: 0, skipped: 0 }
+    }
+
+    const existing = await this.prisma.notification.findMany({
+      where: {
+        tenantId,
+        templateKey: 'announcement.published',
+        payload: { path: ['announcementId'], equals: announcementId },
+      },
+      select: { residentId: true },
+    })
+    const alreadyNotified = new Set(
+      existing.map((row) => row.residentId).filter((id): id is string => Boolean(id)),
+    )
+
+    const toCreate = occupancies.filter((row) => !alreadyNotified.has(row.residentId))
+    if (toCreate.length === 0) {
+      return { created: 0, skipped: occupancies.length }
+    }
+
+    await this.prisma.notification.createMany({
+      data: toCreate.map((row) => ({
+        tenantId,
+        unitId: row.unitId,
+        residentId: row.residentId,
+        userId: row.resident.userId ?? null,
+        channel: NotificationChannel.PUSH,
+        status: NotificationStatus.SENT,
+        templateKey: 'announcement.published',
+        title,
+        payload: { announcementId, siteId },
+        sentAt: new Date(),
+      })),
+    })
+
+    const userIds = toCreate
+      .map((row) => row.resident.userId)
+      .filter((id): id is string => Boolean(id))
+    await this.dispatcher.dispatch({
+      userIds,
+      title,
+      body: 'Yeni duyuru yayınlandı',
+      data: { type: 'announcement.published', announcementId },
+    })
+
+    return { created: toCreate.length, skipped: alreadyNotified.size }
+  }
 
   /**
    * Creates an in-app PUSH notification for a confirmed payment.
@@ -58,6 +139,16 @@ export class NotificationService {
         payload: { paymentId, amount, unitId },
       },
     })
+
+    const residentUserId = occupancy?.resident?.userId
+    if (residentUserId) {
+      await this.dispatcher.dispatch({
+        userIds: [residentUserId],
+        title: 'Ödemeniz onaylandı',
+        body: `${amount.toLocaleString('tr-TR')} ₺ tutarındaki ödemeniz hesabınıza işlendi`,
+        data: { type: 'payment.confirmed', paymentId },
+      })
+    }
 
     return { notificationId: created.id, idempotentReplay: false }
   }

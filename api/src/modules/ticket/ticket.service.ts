@@ -1,7 +1,8 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
-import { UserRole } from '@sakin/shared'
+import { UserRole, NotificationChannel, NotificationStatus } from '@sakin/shared'
 import type { CreateTicketDto, UpdateTicketDto, TicketFilterDto, CreateTicketCommentDto } from '@sakin/shared'
+import { NotificationDispatcher } from '../notification/notification.dispatcher'
 
 interface ReaderScope {
   role: UserRole
@@ -11,7 +12,10 @@ interface ReaderScope {
 
 @Injectable()
 export class TicketService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dispatcher: NotificationDispatcher,
+  ) {}
 
   async create(dto: CreateTicketDto, tenantId: string, userId?: string, scope?: ReaderScope) {
     const db = this.prisma.forTenant(tenantId)
@@ -138,7 +142,7 @@ export class TicketService {
       updateData['closedAt'] = new Date()
     }
 
-    return db.ticket.update({
+    const updated = await db.ticket.update({
       where: { id },
       data: updateData,
       include: {
@@ -147,6 +151,19 @@ export class TicketService {
         assignedTo: { select: { firstName: true, lastName: true } },
       },
     })
+
+    if (dto.status && dto.status !== ticket.status && ticket.reportedById) {
+      await this.notifyReporter(
+        tenantId,
+        ticket.id,
+        ticket.reportedById,
+        'ticket.status-changed',
+        `Talebiniz güncellendi: ${updated.title}`,
+        `Yeni durum: ${dto.status}`,
+      )
+    }
+
+    return updated
   }
 
   async delete(id: string, tenantId: string) {
@@ -162,11 +179,55 @@ export class TicketService {
     userId: string,
     scope?: ReaderScope,
   ) {
-    await this.findOne(ticketId, tenantId, scope)
+    const ticket = await this.findOne(ticketId, tenantId, scope)
     const db = this.prisma.forTenant(tenantId)
-    return db.ticketComment.create({
+    const comment = await db.ticketComment.create({
       data: { ...dto, ticketId, tenantId, authorId: userId },
       include: { author: { select: { displayName: true } } },
+    })
+
+    // Internal yorumları sakine haber verme; admin yorumunda sakinin haberi olsun.
+    const isFromResident = scope?.role === UserRole.RESIDENT
+    if (!dto.isInternal && !isFromResident && ticket.reportedById && ticket.reportedById !== userId) {
+      await this.notifyReporter(
+        tenantId,
+        ticket.id,
+        ticket.reportedById,
+        'ticket.comment-added',
+        `Talebinize yanıt: ${ticket.title}`,
+        comment.body.slice(0, 120),
+      )
+    }
+
+    return comment
+  }
+
+  private async notifyReporter(
+    tenantId: string,
+    ticketId: string,
+    reporterUserId: string,
+    templateKey: string,
+    title: string,
+    body: string,
+  ) {
+    await this.prisma.notification.create({
+      data: {
+        tenantId,
+        userId: reporterUserId,
+        channel: NotificationChannel.PUSH,
+        status: NotificationStatus.SENT,
+        templateKey,
+        title,
+        body,
+        payload: { ticketId },
+        sentAt: new Date(),
+      },
+    })
+    await this.dispatcher.dispatch({
+      userIds: [reporterUserId],
+      title,
+      body,
+      data: { type: templateKey, ticketId },
     })
   }
 }
