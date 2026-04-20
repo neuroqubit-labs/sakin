@@ -4,6 +4,9 @@ const navItems = [
   { href: '/dashboard', label: 'Genel Durum' },
   { href: '/companies', label: 'Şirketler' },
   { href: '/plans', label: 'Planlar' },
+  { href: '/reports', label: 'Raporlar' },
+  { href: '/security', label: 'Güvenlik' },
+  { href: '/settings', label: 'Ayarlar' },
 ]
 
 export default function PlatformDashboardLayout({ children }: { children: React.ReactNode }) {

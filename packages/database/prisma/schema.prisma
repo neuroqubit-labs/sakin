@@ -51,6 +51,7 @@ model Tenant {
   vendors               Vendor[]
   tickets               Ticket[]
   ticketComments        TicketComment[]
+  ticketAttachments     TicketAttachment[]
   legalCases            LegalCase[]
   legalCaseEvents       LegalCaseEvent[]
   documents             Document[]
@@ -60,6 +61,7 @@ model Tenant {
   meetings              Meeting[]
   meetingDecisions      MeetingDecision[]
   notificationPreferences NotificationPreference[]
+  deviceTokens            DeviceToken[]
 
   @@index([slug])
   @@map("tenants")
@@ -92,16 +94,32 @@ model User {
   siteStaffProfiles        SiteStaff[]
   ticketsReported          Ticket[]             @relation("TicketReportedBy")
   ticketComments           TicketComment[]      @relation("TicketCommentAuthor")
+  ticketAttachmentsUploaded TicketAttachment[]  @relation("TicketAttachmentUploadedBy")
   legalCaseEvents          LegalCaseEvent[]     @relation("LegalCaseEventCreatedBy")
   documentsUploaded        Document[]           @relation("DocumentUploadedBy")
   contractsCreated         Contract[]           @relation("ContractCreatedBy")
   communicationLogsSent    CommunicationLog[]   @relation("CommunicationLogSentBy")
   meetingsCreated          Meeting[]            @relation("MeetingCreatedBy")
   notificationPreferences  NotificationPreference[]
+  deviceTokens             DeviceToken[]
 
   @@index([firebaseUid])
   @@index([phoneNumber])
   @@map("users")
+}
+
+model OtpCode {
+  id          String    @id @default(uuid())
+  phoneNumber String
+  codeHash    String
+  expiresAt   DateTime
+  attempts    Int       @default(0)
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([phoneNumber, createdAt])
+  @@index([expiresAt])
+  @@map("otp_codes")
 }
 
 model UserTenantRole {
@@ -677,6 +695,7 @@ model Ticket {
   reportedBy User?           @relation("TicketReportedBy", fields: [reportedById], references: [id])
   assignedTo SiteStaff?      @relation(fields: [assignedToId], references: [id])
   comments   TicketComment[]
+  attachments TicketAttachment[]
 
   @@index([tenantId])
   @@index([tenantId, siteId, status])
@@ -699,6 +718,28 @@ model TicketComment {
 
   @@index([tenantId, ticketId])
   @@map("ticket_comments")
+}
+
+model TicketAttachment {
+  id             String   @id @default(uuid())
+  tenantId       String
+  ticketId       String
+  uploadedById   String
+  // storageKey = storage'dan alınan kalıcı referans (ör. s3://bucket/key ya da local path).
+  // Publik URL değil; indirme isteğinde FileStorageService ile resolve edilir.
+  storageKey     String
+  storageDriver  String   @db.VarChar(20)
+  mimeType       String   @db.VarChar(100)
+  sizeBytes      Int
+  originalName   String?  @db.VarChar(255)
+  createdAt      DateTime @default(now())
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id])
+  ticket     Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  uploadedBy User   @relation("TicketAttachmentUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([tenantId, ticketId])
+  @@map("ticket_attachments")
 }
 
 // ──────────────────────────────────────────
@@ -1049,6 +1090,16 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model PlatformSetting {
+  key         String   @id
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@map("platform_settings")
 }
 
 model ExportBatch {
@@ -1439,4 +1490,29 @@ enum DecisionResult {
   APPROVED
   REJECTED
   POSTPONED
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+model DeviceToken {
+  id         String         @id @default(uuid())
+  tenantId   String?
+  userId     String
+  platform   DevicePlatform
+  token      String         @unique
+  appVersion String?        @db.VarChar(32)
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("device_tokens")
 }

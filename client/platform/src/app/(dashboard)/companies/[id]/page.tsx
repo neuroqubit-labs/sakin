@@ -40,11 +40,33 @@ const PLAN_LABELS: Record<PlanType, string> = {
   ENTERPRISE: 'Kurumsal',
 }
 
+interface AuditLogRow {
+  id: string
+  action: string
+  changes: Record<string, unknown> | null
+  createdAt: string
+  actor: { id: string; email: string | null; displayName: string | null } | null
+}
+
+interface AuditLogResponse {
+  data: AuditLogRow[]
+  meta: { total: number; page: number; limit: number; totalPages: number }
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  TENANT_CREATED: 'Şirket oluşturuldu',
+  TENANT_UPDATED: 'Bilgiler güncellendi',
+  TENANT_SUSPENDED: 'Askıya alındı',
+  TENANT_ACTIVATED: 'Aktifleştirildi',
+  TENANT_PLAN_UPDATED: 'Plan güncellendi',
+}
+
 export default function TenantDetailPage() {
   const params = useParams<{ id: string }>()
   const id = params.id
 
   const [tenant, setTenant] = useState<TenantDetail | null>(null)
+  const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -59,8 +81,12 @@ export default function TenantDetailPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const data = await apiClient<TenantDetail>(`/platform/tenants/${id}`)
+      const [data, auditRes] = await Promise.all([
+        apiClient<TenantDetail>(`/platform/tenants/${id}`),
+        apiClient<AuditLogResponse>('/platform/audit-logs', { params: { tenantId: id, page: 1, limit: 20 } }),
+      ])
       setTenant(data)
+      setAuditLogs(auditRes.data)
       setActivityNotes(data.activityNotes ?? '')
       if (data.plan) {
         setPlanForm({
@@ -311,6 +337,36 @@ export default function TenantDetailPage() {
         <button onClick={handleNotesSave} className="px-4 py-2 bg-gray-900 text-white text-sm rounded-md hover:bg-gray-800">
           Notları Kaydet
         </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6 space-y-3">
+        <h2 className="text-sm font-semibold text-gray-900">İşlem Geçmişi</h2>
+        {auditLogs.length === 0 ? (
+          <p className="text-sm text-gray-500">Bu şirket için işlem kaydı bulunamadı.</p>
+        ) : (
+          <ul className="divide-y">
+            {auditLogs.map((log) => (
+              <li key={log.id} className="py-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">{ACTION_LABELS[log.action] ?? log.action}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {log.actor?.displayName ?? log.actor?.email ?? 'Bilinmeyen kullanıcı'}
+                    </p>
+                    {log.changes && Object.keys(log.changes).length > 0 && (
+                      <pre className="mt-2 bg-gray-50 text-[11px] text-gray-700 p-2 rounded overflow-x-auto">
+                        {JSON.stringify(log.changes, null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-400 whitespace-nowrap">
+                    {new Date(log.createdAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )

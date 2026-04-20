@@ -72,9 +72,61 @@ export const UpdateTenantUserSchema = z.object({
 export const TenantFilterSchema = z.object({
   isActive: z.coerce.boolean().optional(),
   city: z.string().optional(),
+  search: z.string().trim().min(1).max(100).optional(),
+  planType: z.nativeEnum(PlanType).optional(),
+  expiringInDays: z.coerce.number().int().min(1).max(365).optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 })
+
+export const PlatformAuditActionSchema = z.enum([
+  'TENANT_CREATED',
+  'TENANT_UPDATED',
+  'TENANT_SUSPENDED',
+  'TENANT_ACTIVATED',
+  'TENANT_PLAN_UPDATED',
+  'LOGIN_SUCCESS',
+  'LOGIN_FAILED',
+  'PLATFORM_SETTING_UPDATED',
+])
+
+export const PlatformReportFilterSchema = z.object({
+  tenantId: z.string().uuid().optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  isActive: z.coerce.boolean().optional(),
+})
+
+export type PlatformReportFilterDto = z.infer<typeof PlatformReportFilterSchema>
+
+export const PlatformAuditFilterSchema = z.object({
+  tenantId: z.string().uuid().optional(),
+  actorUserId: z.string().uuid().optional(),
+  action: PlatformAuditActionSchema.optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export type PlatformAuditFilterDto = z.infer<typeof PlatformAuditFilterSchema>
+
+export const PlatformSettingsSchema = z.object({
+  systemName: z.string().min(1).max(100).optional(),
+  logoUrl: z.string().url().max(500).optional().nullable(),
+  supportEmail: z.string().email().optional(),
+  supportPhone: z.string().min(10).max(20).optional(),
+  defaultLanguage: z.enum(['tr', 'en']).optional(),
+  defaultTimezone: z.string().min(1).max(50).optional(),
+  smsProvider: z.enum(['NETGSM', 'ILETIMERKEZI', 'TWILIO', 'MOCK']).optional(),
+  smsSenderName: z.string().min(1).max(20).optional(),
+  defaultPlan: z.enum(['TRIAL', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']).optional(),
+  defaultTrialDays: z.coerce.number().int().min(1).max(365).optional(),
+  maintenanceMode: z.boolean().optional(),
+  maintenanceMessage: z.string().max(500).optional(),
+})
+
+export type PlatformSettingsDto = z.infer<typeof PlatformSettingsSchema>
 
 export type CreateTenantDto = z.infer<typeof CreateTenantSchema>
 export type UpdateTenantDto = z.infer<typeof UpdateTenantSchema>

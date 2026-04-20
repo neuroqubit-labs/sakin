@@ -60,3 +60,35 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
   const json = await response.json() as { data: T }
   return json.data
 }
+
+export async function downloadFile(path: string, filename: string, params?: Record<string, string | number | boolean | undefined>) {
+  const token = getAccessToken()
+
+  let url = `${BASE_URL}${path}`
+  if (params) {
+    const searchParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) searchParams.set(key, String(value))
+    })
+    const qs = searchParams.toString()
+    if (qs) url += `?${qs}`
+  }
+
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ message: 'İndirme başarısız' }))
+    throw new Error((err as { message: string }).message ?? 'İndirme başarısız')
+  }
+
+  const blob = await response.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(objectUrl)
+}

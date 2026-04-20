@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { apiClient } from '@/lib/api'
 
+type PlanType = 'TRIAL' | 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE'
+
 interface TenantPlan {
-  planType: 'TRIAL' | 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE'
+  planType: PlanType
   expiresAt: string | null
   maxUnits: number
   smsCredits: number
@@ -24,7 +27,7 @@ interface TenantListItem {
   createdAt: string
   plan: TenantPlan | null
   daysUntilExpiry: number | null
-  _count: { sites: number; users: number }
+  _count: { sites: number; users: number; units: number }
 }
 
 interface TenantListResponse {
@@ -54,10 +57,25 @@ const emptyForm = {
   adminDisplayName: '',
 }
 
+const PAGE_SIZE = 20
+
+type StatusFilter = 'ALL' | 'ACTIVE' | 'SUSPENDED'
+type PlanFilter = 'ALL' | PlanType
+
 export default function CompaniesPage() {
-  const [tenants, setTenants] = useState<TenantListItem[] | null>(null)
+  const searchParams = useSearchParams()
+  const initialPlan = (searchParams.get('planType') as PlanFilter) ?? 'ALL'
+
+  const [tenants, setTenants] = useState<TenantListItem[]>([])
+  const [meta, setMeta] = useState<TenantListResponse['meta'] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [status, setStatus] = useState<StatusFilter>('ALL')
+  const [plan, setPlan] = useState<PlanFilter>(initialPlan)
+  const [page, setPage] = useState(1)
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -69,21 +87,39 @@ export default function CompaniesPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await apiClient<TenantListResponse>('/platform/tenants', {
-        params: { page: 1, limit: 50 },
-      })
+      const params: Record<string, string | number | boolean> = {
+        page,
+        limit: PAGE_SIZE,
+      }
+      if (search) params.search = search
+      if (status === 'ACTIVE') params.isActive = true
+      if (status === 'SUSPENDED') params.isActive = false
+      if (plan !== 'ALL') params.planType = plan
+
+      const response = await apiClient<TenantListResponse>('/platform/tenants', { params })
       setTenants(response.data)
+      setMeta(response.meta)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Şirket listesi alınamadı')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [page, search, status, plan])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (searchInput !== search) {
+        setSearch(searchInput.trim())
+        setPage(1)
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [searchInput, search])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -242,34 +278,108 @@ export default function CompaniesPage() {
         </div>
       )}
 
+      <div className="bg-white rounded-lg shadow p-4 flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[240px]">
+          <label className="text-xs font-medium text-gray-700 block mb-1">Arama</label>
+          <input
+            type="search"
+            placeholder="Şirket adı, slug, e-posta veya telefon"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-gray-900"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">Durum</label>
+          <select
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value as StatusFilter)
+              setPage(1)
+            }}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+          >
+            <option value="ALL">Tümü</option>
+            <option value="ACTIVE">Aktif</option>
+            <option value="SUSPENDED">Askıda</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">Plan</label>
+          <select
+            value={plan}
+            onChange={(e) => {
+              setPlan(e.target.value as PlanFilter)
+              setPage(1)
+            }}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+          >
+            <option value="ALL">Tümü</option>
+            <option value="TRIAL">Deneme</option>
+            <option value="STARTER">Başlangıç</option>
+            <option value="PROFESSIONAL">Pro</option>
+            <option value="ENTERPRISE">Kurumsal</option>
+          </select>
+        </div>
+        {meta && (
+          <p className="text-xs text-gray-500 ml-auto">
+            Toplam {meta.total} kayıt · sayfa {meta.page}/{Math.max(meta.totalPages, 1)}
+          </p>
+        )}
+      </div>
+
       {loading && <p className="text-sm text-gray-500">Şirketler yükleniyor...</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {!loading && !error && tenants && tenants.length === 0 && (
-        <p className="text-sm text-gray-500">Henüz şirket yok.</p>
+      {!loading && !error && tenants.length === 0 && (
+        <p className="text-sm text-gray-500">Filtrelere uyan şirket bulunamadı.</p>
       )}
 
-      {!loading && !error && tenants && tenants.length > 0 && (
-        <div className="bg-white rounded-lg shadow divide-y">
-          {tenants.map((tenant) => (
-            <Link
-              key={tenant.id}
-              href={`/companies/${tenant.id}`}
-              className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-            >
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">{tenant.name}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {tenant.city} · {tenant._count.sites} site · {tenant._count.users} kullanıcı
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <PlanChip plan={tenant.plan} daysUntilExpiry={tenant.daysUntilExpiry} />
-                <StatusChip isActive={tenant.isActive} suspendedReason={tenant.suspendedReason} />
-              </div>
-            </Link>
-          ))}
-        </div>
+      {!loading && !error && tenants.length > 0 && (
+        <>
+          <div className="bg-white rounded-lg shadow divide-y">
+            {tenants.map((tenant) => (
+              <Link
+                key={tenant.id}
+                href={`/companies/${tenant.id}`}
+                className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">{tenant.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {tenant.city} · {tenant._count.sites} site · {tenant._count.units} daire · {tenant._count.users} kullanıcı
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <PlanChip plan={tenant.plan} daysUntilExpiry={tenant.daysUntilExpiry} />
+                  <StatusChip isActive={tenant.isActive} suspendedReason={tenant.suspendedReason} />
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          {meta && meta.totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 text-sm border rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                ← Önceki
+              </button>
+              <span className="text-xs text-gray-500">
+                Sayfa {meta.page} / {meta.totalPages}
+              </span>
+              <button
+                disabled={page >= meta.totalPages}
+                onClick={() => setPage((p) => p + 1)}
+                className="px-3 py-1.5 text-sm border rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Sonraki →
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
