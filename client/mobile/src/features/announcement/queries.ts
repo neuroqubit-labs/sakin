@@ -5,9 +5,10 @@ import { useAuthSession } from '@/contexts/auth-context'
 export interface Announcement {
   id: string
   title: string
-  content: string
+  body: string
+  publishedAt: string | null
   createdAt: string
-  createdByUserId: string
+  createdById: string
 }
 
 export interface AnnouncementsResponse {

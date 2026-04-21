@@ -159,24 +159,6 @@ export async function apiClient<T>(
   return json.data
 }
 
-/** JSON body'sini unwrap etmeden, {data, ...meta} bekleyen endpointler için (ör. auth/otp). */
-export async function apiRaw<T>(
-  path: string,
-  options: FetchOptions = {},
-  tenantId?: string | null,
-): Promise<T> {
-  const response = await rawFetch(path, options, tenantId, accessToken)
-  if (!response.ok) {
-    const errorBody = (await response.json().catch(() => ({}))) as { message?: string; code?: string }
-    throw new ApiError(
-      errorBody.message ?? `HTTP ${response.status}`,
-      response.status,
-      errorBody.code,
-    )
-  }
-  return (await response.json()) as T
-}
-
 export interface OtpRequestResponse {
   ok: boolean
   phoneNumber: string
@@ -195,21 +177,21 @@ export interface AuthTokenResponse {
 }
 
 export async function requestOtp(phoneNumber: string): Promise<OtpRequestResponse> {
-  return apiRaw<OtpRequestResponse>('/auth/otp/request', {
+  return apiClient<OtpRequestResponse>('/auth/otp/request', {
     method: 'POST',
     body: JSON.stringify({ phoneNumber }),
   })
 }
 
 export async function verifyOtp(phoneNumber: string, code: string): Promise<AuthTokenResponse> {
-  return apiRaw<AuthTokenResponse>('/auth/otp/verify', {
+  return apiClient<AuthTokenResponse>('/auth/otp/verify', {
     method: 'POST',
     body: JSON.stringify({ phoneNumber, code }),
   })
 }
 
 export async function refreshAccessToken(refreshToken: string): Promise<AuthTokenResponse> {
-  return apiRaw<AuthTokenResponse>('/auth/refresh', {
+  return apiClient<AuthTokenResponse>('/auth/refresh', {
     method: 'POST',
     body: JSON.stringify({ refreshToken }),
   })

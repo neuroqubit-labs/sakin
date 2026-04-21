@@ -190,8 +190,8 @@ function AnnouncementRow({
       </View>
       <View style={styles.rowBody}>
         <Text style={styles.rowTitle}>{item.title}</Text>
-        <Text style={styles.rowExcerpt}>{excerpt(item.content)}</Text>
-        <Text style={styles.rowDate}>{formatDate(item.createdAt)}</Text>
+        <Text style={styles.rowExcerpt}>{excerpt(item.body)}</Text>
+        <Text style={styles.rowDate}>{formatDate(item.publishedAt ?? item.createdAt)}</Text>
       </View>
       <Ionicons color={colors.inkMuted} name="chevron-forward" size={18} />
     </Pressable>
@@ -242,9 +242,9 @@ function AnnouncementModal({
           >
             <SurfaceCard>
               <Text style={styles.modalTitle}>{item.title}</Text>
-              <Text style={styles.modalDate}>{formatDate(item.createdAt)}</Text>
+              <Text style={styles.modalDate}>{formatDate(item.publishedAt ?? item.createdAt)}</Text>
               <View style={styles.modalDivider} />
-              <Text style={styles.modalBody}>{item.content}</Text>
+              <Text style={styles.modalBody}>{item.body}</Text>
             </SurfaceCard>
           </ScrollView>
         ) : null}

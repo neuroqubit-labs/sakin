@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PrimaryButton, SurfaceCard } from '@/components'
 import { useAuthSession } from '@/contexts/auth-context'
 import { DEV_BYPASS_ENABLED } from '@/lib/env'
-import { ApiError, getDevBootstrap, requestOtp, verifyOtp } from '@/lib/api'
+import { API_BASE_URL, ApiError, getDevBootstrap, requestOtp, verifyOtp } from '@/lib/api'
 import { colors, radii, spacing, typography } from '@/theme'
 
 export default function LoginScreen() {
@@ -29,6 +29,7 @@ export default function LoginScreen() {
   const [devCode, setDevCode] = useState<string | null>(null)
 
   async function sendCode() {
+    if (loading) return
     if (!phoneNumber.trim()) return
     setLoading(true)
     setFeedback(null)
@@ -49,14 +50,19 @@ export default function LoginScreen() {
   }
 
   async function verifyCode() {
-    if (!code.trim()) return
+    if (loading) return
+    const sanitized = code.replace(/\D/g, '')
+    if (sanitized.length !== 6) {
+      setFeedback('6 haneli kodu eksiksiz girin.')
+      return
+    }
     setLoading(true)
     setFeedback(null)
     try {
-      const result = await verifyOtp(phoneNumber.trim(), code.trim())
-      // verify sonrası tenantId doğrudan dönmüyor; /auth/me veya residencies ile öğrenilir.
-      // Session token'larıyla kaydediyoruz; residencies sorgusu bir sonraki ekranda (home) tetiklenecek.
-      // tenantId şimdilik null — middleware kullanıcının tenantRole'unu otomatik çözüyor.
+      console.log('[login] verify START phone=', JSON.stringify(phoneNumber.trim()), 'code=', JSON.stringify(sanitized), 'apiBase=', API_BASE_URL)
+      const started = Date.now()
+      const result = await verifyOtp(phoneNumber.trim(), sanitized)
+      console.log('[login] verify OK in', Date.now() - started, 'ms, userId=', result.user.id)
       signIn({
         userId: result.user.id,
         tenantId: null,
@@ -65,6 +71,7 @@ export default function LoginScreen() {
         refreshToken: result.refreshToken,
       })
     } catch (error) {
+      console.log('[login] verify FAIL:', error instanceof Error ? error.name : typeof error, '-', error instanceof Error ? error.message : String(error), 'status=', error instanceof ApiError ? error.status : 'n/a')
       const message =
         error instanceof ApiError ? error.message : 'Kod doğrulanamadı. Tekrar deneyin.'
       setFeedback(message)
@@ -202,10 +209,12 @@ export default function LoginScreen() {
                 placeholder="— — — — — —"
                 placeholderTextColor={colors.inkMuted}
                 value={code}
-                onChangeText={setCode}
+                onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
                 keyboardType="number-pad"
                 maxLength={6}
                 autoFocus
+                textContentType="oneTimeCode"
+                autoComplete="sms-otp"
               />
               {feedback ? <Text style={styles.feedbackText}>{feedback}</Text> : null}
               <PrimaryButton
