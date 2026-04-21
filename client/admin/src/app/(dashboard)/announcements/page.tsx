@@ -11,6 +11,7 @@ import { useSiteContext } from '@/providers/site-provider'
 import { toastSuccess } from '@/lib/toast'
 import { formatShortDate } from '@/lib/formatters'
 import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
+import { ScopedBreadcrumb } from '@/components/scoped-breadcrumb'
 import { Button } from '@/components/ui/button'
 import { SplitButton } from '@/components/ui/split-button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -113,6 +114,7 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="space-y-6 motion-in">
+      <ScopedBreadcrumb module="Duyurular" />
       <PageHeader
         title="Duyurular"
         eyebrow="İletişim Operasyonu"

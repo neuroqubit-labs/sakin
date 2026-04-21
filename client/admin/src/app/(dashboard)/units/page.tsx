@@ -9,6 +9,7 @@ import { useSiteContext } from '@/providers/site-provider'
 import { useAuth } from '@/providers/auth-provider'
 import { UnitType, UserRole } from '@sakin/shared'
 import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
+import { ScopedBreadcrumb } from '@/components/scoped-breadcrumb'
 import { EmptyState } from '@/components/empty-state'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -148,6 +149,7 @@ export default function WorkUnitsPage() {
 
   return (
     <div className="space-y-6">
+      <ScopedBreadcrumb module="Daireler" />
       <PageHeader
         title="Daire Yönetimi ve Finans"
         eyebrow="Portföy Operasyonu"

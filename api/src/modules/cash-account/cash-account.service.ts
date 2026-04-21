@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common'
+import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { CashTransactionType, CashReferenceType } from '@sakin/shared'
 import type {
   CreateCashAccountDto,
   UpdateCashAccountDto,
@@ -10,7 +11,78 @@ import type {
 
 @Injectable()
 export class CashAccountService {
+  private readonly logger = new Logger(CashAccountService.name)
   constructor(private readonly prisma: PrismaService) {}
+
+  async recordPaymentInflow(
+    params: {
+      tenantId: string
+      siteId: string
+      paymentId: string
+      amount: number
+      paidAt: Date
+      description: string
+      userId?: string
+      cashAccountId?: string
+    },
+    tx?: PrismaService,
+  ): Promise<void> {
+    const db = (tx ?? this.prisma.forTenant(params.tenantId)) as unknown as PrismaService
+
+    const existing = await db.cashTransaction.findFirst({
+      where: { referenceType: CashReferenceType.PAYMENT, referenceId: params.paymentId },
+    })
+    if (existing) return
+
+    let account = null
+    if (params.cashAccountId) {
+      account = await db.cashAccount.findFirst({
+        where: { id: params.cashAccountId, siteId: params.siteId, isActive: true },
+      })
+    }
+    if (!account) {
+      account = await db.cashAccount.findFirst({
+        where: { siteId: params.siteId, isActive: true },
+        orderBy: [{ type: 'asc' }, { createdAt: 'asc' }],
+      })
+    }
+    if (!account) {
+      this.logger.warn(
+        `Payment ${params.paymentId} confirmed but no cash account found for site ${params.siteId}`,
+      )
+      return
+    }
+
+    let createdById = params.userId
+    if (!createdById) {
+      const adminRole = await db.userTenantRole.findFirst({
+        where: { tenantId: params.tenantId, role: 'TENANT_ADMIN', isActive: true },
+        orderBy: { createdAt: 'asc' },
+        select: { userId: true },
+      })
+      if (!adminRole) {
+        this.logger.warn(
+          `Payment ${params.paymentId}: no creator user available, skipping cash transaction`,
+        )
+        return
+      }
+      createdById = adminRole.userId
+    }
+
+    await db.cashTransaction.create({
+      data: {
+        tenantId: params.tenantId,
+        cashAccountId: account.id,
+        amount: params.amount,
+        type: CashTransactionType.INCOME,
+        referenceType: CashReferenceType.PAYMENT,
+        referenceId: params.paymentId,
+        description: params.description,
+        transactionDate: params.paidAt,
+        createdById,
+      },
+    })
+  }
 
   async create(dto: CreateCashAccountDto, tenantId: string) {
     const db = this.prisma.forTenant(tenantId)

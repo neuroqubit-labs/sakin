@@ -5,5 +5,6 @@ import { CashAccountService } from './cash-account.service'
 @Module({
   controllers: [CashAccountController],
   providers: [CashAccountService],
+  exports: [CashAccountService],
 })
 export class CashAccountModule {}

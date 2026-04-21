@@ -11,6 +11,7 @@ import { useSiteContext } from '@/providers/site-provider'
 import { useAuth } from '@/providers/auth-provider'
 import { EmptyState } from '@/components/empty-state'
 import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
+import { ScopedBreadcrumb } from '@/components/scoped-breadcrumb'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -214,6 +215,7 @@ export default function ResidentsPage() {
 
   return (
     <div className="space-y-6 motion-in">
+      <ScopedBreadcrumb module="Sakinler" />
       <PageHeader
         title="Sakinler"
         eyebrow="İletişim Operasyonu"

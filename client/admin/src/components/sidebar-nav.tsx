@@ -2,16 +2,91 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LogOut } from 'lucide-react'
+import { Building2, LogOut, Repeat } from 'lucide-react'
 import type { AdminNavGroup, AdminNavItem } from '@/lib/access-policy'
 import { BrandLockup } from '@/components/brand-lockup'
 import { useAuth } from '@/providers/auth-provider'
+import { useSiteContext } from '@/providers/site-provider'
+import { useApiQuery } from '@/hooks/use-api'
+import { formatTry } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 
 interface SidebarNavProps {
   title: string
   mainGroups: AdminNavGroup[]
   bottomItems: AdminNavItem[]
+}
+
+interface PortfolioSiteKpi {
+  id: string
+  name: string
+  city: string
+  totalUnits: number
+  collectionRate: number
+  totalDebt: number
+  thisMonthCollection: number
+}
+
+function ActiveSiteCard() {
+  const { selectedSiteId, availableSites, hydrated } = useSiteContext()
+  const { data: portfolio } = useApiQuery<PortfolioSiteKpi[]>(
+    ['portfolio'],
+    '/tenant/work-portfolio',
+    undefined,
+    { enabled: hydrated, staleTime: 60_000 },
+  )
+
+  const site = availableSites.find((s) => s.id === selectedSiteId)
+  const kpi = portfolio?.find((p) => p.id === selectedSiteId)
+
+  if (!hydrated || availableSites.length === 0) return null
+
+  if (!site) {
+    return (
+      <div className="mt-3 rounded-2xl border border-white/75 bg-white/58 px-3.5 py-3 text-[11px] text-[#66778d]">
+        Henüz bina seçilmedi
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.78),rgba(79,125,247,0.08))] px-3.5 py-3 shadow-[0_10px_22px_rgba(8,17,31,0.06)]">
+      <div className="flex items-center gap-2">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-white/82 text-[#17345a] shadow-[inset_0_1px_0_rgba(255,255,255,0.68)]">
+          <Building2 className="h-3.5 w-3.5" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[12px] font-semibold text-[#0f1a2b]">{site.name}</p>
+          <p className="truncate text-[10px] uppercase tracking-[0.14em] text-[#7a8ca3]">{site.city}</p>
+        </div>
+      </div>
+      <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-center">
+        <div className="rounded-xl bg-white/62 px-1 py-1.5">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#8b9bb0]">Daire</p>
+          <p className="text-[11px] font-semibold text-[#0f1a2b]">{site.totalUnits}</p>
+        </div>
+        <div className="rounded-xl bg-white/62 px-1 py-1.5">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#8b9bb0]">Tahsilat</p>
+          <p className="text-[11px] font-semibold text-[#0f1a2b]">
+            {kpi ? `%${Math.round(kpi.collectionRate)}` : '—'}
+          </p>
+        </div>
+        <div className="rounded-xl bg-white/62 px-1 py-1.5">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#8b9bb0]">Borç</p>
+          <p className="text-[11px] font-semibold text-[#ba1a1a]">
+            {kpi ? formatTry(kpi.totalDebt) : '—'}
+          </p>
+        </div>
+      </div>
+      <Link
+        href="/sites"
+        className="mt-2.5 flex items-center justify-center gap-1.5 rounded-xl border border-white/80 bg-white/72 px-2 py-1.5 text-[11px] font-semibold text-[#17345a] transition-colors hover:bg-white"
+      >
+        <Repeat className="h-3 w-3" />
+        Binayı Değiştir
+      </Link>
+    </div>
+  )
 }
 
 export function SidebarNav({ title, mainGroups, bottomItems }: SidebarNavProps) {
@@ -26,14 +101,7 @@ export function SidebarNav({ title, mainGroups, bottomItems }: SidebarNavProps) 
       <div className="ledger-shell-sidebar flex h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-[30px]">
         <div className="border-b border-white/70 px-5 pb-4 pt-5">
           <BrandLockup subtitle={title} minimal />
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-[#dce7f6] bg-[#f7faff] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6480ab]">
-              Wafra Product Suite
-            </span>
-            <span className="rounded-full border border-white/75 bg-white/68 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7a8ca3]">
-              {title}
-            </span>
-          </div>
+          <ActiveSiteCard />
         </div>
 
         <nav aria-label="Sayfa menüsü" className="flex-1 overflow-y-auto px-3 py-4">

@@ -137,9 +137,12 @@ export function Topbar({ onPaymentClick }: TopbarProps) {
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[340px] rounded-[24px] border-white/80 bg-white/92 p-3 shadow-[0_24px_54px_rgba(8,17,31,0.14)] backdrop-blur-2xl">
+            <PopoverContent align="end" className="w-[360px] rounded-[24px] border-white/80 bg-white/92 p-3 shadow-[0_24px_54px_rgba(8,17,31,0.14)] backdrop-blur-2xl">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#63758d]">Bildirimler</p>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#63758d]">Sistem Bildirimleri</p>
+                  <p className="text-[10px] text-[#8b9bb0] mt-0.5">Ödeme, sistem ve operasyon olayları</p>
+                </div>
                 <button
                   type="button"
                   onClick={() => void markAllRead()}
@@ -148,33 +151,32 @@ export function Topbar({ onPaymentClick }: TopbarProps) {
                   <Check className="h-3 w-3" /> Okundu
                 </button>
               </div>
-              {notificationLoading && <p className="text-xs text-[#6b7280]">Yükleniyor...</p>}
-              {notificationError && <p className="text-xs text-red-600">{notificationError}</p>}
-              {!notificationLoading && !notificationError && notifications.length === 0 && (
-                <p className="text-xs text-[#6b7280] py-2">Bildirim yok.</p>
-              )}
-              {!notificationLoading && notifications.map((item) => (
-                <div key={item.id} className="animate-fade-in-up rounded-2xl border border-white/70 bg-[#f8fbff] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-                  <p className="text-xs font-medium text-[#111827]">{item.templateKey ?? 'Bildirim'}</p>
-                  <p className="text-[11px] text-[#6b7280] mt-0.5">{relativeTime(item.createdAt)}</p>
-                </div>
-              ))}
-              <div className="mt-2 flex gap-2">
-                <Link
-                  href="/announcements"
-                  onClick={() => setNotifOpen(false)}
-                  className="flex-1 block rounded-2xl border border-white/80 bg-[#f3f7fb] py-2 text-center text-xs font-medium text-[#0c1427] transition-colors hover:bg-[#edf3fa]"
-                >
-                  Tümünü Gör
-                </Link>
+              <div className="mt-2 space-y-2">
+                {notificationLoading && <p className="text-xs text-[#6b7280]">Yükleniyor...</p>}
+                {notificationError && <p className="text-xs text-red-600">{notificationError}</p>}
+                {!notificationLoading && !notificationError && notifications.length === 0 && (
+                  <p className="text-xs text-[#6b7280] py-2">Bildirim yok.</p>
+                )}
+                {!notificationLoading && notifications.map((item) => (
+                  <div key={item.id} className="animate-fade-in-up rounded-2xl border border-white/70 bg-[#f8fbff] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                    <p className="text-xs font-medium text-[#111827]">{item.templateKey ?? 'Bildirim'}</p>
+                    <p className="text-[11px] text-[#6b7280] mt-0.5">{relativeTime(item.createdAt)}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 border-t border-[#eef2f7] pt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8b9bb0] mb-2">Hızlı Aksiyon</p>
                 <Link
                   href="/announcements?new=1"
                   onClick={() => setNotifOpen(false)}
                   className="flex items-center justify-center gap-1 rounded-2xl border border-[#17345a]/12 bg-[linear-gradient(135deg,#12203a_0%,#1d3b67_46%,#4f7df7_100%)] px-3 py-2 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(79,125,247,0.2)] transition-all duration-200 hover:-translate-y-0.5"
                 >
                   <Plus className="h-3 w-3" />
-                  Yeni Duyuru
+                  Sakinlere Yeni Duyuru
                 </Link>
+                <p className="text-[10px] text-[#8b9bb0] mt-2 text-center">
+                  Duyuruları yönetmek için sol menüden <Link href="/announcements" onClick={() => setNotifOpen(false)} className="font-semibold text-[#4f7df7] hover:underline">Duyurular</Link> sayfasına gidin
+                </p>
               </div>
             </PopoverContent>
           </Popover>

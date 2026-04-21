@@ -30,6 +30,7 @@ import {
 } from '@sakin/shared'
 import { randomUUID } from 'crypto'
 import { LedgerService } from '../ledger/ledger.service'
+import { CashAccountService } from '../cash-account/cash-account.service'
 import { calculateDuesStatus, toMoneyNumber } from '../../common/finance/finance.utils'
 import { AUDIT_ACTIONS } from '../../common/audit/audit-actions'
 import { SupportNotificationClient } from './internal/support-notification.client'
@@ -40,8 +41,37 @@ export class PaymentService {
     private readonly prisma: PrismaService,
     private readonly iyzico: IyzicoService,
     private readonly ledgerService: LedgerService,
+    private readonly cashAccountService: CashAccountService,
     private readonly supportNotificationClient: SupportNotificationClient,
   ) {}
+
+  private async recordPaymentCashInflow(
+    params: {
+      tenantId: string
+      unitId: string
+      paymentId: string
+      amount: number
+      paidAt: Date
+      note?: string
+      userId?: string
+    },
+    tx: PrismaService,
+  ): Promise<void> {
+    const unit = await tx.unit.findFirst({ where: { id: params.unitId }, select: { siteId: true, number: true } })
+    if (!unit) return
+    await this.cashAccountService.recordPaymentInflow(
+      {
+        tenantId: params.tenantId,
+        siteId: unit.siteId,
+        paymentId: params.paymentId,
+        amount: params.amount,
+        paidAt: params.paidAt,
+        description: params.note?.slice(0, 200) ?? `Daire ${unit.number} ödemesi`,
+        userId: params.userId,
+      },
+      tx,
+    )
+  }
 
   async createCheckoutSession(
     dto: CreateCheckoutSessionDto,
@@ -304,6 +334,19 @@ export class PaymentService {
         tx as unknown as PrismaService,
       )
 
+      await this.recordPaymentCashInflow(
+        {
+          tenantId,
+          unitId: dto.unitId,
+          paymentId: payment.id,
+          amount: Number(dto.amount),
+          paidAt: payment.paidAt ?? new Date(),
+          note: dto.note,
+          userId,
+        },
+        tx as unknown as PrismaService,
+      )
+
       if (payment.duesId) {
         await this.refreshDuesStatus(payment.duesId, tenantId, tx as unknown as PrismaService)
       }
@@ -526,6 +569,19 @@ export class PaymentService {
             channel: confirmed.channel,
             provider: confirmed.provider,
           },
+        },
+        tx as unknown as PrismaService,
+      )
+
+      await this.recordPaymentCashInflow(
+        {
+          tenantId,
+          unitId: confirmed.unitId,
+          paymentId: confirmed.id,
+          amount: Number(confirmed.amount),
+          paidAt: confirmed.paidAt ?? new Date(),
+          note: confirmed.note ?? undefined,
+          userId: approverUserId,
         },
         tx as unknown as PrismaService,
       )
@@ -1153,6 +1209,18 @@ export class PaymentService {
           metadata: {
             providerPaymentId: confirmed.providerPaymentId,
           },
+        },
+        tx as unknown as PrismaService,
+      )
+
+      await this.recordPaymentCashInflow(
+        {
+          tenantId: confirmed.tenantId,
+          unitId: confirmed.unitId,
+          paymentId: confirmed.id,
+          amount: Number(confirmed.amount),
+          paidAt: confirmed.paidAt ?? new Date(),
+          note: confirmed.note ?? undefined,
         },
         tx as unknown as PrismaService,
       )

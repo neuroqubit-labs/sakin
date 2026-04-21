@@ -2,6 +2,7 @@
 
 import { useSiteContext } from '@/providers/site-provider'
 import { PageHeader } from '@/components/surface'
+import { ScopedBreadcrumb } from '@/components/scoped-breadcrumb'
 import { DuesCreatePanel } from '../finance/_components/dues-create-panel'
 
 export default function DuesCreatePage() {
@@ -11,6 +12,7 @@ export default function DuesCreatePage() {
 
   return (
     <div className="space-y-6 motion-in">
+      <ScopedBreadcrumb module="Aidat & Gider" />
       <PageHeader
         title="Aidat & Gider Oluştur"
         eyebrow="Finans Operasyonu"

@@ -215,22 +215,32 @@ Request → TenantMiddleware (Firebase → tenantId+role) → Controller → Ser
 - [x] Mobile → API tam entegrasyon (dues, ödeme WebView, bildirimler)
 - [x] `pnpm typecheck` → sıfır hata
 
-### Faz 2
-- [ ] Talep/arıza yönetimi (ticket sistemi)
-- [ ] Push notification (Firebase FCM)
-- [ ] WhatsApp / SMS entegrasyonu
-- [ ] Çalışan takibi
-- [ ] Refund otomasyonu
+### Faz 2 & Faz 3 — Milestone Planı
 
-### Faz 3
-- [ ] Raporlama (tahsilat oranı, aging, site bazlı mali durum)
-- [ ] Self-serve SaaS onboarding
+Detaylı sprint planı: [doc/16-FAZ2-FAZ3-SPRINT-PLANI.md](doc/16-FAZ2-FAZ3-SPRINT-PLANI.md)
+
+**M1 — MVP Kapanışı (4-5 hafta)** — Kendi şirketimiz tam operasyon
+- [ ] S0 Quick Wins (sidebar, kart toggle, bildirim/duyuru ayrımı)
+- [ ] S1 Onboarding sihirbazı (bina planı + CSV import + tablo edit)
+- [ ] S2 Aktif bina hub'ı (sidebar kartı, URL bağlamı, tabli detay)
+- [ ] S3 Kasa & Banka (hesap CRUD, işlem akışı, otomatik bağlantı)
+
+**M2 — İletişim & Ticket (4-5 hafta)** — İlk pilot müşteri hazır
+- [ ] S4 Ticket / arıza yönetimi (admin + mobil)
+- [ ] S5 SMS merkezi + Firebase FCM push
+- [ ] S6 Bina personeli + iyzico refund
+
+**M3 — SaaS Hazırlığı (4-5 hafta)** — Self-serve, satılabilir
+- [ ] S7 Gelişmiş raporlama (aging, PDF, trend)
+- [ ] S8 Audit log + error tracking + backup drill
+- [ ] S9 Tenant branding + kota enforcement
+- [ ] S10 Self-serve onboarding + marketplace ödeme
 
 ---
 
 ## Dokümantasyon
 
-`doc/` altında 10 referans doküman bulunur. Geliştirme öncesi mutlaka okunmalı.
+`doc/` altında referans dokümanlar bulunur. Geliştirme öncesi mutlaka okunmalı.
 
 | # | Doküman | Kapsam |
 |---|---------|--------|
@@ -244,6 +254,8 @@ Request → TenantMiddleware (Firebase → tenantId+role) → Controller → Ser
 | 08 | OZELLIK-YOL-HARITASI | Faz planı, müşteri eşleştirmesi |
 | 09 | ZAMANLANMIS-ISLER-VE-ENTEGRASYONLAR | Cron, webhook, dış servisler |
 | 10 | GELISTIRME-KILAVUZU | Setup, konvansiyonlar, deploy |
+| 11-15 | MOBIL-* | Mobil deneyim vizyonu, UX ilkeleri, UI planı, RC checklist |
+| 16 | FAZ2-FAZ3-SPRINT-PLANI | Milestone ve sprint detayları (issue breakdown) |
 
 Ek: `doc/role-access-policy.md` (rol erişim matrisi), `doc/customer-expectations/` (müşteri beklenti analizi)
 

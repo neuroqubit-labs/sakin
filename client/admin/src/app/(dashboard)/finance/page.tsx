@@ -6,6 +6,7 @@ import { useSiteContext } from '@/providers/site-provider'
 import { UserRole } from '@sakin/shared'
 import { AlertTriangle, Percent, Wallet, Receipt } from 'lucide-react'
 import { PageHeader, KpiCard } from '@/components/surface'
+import { ScopedBreadcrumb } from '@/components/scoped-breadcrumb'
 import { formatTry } from '@/lib/formatters'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -62,6 +63,7 @@ export default function FinancePage() {
 
   return (
     <div className="space-y-6 motion-in">
+      <ScopedBreadcrumb module="Tahsilat" />
       <PageHeader
         title="Tahsilat"
         eyebrow="Finans Operasyonu"

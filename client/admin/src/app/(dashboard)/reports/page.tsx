@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/empty-state'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
+import { ScopedBreadcrumb } from '@/components/scoped-breadcrumb'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateTime } from '@/lib/formatters'
 
@@ -287,6 +288,7 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6 motion-in">
+      <ScopedBreadcrumb module="Raporlar" portfolioScope />
       <PageHeader
         title="Raporlar"
         eyebrow="Rapor Operasyonu"

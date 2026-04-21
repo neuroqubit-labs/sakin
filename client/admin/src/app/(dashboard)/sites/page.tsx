@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CreateSiteSchema, type CreateSiteDto, type UpdateSiteDto } from '@sakin/shared'
@@ -11,11 +11,14 @@ import {
   Building2,
   ChevronRight,
   Home,
+  LayoutGrid,
+  List,
   MapPinned,
   Pencil,
   Plus,
   RotateCcw,
   ShieldAlert,
+  Wand2,
 } from 'lucide-react'
 import { useApiQuery, useApiMutation } from '@/hooks/use-api'
 import { useSiteContext } from '@/providers/site-provider'
@@ -170,11 +173,24 @@ function SiteFormFields({
   )
 }
 
+type SitesView = 'table' | 'cards'
+
 export default function SitesPage() {
   const router = useRouter()
   const { selectedSiteId, setSelectedSiteId } = useSiteContext()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [view, setView] = useState<SitesView>('table')
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem('sakin.sites.view')
+    if (saved === 'cards' || saved === 'table') setView(saved)
+  }, [])
+
+  const updateView = (next: SitesView) => {
+    setView(next)
+    window.localStorage.setItem('sakin.sites.view', next)
+  }
 
   const { data: sites = [], isLoading: sitesLoading } = useApiQuery<SiteRow[]>(
     ['sites'],
@@ -283,16 +299,54 @@ export default function SitesPage() {
         eyebrow="Portföy Yönetimi"
         subtitle="Bina kayıtlarını, tahsilat riskini ve operasyon kapsamını tek bakışta yönetin."
         actions={(
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditingId(null)
-              setShowCreate((prev) => !prev)
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Yeni Site
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center rounded-full border border-white/85 bg-white/72 p-1 shadow-[0_10px_22px_rgba(8,17,31,0.05)]">
+              <button
+                type="button"
+                onClick={() => updateView('table')}
+                aria-pressed={view === 'table'}
+                aria-label="Tablo görünümü"
+                className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                  view === 'table'
+                    ? 'bg-[linear-gradient(135deg,#12203a,#1d3b67,#4f7df7)] text-white shadow-[0_8px_18px_rgba(79,125,247,0.2)]'
+                    : 'text-[#63758d] hover:text-[#0c1427]'
+                }`}
+              >
+                <List className="h-3.5 w-3.5" />
+                Tablo
+              </button>
+              <button
+                type="button"
+                onClick={() => updateView('cards')}
+                aria-pressed={view === 'cards'}
+                aria-label="Kart görünümü"
+                className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                  view === 'cards'
+                    ? 'bg-[linear-gradient(135deg,#12203a,#1d3b67,#4f7df7)] text-white shadow-[0_8px_18px_rgba(79,125,247,0.2)]'
+                    : 'text-[#63758d] hover:text-[#0c1427]'
+                }`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Kart
+              </button>
+            </div>
+            <Link href="/onboarding/new-site">
+              <Button size="sm" variant="outline">
+                <Wand2 className="h-4 w-4" />
+                Sihirbazla Ekle
+              </Button>
+            </Link>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingId(null)
+                setShowCreate((prev) => !prev)
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Yeni Site
+            </Button>
+          </div>
         )}
       />
 
@@ -362,6 +416,7 @@ export default function SitesPage() {
         </div>
       )}
 
+      {view === 'table' ? (
       <div className="ledger-panel overflow-hidden">
         <SectionTitle
           title="Site portföyü"
@@ -472,6 +527,120 @@ export default function SitesPage() {
           })}
         </div>
       </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {sitesLoading && Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-52 rounded-[24px]" />
+          ))}
+
+          {!sitesLoading && sites.length === 0 && (
+            <div className="sm:col-span-2 xl:col-span-3">
+              <EmptyState
+                icon={Building2}
+                title="Henüz kayıtlı site yok"
+                description="İlk portföy kaydını ekleyerek daire, sakin ve tahsilat operasyonunu başlatın."
+                actionLabel="İlk Siteyi Ekle"
+                onAction={() => setShowCreate(true)}
+              />
+            </div>
+          )}
+
+          {!sitesLoading && sites.map((site) => {
+            const portfolio = portfolioById.get(site.id)
+            const isSelected = selectedSiteId === site.id
+            return (
+              <div
+                key={site.id}
+                className={`ledger-panel flex flex-col overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_54px_rgba(8,17,31,0.1)] ${
+                  isSelected ? 'ring-2 ring-[#4f7df7]/40' : ''
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3 px-5 pt-5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#eef4ff] text-[#31538c]">
+                        <Building2 className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#0c1427]">{site.name}</p>
+                        <p className="truncate text-xs text-[#6b7280]">
+                          {site.city}{site.district ? ` / ${site.district}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    {portfolio ? (
+                      <StatusPill label={riskLabel(portfolio.riskLevel)} tone={riskTone(portfolio.riskLevel)} />
+                    ) : (
+                      <span className="ledger-chip ledger-chip-neutral">Metrik Yok</span>
+                    )}
+                    <span className={site.isActive ? 'ledger-chip ledger-chip-success' : 'ledger-chip ledger-chip-neutral'}>
+                      {site.isActive ? 'AKTİF' : 'ARŞİV'}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="px-5 pt-2 text-xs text-[#6b7280] line-clamp-2">{site.address || '—'}</p>
+
+                <div className="grid grid-cols-3 gap-2 px-5 py-4">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8b9bb0]">Daire</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-[#0c1427]">{site._count.units}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8b9bb0]">Aylık Tahsilat</p>
+                    <p className="mt-1 text-sm font-semibold tabular-nums text-[#0c1427]">
+                      {portfolio ? formatTry(portfolio.thisMonthCollection) : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8b9bb0]">Açık Borç</p>
+                    <p className={`mt-1 text-sm font-semibold tabular-nums ${portfolio && portfolio.totalDebt > 0 ? 'text-[#ba1a1a]' : 'text-[#0c1427]'}`}>
+                      {portfolio ? formatTry(portfolio.totalDebt) : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-auto flex items-center gap-2 border-t border-[#eef2f7] px-5 py-3">
+                  <Button
+                    size="sm"
+                    variant={isSelected ? 'default' : 'outline'}
+                    className="h-8 flex-1 text-xs"
+                    onClick={() => setSelectedSiteId(site.id)}
+                  >
+                    {isSelected ? 'Seçili' : 'Seç'}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => startEdit(site)} aria-label="Düzenle">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    disabled={archiveMutation.isPending}
+                    onClick={() => archiveMutation.mutate({ id: site.id, isActive: !site.isActive })}
+                    aria-label={site.isActive ? 'Arşivle' : 'Aktifleştir'}
+                  >
+                    {site.isActive ? (
+                      <Archive className="h-3.5 w-3.5 text-[#ba1a1a]" />
+                    ) : (
+                      <RotateCcw className="h-3.5 w-3.5 text-[#0e7a52]" />
+                    )}
+                  </Button>
+                  <Link
+                    href={`/sites/${site.id}`}
+                    className="inline-flex h-8 items-center gap-1 rounded-2xl bg-[linear-gradient(135deg,#12203a,#1d3b67,#4f7df7)] px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(79,125,247,0.2)] transition-all duration-200 hover:-translate-y-0.5"
+                  >
+                    Binayı Yönet
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {editingId && (
         <div className="ledger-panel overflow-hidden">

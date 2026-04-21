@@ -194,7 +194,12 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="space-y-6 motion-in">
-      <Breadcrumb items={[{ label: 'Siteler', href: '/sites' }, { label: site?.name ?? '…' }]} />
+      <Breadcrumb
+        items={[
+          { label: 'Portföy', href: '/sites' },
+          { label: site?.name ?? '…' },
+        ]}
+      />
 
       <PageHeader
         title={siteLoading ? '...' : (site?.name ?? '')}

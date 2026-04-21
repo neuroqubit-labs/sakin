@@ -8,6 +8,9 @@ import {
   BarChart3,
   Settings,
   CircleDollarSign,
+  Users,
+  Megaphone,
+  Wallet,
 } from 'lucide-react'
 
 export interface AdminNavItem {
@@ -26,16 +29,20 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: '/dashboard', label: 'Genel Bakış', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: LayoutDashboard },
   { href: '/sites', label: 'Siteler', roles: [UserRole.TENANT_ADMIN], icon: Building2 },
   { href: '/units', label: 'Daireler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Home },
+  { href: '/residents', label: 'Sakinler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Users },
   { href: '/dues-create', label: 'Aidat & Gider', roles: [UserRole.STAFF], icon: CircleDollarSign },
   { href: '/finance', label: 'Tahsilat', roles: [UserRole.TENANT_ADMIN], icon: Receipt },
+  { href: '/cash', label: 'Kasa & Banka', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Wallet },
+  { href: '/announcements', label: 'Duyurular', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Megaphone },
   { href: '/reports', label: 'Raporlar', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: BarChart3 },
   { href: '/settings', label: 'Ayarlar', roles: [UserRole.TENANT_ADMIN], icon: Settings },
 ]
 
 const NAV_GROUPS: Array<{ label: string | null; hrefs: string[] }> = [
   { label: null, hrefs: ['/dashboard'] },
-  { label: 'Yönetim', hrefs: ['/sites', '/units', '/dues-create'] },
-  { label: 'Finans', hrefs: ['/finance'] },
+  { label: 'Yönetim', hrefs: ['/sites', '/units', '/residents', '/dues-create'] },
+  { label: 'Finans', hrefs: ['/finance', '/cash'] },
+  { label: 'İletişim', hrefs: ['/announcements'] },
   { label: 'Analiz', hrefs: ['/reports'] },
 ]
 
@@ -49,6 +56,7 @@ export const ROLE_ROUTE_POLICY: RouteAccessPolicy = {
   '/units': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/residents': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/finance': [UserRole.TENANT_ADMIN],
+  '/cash': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/dues-create': [UserRole.STAFF],
   '/dues': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/payments': [UserRole.TENANT_ADMIN, UserRole.STAFF],
@@ -57,6 +65,7 @@ export const ROLE_ROUTE_POLICY: RouteAccessPolicy = {
   '/reports': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/users': [UserRole.TENANT_ADMIN],
   '/settings': [UserRole.TENANT_ADMIN],
+  '/onboarding': [UserRole.TENANT_ADMIN],
 }
 
 export function getNavItemsForRole(role: UserRole | null): AdminNavItem[] {

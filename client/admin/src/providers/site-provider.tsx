@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { apiClient } from '@/lib/api'
 
 interface SiteOption {
@@ -16,6 +16,7 @@ interface SiteContextValue {
   availableSites: SiteOption[]
   hydrated: boolean
   error: string | null
+  refresh: () => Promise<void>
 }
 
 const STORAGE_KEY = 'active_site_id'
@@ -27,6 +28,7 @@ const SiteContext = createContext<SiteContextValue>({
   availableSites: [],
   hydrated: false,
   error: null,
+  refresh: async () => {},
 })
 
 function readCookie(name: string): string | null {
@@ -53,38 +55,40 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const loadSites = async () => {
-      try {
-        setError(null)
-        const sites = await apiClient<SiteOption[]>('/sites')
-        setAvailableSites(sites)
+  const loadSites = useCallback(async () => {
+    try {
+      setError(null)
+      const sites = await apiClient<SiteOption[]>('/sites')
+      setAvailableSites(sites)
 
-        if (sites.length === 0) {
-          setHydrated(true)
-          return
-        }
-
-        const urlSiteId = typeof window !== 'undefined' ? new URL(window.location.href).searchParams.get('siteId') : null
-        const storageSiteId = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
-        const cookieSiteId = readCookie(COOKIE_KEY)
-
-        const candidate = [urlSiteId, storageSiteId, cookieSiteId].find((id) => id && sites.some((s) => s.id === id))
-        const nextSiteId = candidate ?? sites[0]!.id
-        setSelectedSiteIdState(nextSiteId)
-        if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, nextSiteId)
-        writeCookie(COOKIE_KEY, nextSiteId)
-        syncSiteIdToUrl(nextSiteId)
-      } catch (err) {
-        setAvailableSites([])
-        setSelectedSiteIdState(null)
-        setError(err instanceof Error ? err.message : 'Site listesi alınamadı')
-      } finally {
+      if (sites.length === 0) {
         setHydrated(true)
+        return
       }
-    }
 
+      const urlSiteId = typeof window !== 'undefined' ? new URL(window.location.href).searchParams.get('siteId') : null
+      const storageSiteId = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
+      const cookieSiteId = readCookie(COOKIE_KEY)
+
+      const candidate = [urlSiteId, storageSiteId, cookieSiteId].find((id) => id && sites.some((s) => s.id === id))
+      const currentValid = selectedSiteId && sites.some((s) => s.id === selectedSiteId)
+      const nextSiteId = currentValid ? selectedSiteId! : (candidate ?? sites[0]!.id)
+      setSelectedSiteIdState(nextSiteId)
+      if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, nextSiteId)
+      writeCookie(COOKIE_KEY, nextSiteId)
+      syncSiteIdToUrl(nextSiteId)
+    } catch (err) {
+      setAvailableSites([])
+      setSelectedSiteIdState(null)
+      setError(err instanceof Error ? err.message : 'Site listesi alınamadı')
+    } finally {
+      setHydrated(true)
+    }
+  }, [selectedSiteId])
+
+  useEffect(() => {
     void loadSites()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const setSelectedSiteId = (siteId: string) => {
@@ -95,8 +99,8 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
   }
 
   const value = useMemo<SiteContextValue>(
-    () => ({ selectedSiteId, setSelectedSiteId, availableSites, hydrated, error }),
-    [selectedSiteId, availableSites, hydrated, error],
+    () => ({ selectedSiteId, setSelectedSiteId, availableSites, hydrated, error, refresh: loadSites }),
+    [selectedSiteId, availableSites, hydrated, error, loadSites],
   )
 
   return <SiteContext.Provider value={value}>{children}</SiteContext.Provider>
