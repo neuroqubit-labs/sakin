@@ -2,7 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "module": "CommonJS",
-    "moduleResolution": "Node",
+    "moduleResolution": "Node10",
+    "ignoreDeprecations": "5.0",
     "lib": ["ES2022"],
     "types": ["node"],
     "outDir": "dist",
