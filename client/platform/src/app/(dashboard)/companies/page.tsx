@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { apiClient } from '@/lib/api'
@@ -63,6 +63,14 @@ type StatusFilter = 'ALL' | 'ACTIVE' | 'SUSPENDED'
 type PlanFilter = 'ALL' | PlanType
 
 export default function CompaniesPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-gray-500">Şirketler yükleniyor...</p>}>
+      <CompaniesPageInner />
+    </Suspense>
+  )
+}
+
+function CompaniesPageInner() {
   const searchParams = useSearchParams()
   const initialPlan = (searchParams.get('planType') as PlanFilter) ?? 'ALL'
 
