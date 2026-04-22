@@ -60,7 +60,7 @@ export const ROLE_ROUTE_POLICY: RouteAccessPolicy = {
   '/residents': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/finance': [UserRole.TENANT_ADMIN],
   '/cash': [UserRole.TENANT_ADMIN, UserRole.STAFF],
-  '/dues-create': [UserRole.STAFF],
+  '/dues-create': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/dues': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/payments': [UserRole.TENANT_ADMIN, UserRole.STAFF],
   '/expenses': [UserRole.TENANT_ADMIN, UserRole.STAFF],
