@@ -11,6 +11,7 @@ import {
   Users,
   Megaphone,
   Wallet,
+  TrendingDown,
 } from 'lucide-react'
 
 export interface AdminNavItem {
@@ -30,9 +31,11 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: '/sites', label: 'Siteler', roles: [UserRole.TENANT_ADMIN], icon: Building2 },
   { href: '/units', label: 'Daireler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Home },
   { href: '/residents', label: 'Sakinler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Users },
-  { href: '/dues-create', label: 'Aidat & Gider', roles: [UserRole.STAFF], icon: CircleDollarSign },
+  { href: '/dues-create', label: 'Aidat Planla', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: CircleDollarSign },
   { href: '/finance', label: 'Tahsilat', roles: [UserRole.TENANT_ADMIN], icon: Receipt },
+  { href: '/payments', label: 'Ödemeler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Receipt },
   { href: '/cash', label: 'Kasa & Banka', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Wallet },
+  { href: '/expenses', label: 'Giderler', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: TrendingDown },
   { href: '/announcements', label: 'Duyurular', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: Megaphone },
   { href: '/reports', label: 'Raporlar', roles: [UserRole.TENANT_ADMIN, UserRole.STAFF], icon: BarChart3 },
   { href: '/settings', label: 'Ayarlar', roles: [UserRole.TENANT_ADMIN], icon: Settings },
@@ -40,8 +43,8 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
 
 const NAV_GROUPS: Array<{ label: string | null; hrefs: string[] }> = [
   { label: null, hrefs: ['/dashboard'] },
-  { label: 'Yönetim', hrefs: ['/sites', '/units', '/residents', '/dues-create'] },
-  { label: 'Finans', hrefs: ['/finance', '/cash'] },
+  { label: 'Yönetim', hrefs: ['/sites', '/units', '/residents'] },
+  { label: 'Finans', hrefs: ['/dues-create', '/finance', '/payments', '/cash', '/expenses'] },
   { label: 'İletişim', hrefs: ['/announcements'] },
   { label: 'Analiz', hrefs: ['/reports'] },
 ]

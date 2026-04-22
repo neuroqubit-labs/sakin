@@ -8,12 +8,8 @@ import { AlertTriangle, Percent, Wallet, Receipt } from 'lucide-react'
 import { PageHeader, KpiCard } from '@/components/surface'
 import { ScopedBreadcrumb } from '@/components/scoped-breadcrumb'
 import { formatTry } from '@/lib/formatters'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DuesRecordsPanel } from '../dues/_components/dues-records-panel'
-import { PaymentsPanel } from './_components/payments-panel'
-import { DuesCreatePanel } from './_components/dues-create-panel'
-import { ExpensesPanel } from './_components/expenses-panel'
 
 interface DuesKpiResponse {
   kpi: {
@@ -42,7 +38,7 @@ export default function FinancePage() {
   if (!selectedSiteId) {
     return (
       <div className="space-y-6 motion-in">
-        <PageHeader title="Tahsilat" subtitle="Borç durumu, tahsilat takibi ve aidat yönetimi." />
+        <PageHeader title="Tahsilat" subtitle="Daire bazında borç durumu ve ödeme alma." />
         <div className="ledger-panel p-6">
           <p className="text-sm text-[#6b7280]">Tahsilat yönetimi için önce bir site seçin.</p>
         </div>
@@ -53,7 +49,7 @@ export default function FinancePage() {
   if (!isTenantAdmin) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Tahsilat" subtitle="Borç durumu, tahsilat takibi ve aidat yönetimi." />
+        <PageHeader title="Tahsilat" subtitle="Daire bazında borç durumu ve ödeme alma." />
         <div className="ledger-panel p-6">
           <p className="text-sm text-[#6b7280]">Bu ekran yalnızca yönetici yetkisiyle kullanılabilir.</p>
         </div>
@@ -67,7 +63,7 @@ export default function FinancePage() {
       <PageHeader
         title="Tahsilat"
         eyebrow="Finans Operasyonu"
-        subtitle="Borç durumu, tahsilat takibi ve aidat yönetimi tek ekranda."
+        subtitle="Daire bazında borç durumunu gör, ödeme al, hatırlat."
       />
 
       {summaryLoading ? (
@@ -83,38 +79,7 @@ export default function FinancePage() {
         </div>
       ) : null}
 
-      <Tabs defaultValue="records">
-        <TabsList>
-          <TabsTrigger value="records">
-            Borç Durumu
-          </TabsTrigger>
-          <TabsTrigger value="payments">
-            Tahsilatlar
-          </TabsTrigger>
-          <TabsTrigger value="create">
-            Aidat & Gider Oluştur
-          </TabsTrigger>
-          <TabsTrigger value="expenses">
-            Giderler
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="records" className="mt-4">
-          <DuesRecordsPanel siteId={selectedSiteId} />
-        </TabsContent>
-
-        <TabsContent value="payments" className="mt-4">
-          <PaymentsPanel siteId={selectedSiteId} />
-        </TabsContent>
-
-        <TabsContent value="create" className="mt-4">
-          <DuesCreatePanel siteId={selectedSiteId} />
-        </TabsContent>
-
-        <TabsContent value="expenses" className="mt-4">
-          <ExpensesPanel siteId={selectedSiteId} />
-        </TabsContent>
-      </Tabs>
+      <DuesRecordsPanel siteId={selectedSiteId} />
     </div>
   )
 }

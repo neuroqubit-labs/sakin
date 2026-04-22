@@ -12,11 +12,11 @@ export default function DuesCreatePage() {
 
   return (
     <div className="space-y-6 motion-in">
-      <ScopedBreadcrumb module="Aidat & Gider" />
+      <ScopedBreadcrumb module="Aidat Planla" />
       <PageHeader
-        title="Aidat & Gider Oluştur"
+        title="Aidat Planla"
         eyebrow="Finans Operasyonu"
-        subtitle="Yıllık aidat planı oluşturun veya tek seferlik giderleri dairelere dağıtın."
+        subtitle="Yıllık aidat planı oluşturun veya tek seferlik ek tahakkukları dairelere dağıtın."
       />
 
       {selectedSiteId ? (

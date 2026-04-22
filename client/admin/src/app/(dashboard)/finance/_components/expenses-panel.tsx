@@ -199,7 +199,7 @@ export function ExpensesPanel({ siteId }: ExpensesPanelProps) {
                 <EmptyState
                   icon={TrendingDown}
                   title="Gider kaydı bulunamadı"
-                  description="Filtreye uygun gider yok. Yeni gider eklemek için 'Aidat & Gider Oluştur' tabını kullanın."
+                  description="Filtreye uygun gider yok. Yeni gider eklemek için Aidat Planla sayfasını kullanın."
                 />
               ) : (
                 expenses.map((expense) => (
