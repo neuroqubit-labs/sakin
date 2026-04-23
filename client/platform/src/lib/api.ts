@@ -37,8 +37,11 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
   }
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(fetchOptions.headers as Record<string, string>),
+  }
+
+  if (fetchOptions.body !== undefined && fetchOptions.body !== null) {
+    headers['Content-Type'] = 'application/json'
   }
 
   if (token) {

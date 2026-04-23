@@ -103,8 +103,11 @@ async function rawFetch(
   }
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(fetchOptions.headers as Record<string, string> | undefined),
+  }
+
+  if (fetchOptions.body !== undefined && fetchOptions.body !== null) {
+    headers['Content-Type'] = 'application/json'
   }
 
   if (tokenOverride) {
