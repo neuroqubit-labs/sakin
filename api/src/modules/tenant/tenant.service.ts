@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import * as crypto from 'crypto'
 import * as bcrypt from 'bcryptjs'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -514,7 +514,7 @@ export class TenantService {
     }
 
     if (!roleRecord.isActive) {
-      throw new BadRequestException('Kullanıcı zaten pasif')
+      return { userId, deactivated: true, alreadyInactive: true }
     }
 
     await this.prisma.userTenantRole.update({
