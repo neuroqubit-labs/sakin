@@ -33,7 +33,7 @@ export class ContractController {
   }
 
   @Get()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Sözleşme listele' })
   findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = ContractFilterSchema.parse(query)
@@ -41,7 +41,7 @@ export class ContractController {
   }
 
   @Get(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Sözleşme detayı' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
     return this.contractService.findOne(id, ctx.tenantId!)

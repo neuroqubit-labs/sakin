@@ -71,35 +71,53 @@ Platform endpointleri (`/platform/*`) icin ozel guard. Sadece `SUPER_ADMIN` eris
 
 ## Rol Erisim Matrisi
 
+STAFF rolu, TENANT_ADMIN tarafindan davet edilen sinirli yetkili operasyon kullanicisidir. Finansal karar, site/daire/aidat yapilandirmasi, raporlama ve tenant ayarlari TENANT_ADMIN'in isidir. STAFF gunluk saha operasyonuna odaklanir: sakin yonetimi, manuel tahsilat girisi, gider ve duyuru.
+
 ### Admin Panel Route'lari
 
 | Route | TENANT_ADMIN | STAFF |
 |-------|:---:|:---:|
 | /dashboard | ✓ | ✗ |
 | /sites | ✓ | ✗ |
-| /dues | ✓ | ✗ |
-| /reports | ✓ | ✗ |
-| /settings | ✓ | ✗ |
+| /units | ✓ | ✗ |
 | /residents | ✓ | ✓ |
+| /dues, /dues-create | ✓ | ✗ |
 | /payments | ✓ | ✓ |
-| /work/* | ✓ | ✓ |
+| /finance, /cash | ✓ | ✗ |
+| /expenses | ✓ | ✓ |
+| /announcements | ✓ | ✓ |
+| /reports | ✓ | ✗ |
+| /users, /settings, /onboarding | ✓ | ✗ |
 
-### API Endpoint'leri
+STAFF giris sonrasi landing: `/residents`.
 
-| Islem | TENANT_ADMIN | STAFF |
-|-------|:---:|:---:|
-| Site olustur/guncelle | ✓ | ✗ |
-| Aidat olustur/guncelle | ✓ | ✗ |
-| Daire yazma islemleri | ✓ | ✗ |
-| Sakin sil (soft) | ✓ | ✗ |
-| Sakin listele/olustur/guncelle | ✓ | ✓ |
-| Odeme listele/manuel giris | ✓ | ✓ |
-| Gider/duyuru oku-yaz | ✓ | ✓ |
+### API Endpoint'leri — STAFF Ozeti
+
+| Modul | STAFF |
+|-------|-------|
+| site, unit | read only |
+| resident | list/create/update + detail (soft-delete TA) |
+| dues | read only (list/detail) |
+| payment | list/detail + manuel tahsilat + banka transferi onay (refund/gateway TA) |
+| ledger | read (tahsilat baglami icin gerekli) |
+| expense | read-write (delete + distribute TA) |
+| announcement | read-write (delete TA) |
+| notification | kendi bildirimleri |
+| tenant | — (tumu TA) |
+| occupancy, export | — |
+| Faz 2 moduller (ticket, cash-account, facility, meeting, document, contract, site-staff, communication) | — (TA) |
+
+Detayli matris icin: `doc/role-access-policy.md`.
+
+### Kullanici Kayit / Davet
+
+- `POST /auth/register` — yalnizca `RESIDENT` kayit olabilir. STAFF public register ile olusturulamaz.
+- STAFF kullanici davet akisiyla eklenir: `POST /tenant/users` — sadece TENANT_ADMIN.
 
 ### Neye Dikkat Edilmeli
 - Yeni endpoint eklendiginde **mutlaka** `@Roles()` decorator'u konmali
 - Decorator unutulursa RolesGuard varsayilan olarak **reddeder** (guvenli taraf)
-- STAFF rolu ileride modul bazli izin matrisine genisletilebilir — su an basit tutuyoruz
+- STAFF'a yeni bir modul/route acarken hem `role-access-policy.md` hem bu matris guncellenmeli
 - Platform endpointlerine tenant kullanicilari **asla** erisememeli
 
 ---

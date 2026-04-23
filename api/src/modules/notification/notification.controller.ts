@@ -72,16 +72,16 @@ export class NotificationController {
   }
 
   @Post('broadcast')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
-  @ApiOperation({ summary: 'Hedefli iletisim bildirimi olustur' })
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Hedefli iletisim bildirimi olustur (TENANT_ADMIN)' })
   broadcast(@Tenant() ctx: TenantContext, @Body() body: unknown) {
     const dto = CreateNotificationBroadcastSchema.parse(body)
     return this.notificationService.createBroadcast(dto, ctx.tenantId!, ctx.userId)
   }
 
   @Get('history')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
-  @ApiOperation({ summary: 'Iletisim gonderim gecmisi' })
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Iletisim gonderim gecmisi (TENANT_ADMIN)' })
   history(@Tenant() ctx: TenantContext, @Query() query: unknown) {
     const filter = NotificationHistoryFilterSchema.parse(query)
     return this.notificationService.listHistory(filter, ctx.tenantId!)

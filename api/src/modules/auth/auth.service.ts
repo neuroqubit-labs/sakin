@@ -46,7 +46,7 @@ export class AuthService {
     private readonly auditLog: PlatformAuditLogService,
   ) {}
 
-  private readonly allowedRegisterRoles = new Set<UserRole>([UserRole.RESIDENT, UserRole.STAFF])
+  private readonly allowedRegisterRoles = new Set<UserRole>([UserRole.RESIDENT])
 
   private generateTokens(userId: string, email: string) {
     const accessToken = jwt.sign({ sub: userId, email } satisfies JwtPayload, JWT_SECRET, {
@@ -153,10 +153,6 @@ export class AuthService {
 
     if (!this.allowedRegisterRoles.has(requestedRole)) {
       throw new BadRequestException('Register üzerinden bu rol atanamaz')
-    }
-
-    if (requestedRole === UserRole.STAFF && !dto.tenantId) {
-      throw new BadRequestException('STAFF kaydı için tenantId zorunludur')
     }
 
     const existingUser = await this.prisma.user.findUnique({

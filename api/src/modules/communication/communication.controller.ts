@@ -14,7 +14,7 @@ export class CommunicationController {
   constructor(private readonly communicationService: CommunicationService) {}
 
   @Post()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'İletişim kaydı oluştur' })
   create(
     @Body(new ZodValidationPipe(CreateCommunicationLogSchema)) dto: unknown,
@@ -28,7 +28,7 @@ export class CommunicationController {
   }
 
   @Get()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'İletişim kayıtları listele' })
   findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = CommunicationLogFilterSchema.parse(query)
@@ -36,7 +36,7 @@ export class CommunicationController {
   }
 
   @Get(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'İletişim kaydı detayı' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
     return this.communicationService.findOne(id, ctx.tenantId!)

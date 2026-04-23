@@ -32,7 +32,7 @@ export class VendorController {
   }
 
   @Get()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Tedarikçi listele' })
   findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = VendorFilterSchema.parse(query)
@@ -40,7 +40,7 @@ export class VendorController {
   }
 
   @Get(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Tedarikçi detayı' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
     return this.vendorService.findOne(id, ctx.tenantId!)

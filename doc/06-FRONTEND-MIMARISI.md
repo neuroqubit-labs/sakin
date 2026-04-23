@@ -33,13 +33,20 @@ Yonetim sirketinin gunluk is araci. "Excel'den kolay" olmali.
 ```
 /dashboard        → Genel ozet, KPI kartlari, hizli islemler
 /sites            → Site/bina portfoyu
+/units            → Daire yonetimi
 /residents        → Sakin listesi ve yonetimi
+/dues             → Aidat yonetimi (okuma)
+/dues-create      → Aidat planlama
 /payments         → Tahsilat takibi
-/dues             → Aidat yonetimi
-/work/*           → Aktif bina baglami (secilen bina uzerinde calisma)
+/finance, /cash   → Tahsilat ve kasa/banka
+/expenses         → Gider yonetimi
+/announcements    → Duyuru yonetimi
 /reports          → Raporlar
+/users            → Tenant kullanici yonetimi (davet, rol)
 /settings         → Tenant ayarlari
 ```
+
+Erisim matrisi (TENANT_ADMIN vs STAFF) icin: `doc/role-access-policy.md`.
 
 ### Holding / Portfoy Gorunumu
 
@@ -54,8 +61,8 @@ Birden fazla bina yoneten firmanin ilk gordugu ekran:
 Musteri beklentisindeki en onemli UX pattern'i:
 - Sol menude aktif bina karti gorunur
 - Kullanici hangi bina uzerinde calistigini her an bilir
-- Bina secimi degistiginde alt menuler o binaya gore guncellenir
-- `/work/*` route'lari bu baglamda calisir
+- Bina secimi degistiginde listelenen veri (sakin, aidat, gider, duyuru) o binaya gore filtrelenir
+- Aktif bina `SiteProvider` uzerinden tum ekranlara aktarilir
 
 ### Bina Yonetimi Alt Modulleri
 

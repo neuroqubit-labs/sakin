@@ -20,7 +20,7 @@ export class TicketController {
   constructor(private readonly ticketService: TicketService) {}
 
   @Post()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @Roles(UserRole.TENANT_ADMIN, UserRole.RESIDENT)
   @ApiOperation({ summary: 'Talep/arıza bildir' })
   create(
     @Body(new ZodValidationPipe(CreateTicketSchema)) dto: unknown,
@@ -35,7 +35,7 @@ export class TicketController {
   }
 
   @Get()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Talep listele' })
   findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = TicketFilterSchema.parse(query)
@@ -51,7 +51,7 @@ export class TicketController {
   }
 
   @Get(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @Roles(UserRole.TENANT_ADMIN, UserRole.RESIDENT)
   @ApiOperation({ summary: 'Talep detayı' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
     return this.ticketService.findOne(id, ctx.tenantId!, {
@@ -61,7 +61,7 @@ export class TicketController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Talep güncelle' })
   update(
     @Param('id') id: string,
@@ -83,7 +83,7 @@ export class TicketController {
   }
 
   @Post(':id/comments')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @Roles(UserRole.TENANT_ADMIN, UserRole.RESIDENT)
   @ApiOperation({ summary: 'Yorum ekle' })
   addComment(
     @Param('id') id: string,

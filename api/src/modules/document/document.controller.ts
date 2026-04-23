@@ -14,7 +14,7 @@ export class DocumentController {
   constructor(private readonly documentService: DocumentService) {}
 
   @Post()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Belge kaydı oluştur' })
   create(
     @Body(new ZodValidationPipe(CreateDocumentSchema)) dto: unknown,
@@ -28,7 +28,7 @@ export class DocumentController {
   }
 
   @Get()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Belge listele' })
   findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = DocumentFilterSchema.parse(query)
@@ -36,7 +36,7 @@ export class DocumentController {
   }
 
   @Get(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Belge detayı' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
     return this.documentService.findOne(id, ctx.tenantId!)

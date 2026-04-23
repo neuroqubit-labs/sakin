@@ -19,7 +19,7 @@ export class OccupancyController {
   constructor(private readonly occupancyService: OccupancyService) {}
 
   @Post()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Daire-sakin ilişkisi oluştur' })
   create(
     @Body(new ZodValidationPipe(CreateOccupancySchema)) body: unknown,
@@ -33,7 +33,7 @@ export class OccupancyController {
   }
 
   @Get()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Daire-sakin ilişkileri listesi' })
   list(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = OccupancyFilterSchema.parse(query)
@@ -41,7 +41,7 @@ export class OccupancyController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Daire-sakin ilişkisi güncelle' })
   update(
     @Param('id') id: string,
@@ -52,7 +52,7 @@ export class OccupancyController {
   }
 
   @Post(':id/end')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Daire-sakin ilişkiyi sonlandır' })
   end(
     @Param('id') id: string,

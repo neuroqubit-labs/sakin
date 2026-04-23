@@ -32,7 +32,7 @@ export class FacilityController {
   }
 
   @Get()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Tesis listele' })
   findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = FacilityFilterSchema.parse(query)
@@ -40,14 +40,14 @@ export class FacilityController {
   }
 
   @Get(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Tesis detayı' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
     return this.facilityService.findOne(id, ctx.tenantId!)
   }
 
   @Patch(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Tesis güncelle' })
   update(
     @Param('id') id: string,

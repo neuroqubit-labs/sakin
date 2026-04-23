@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
+import { UserRole } from '@sakin/shared'
 import { decodeSession } from '@/lib/session'
 
 export default async function HomePage() {
@@ -10,5 +11,5 @@ export default async function HomePage() {
     redirect('/login')
   }
 
-  redirect('/dashboard')
+  redirect(session.role === UserRole.STAFF ? '/residents' : '/dashboard')
 }

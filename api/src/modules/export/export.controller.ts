@@ -18,7 +18,7 @@ export class ExportController {
   constructor(private readonly exportService: ExportService) {}
 
   @Post('batches')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Yeni export batch oluştur' })
   createBatch(
     @Body(new ZodValidationPipe(CreateExportBatchSchema)) body: unknown,
@@ -32,7 +32,7 @@ export class ExportController {
   }
 
   @Get('batches')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Export batch listesi' })
   listBatches(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = ExportBatchFilterSchema.parse(query)
@@ -40,7 +40,7 @@ export class ExportController {
   }
 
   @Get('batches/:id/download')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Export batch CSV çıktısı' })
   download(@Param('id') id: string, @Tenant() ctx: TenantContext) {
     return this.exportService.renderCsv(id, ctx.tenantId!)

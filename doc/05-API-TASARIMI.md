@@ -52,7 +52,8 @@ Aidat yonetimi — **en kritik modul**.
 - Tek daire aidat olusturma
 - Durum guncelleme: WAIVED (affetme)
 - Vadesi gecen borclari OVERDUE yapma (cron)
-- Sadece `TENANT_ADMIN`
+- Yazma (generate/update/waive/policy/period/bulk/overdue): sadece `TENANT_ADMIN`
+- Okuma (list/detail): `TENANT_ADMIN` + `STAFF` (tahsilat baglami icin gerekli). `RESIDENT` yalniz kendi dairesini gorur.
 
 ### payment
 Odeme islemleri.
@@ -67,6 +68,8 @@ Muhasebe kayitlari.
 - Daire bazli bakiye sorgulama
 - Ledger entry listesi (filtrelenebilir)
 - Salt-okunur — dogrudan entry olusturma yok (payment/expense uzerinden olusur)
+- `TENANT_ADMIN` + `STAFF` okur (tahsilat ve sakin iletisimi icin gerekli)
+- `RESIDENT` yalnizca kendi dairesinin bakiyesini gorur
 
 ### expense
 Gider yonetimi.

@@ -35,7 +35,8 @@ export function middleware(request: NextRequest) {
     }
 
     if (!hasRouteAccess(pathname, role)) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      const fallback = role === UserRole.STAFF ? '/residents' : '/dashboard'
+      return NextResponse.redirect(new URL(fallback, request.url))
     }
   } catch {
     return NextResponse.redirect(new URL('/login', request.url))

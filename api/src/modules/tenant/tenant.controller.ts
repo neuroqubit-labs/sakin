@@ -14,24 +14,24 @@ export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 
   @Get('users')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
-  @ApiOperation({ summary: 'Tenant kullanıcılarını listele (TENANT_ADMIN, STAFF)' })
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Tenant kullanıcılarını listele (TENANT_ADMIN)' })
   listUsers(@Tenant() ctx: TenantContext) {
     if (!ctx.tenantId) throw new ForbiddenException('Bu endpoint tenant kullanıcıları içindir')
     return this.tenantService.listUsers(ctx.tenantId)
   }
 
   @Get('me')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
-  @ApiOperation({ summary: "Kendi tenant bilgilerini getir" })
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: "Kendi tenant bilgilerini getir (TENANT_ADMIN)" })
   findMe(@Tenant() ctx: TenantContext) {
     if (!ctx.tenantId) throw new ForbiddenException('Bu endpoint tenant kullanıcıları içindir')
     return this.tenantService.findMe(ctx.tenantId)
   }
 
   @Get('work-summary')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
-  @ApiOperation({ summary: 'Çalışan action center özeti (site filtreli)' })
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Yönetim action center özeti (TENANT_ADMIN)' })
   getWorkSummary(
     @Tenant() ctx: TenantContext,
     @Query('siteId') siteId?: string,
@@ -41,8 +41,8 @@ export class TenantController {
   }
 
   @Get('work-portfolio')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
-  @ApiOperation({ summary: 'Çalışan portföy özeti' })
+  @Roles(UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Yönetim portföy özeti (TENANT_ADMIN)' })
   getWorkPortfolio(@Tenant() ctx: TenantContext) {
     if (!ctx.tenantId) throw new ForbiddenException('Bu endpoint tenant kullanıcıları içindir')
     return this.tenantService.getWorkPortfolio(ctx.tenantId)

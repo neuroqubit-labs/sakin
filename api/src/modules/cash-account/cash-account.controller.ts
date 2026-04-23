@@ -34,7 +34,7 @@ export class CashAccountController {
   }
 
   @Get()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Kasa/banka hesapları listele' })
   findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = CashAccountFilterSchema.parse(query)
@@ -42,7 +42,7 @@ export class CashAccountController {
   }
 
   @Get(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Kasa/banka hesap detayı' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
     return this.cashAccountService.findOne(id, ctx.tenantId!)
@@ -64,7 +64,7 @@ export class CashAccountController {
   }
 
   @Post(':id/transactions')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Kasa/banka hesabına işlem ekle' })
   createTransaction(
     @Param('id') id: string,
@@ -80,7 +80,7 @@ export class CashAccountController {
   }
 
   @Get(':id/transactions')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Kasa/banka hesap işlemleri listele' })
   findTransactions(
     @Param('id') id: string,

@@ -14,7 +14,7 @@ export class TicketAttachmentController {
   constructor(private readonly attachments: TicketAttachmentService) {}
 
   @Post(':id/attachments')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @Roles(UserRole.TENANT_ADMIN, UserRole.RESIDENT)
   @ApiOperation({ summary: 'Talebe fotoğraf ekle (base64 gövde)' })
   upload(
     @Param('id') ticketId: string,
@@ -30,7 +30,7 @@ export class TicketAttachmentController {
   }
 
   @Get(':id/attachments')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @Roles(UserRole.TENANT_ADMIN, UserRole.RESIDENT)
   @ApiOperation({ summary: 'Talebe bağlı ekleri listele' })
   list(@Param('id') ticketId: string, @Tenant() ctx: TenantContext) {
     return this.attachments.list(ticketId, ctx.tenantId!, {
@@ -43,7 +43,7 @@ export class TicketAttachmentController {
   // İndirme boyut sınırımız 5MB olduğu için JSON gövdesi yeterli. S3'e geçince bu endpoint
   // signed URL üretip redirect verecek şekilde güncellenecek.
   @Get('attachments/:attachmentId/download')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @Roles(UserRole.TENANT_ADMIN, UserRole.RESIDENT)
   @ApiOperation({ summary: 'Eki base64 olarak indir' })
   async download(@Param('attachmentId') attachmentId: string, @Tenant() ctx: TenantContext) {
     const result = await this.attachments.download(attachmentId, ctx.tenantId!, {
@@ -58,7 +58,7 @@ export class TicketAttachmentController {
   }
 
   @Delete('attachments/:attachmentId')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF, UserRole.RESIDENT)
+  @Roles(UserRole.TENANT_ADMIN, UserRole.RESIDENT)
   @ApiOperation({ summary: 'Eki sil' })
   delete(@Param('attachmentId') attachmentId: string, @Tenant() ctx: TenantContext) {
     return this.attachments.delete(attachmentId, ctx.tenantId!, {

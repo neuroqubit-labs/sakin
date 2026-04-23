@@ -34,7 +34,7 @@ export class MeetingController {
   }
 
   @Get()
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Toplantı listele' })
   findAll(@Query() query: unknown, @Tenant() ctx: TenantContext) {
     const filter = MeetingFilterSchema.parse(query)
@@ -42,7 +42,7 @@ export class MeetingController {
   }
 
   @Get(':id')
-  @Roles(UserRole.TENANT_ADMIN, UserRole.STAFF)
+  @Roles(UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Toplantı detayı' })
   findOne(@Param('id') id: string, @Tenant() ctx: TenantContext) {
     return this.meetingService.findOne(id, ctx.tenantId!)

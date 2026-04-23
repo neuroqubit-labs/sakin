@@ -82,11 +82,19 @@ export class TenantMiddleware implements NestMiddleware {
             return next()
           }
 
+          // x-dev-role: STAFF veya TENANT_ADMIN ile belirli rolü simüle et
+          const roleFilter = devRole === UserRole.STAFF
+            ? UserRole.STAFF
+            : devRole === UserRole.TENANT_ADMIN
+              ? UserRole.TENANT_ADMIN
+              : undefined
+
           const tenantRole = await this.prisma.userTenantRole.findFirst({
             where: {
               tenantId: devTenantId,
               isActive: true,
               user: { isActive: true },
+              ...(roleFilter ? { role: roleFilter } : {}),
             },
             select: { id: true, role: true, userId: true },
           })
