@@ -4,6 +4,8 @@ import { useSiteContext } from '@/providers/site-provider'
 import { PageHeader } from '@/components/surface'
 import { ScopedBreadcrumb } from '@/components/scoped-breadcrumb'
 import { PaymentsPanel } from '../finance/_components/payments-panel'
+import { ViewStatePanel } from '@/components/view-state-panel'
+import { UI_COPY } from '@/lib/ui-copy'
 
 export default function PaymentsPage() {
   const { selectedSiteId, hydrated } = useSiteContext()
@@ -14,17 +16,19 @@ export default function PaymentsPage() {
     <div className="space-y-6 motion-in">
       <ScopedBreadcrumb module="Ödemeler" />
       <PageHeader
-        title="Ödemeler"
-        eyebrow="Finans Kayıtları"
-        subtitle="Tahsil edilen ödemelerin tam listesi ve iade işlemleri."
+        title={UI_COPY.payments.title}
+        eyebrow={UI_COPY.payments.eyebrow}
+        subtitle={UI_COPY.payments.subtitle}
       />
 
       {selectedSiteId ? (
         <PaymentsPanel siteId={selectedSiteId} />
       ) : (
-        <div className="ledger-panel p-6">
-          <p className="text-sm text-[#6b7280]">Ödeme geçmişini görmek için önce bir site seçin.</p>
-        </div>
+        <ViewStatePanel
+          state="empty"
+          title={UI_COPY.payments.siteRequiredTitle}
+          description={UI_COPY.payments.siteRequiredDescription}
+        />
       )}
     </div>
   )

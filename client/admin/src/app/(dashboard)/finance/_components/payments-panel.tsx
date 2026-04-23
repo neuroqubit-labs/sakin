@@ -17,6 +17,8 @@ import {
   paymentStatusTone,
 } from '@/lib/formatters'
 import { PaymentMethod, PaymentStatus } from '@sakin/shared'
+import { ViewStatePanel } from '@/components/view-state-panel'
+import { UI_COPY } from '@/lib/ui-copy'
 
 interface PaymentRow {
   id: string
@@ -91,21 +93,21 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
     status: statusFilter === 'ALL' ? undefined : statusFilter,
   }
 
-  const { data: payments, isLoading: listLoading, refetch } = useApiQuery<PaymentsListResponse>(
+  const { data: payments, isLoading: listLoading, error: listError, refetch } = useApiQuery<PaymentsListResponse>(
     ['payments', listParams],
     '/payments',
     listParams,
     { enabled: !!siteId },
   )
 
-  const { data: reconciliation, isLoading: reconLoading } = useApiQuery<ReconciliationResponse>(
+  const { data: reconciliation, isLoading: reconLoading, error: reconError } = useApiQuery<ReconciliationResponse>(
     ['payments-reconciliation', siteId],
     '/payments/reconciliation-summary',
     { siteId },
     { enabled: !!siteId },
   )
 
-  const { data: suspicious, isLoading: suspLoading } = useApiQuery<SuspiciousResponse>(
+  const { data: suspicious, isLoading: suspLoading, error: suspiciousError } = useApiQuery<SuspiciousResponse>(
     ['payments-suspicious', siteId],
     '/payments/suspicious',
     { siteId, page: 1, limit: 20 },
@@ -126,6 +128,24 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
   }
 
   const hasActiveFilters = committedSearch || methodFilter !== 'ALL' || statusFilter !== 'ALL'
+
+  if (listError || reconError) {
+    return (
+      <ViewStatePanel
+        state="error"
+        title={UI_COPY.payments.loadErrorTitle}
+        description={
+          listError instanceof Error
+            ? listError.message
+            : reconError instanceof Error
+              ? reconError.message
+              : UI_COPY.payments.loadErrorDescription
+        }
+        actionLabel={UI_COPY.common.retry}
+        actionHref="/payments"
+      />
+    )
+  }
 
   const downloadCsv = async (kind: 'receipt' | 'audit') => {
     try {
@@ -175,8 +195,8 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
 
       <div className="ledger-panel-soft p-3 md:p-4">
         <div className="mb-3">
-          <p className="ledger-label">Filtreleme</p>
-          <p className="mt-1 text-sm text-[#6b7d93]">Makbuz, yöntem ve durum filtresiyle tahsilat akışını daralt.</p>
+          <p className="ledger-label">{UI_COPY.paymentsPanel.filtersTitle}</p>
+          <p className="mt-1 text-sm text-[#6b7d93]">{UI_COPY.paymentsPanel.filtersSubtitle}</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
           <input
@@ -184,7 +204,7 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleFilter() }}
             className="ledger-input bg-white lg:col-span-2"
-            placeholder="Makbuz, not, daire no ara..."
+            placeholder={UI_COPY.paymentsPanel.searchPlaceholder}
           />
           <select
             value={methodFilter}
@@ -211,11 +231,11 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
           </select>
           <div className="flex gap-2">
             <Button type="button" className="flex-1" onClick={handleFilter}>
-              Filtrele
+              {UI_COPY.paymentsPanel.filterButton}
             </Button>
             {hasActiveFilters && (
               <Button type="button" variant="outline" onClick={handleClearFilters}>
-                Temizle
+                {UI_COPY.paymentsPanel.clearButton}
               </Button>
             )}
           </div>
@@ -224,19 +244,22 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
 
       <div className="flex items-center gap-2">
         <Button type="button" variant="outline" size="sm" onClick={() => void downloadCsv('receipt')}>
-          Makbuz Raporu
+          {UI_COPY.paymentsPanel.receiptReportButton}
         </Button>
         <Button type="button" variant="outline" size="sm" onClick={() => void downloadCsv('audit')}>
-          Denetim Raporu
+          {UI_COPY.paymentsPanel.auditReportButton}
         </Button>
         <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
-          Yenile
+          {UI_COPY.paymentsPanel.refreshButton}
         </Button>
       </div>
 
-      <div className="ledger-panel overflow-x-auto">
-        <SectionTitle title="Tahsilat Akışı" subtitle={payments?.meta ? `${payments.meta.total} kayıt bulundu.` : 'Filtreye uyan ödeme kayıtları ve durumları.'} />
-        <div className="min-w-[800px]">
+      <div className="ledger-panel overflow-hidden">
+        <SectionTitle
+          title={UI_COPY.paymentsPanel.sectionTitle}
+          subtitle={payments?.meta ? `${payments.meta.total} ${UI_COPY.paymentsPanel.sectionSubtitleResultSuffix}` : UI_COPY.paymentsPanel.sectionSubtitleFallback}
+        />
+        <div className="hidden xl:block min-w-[800px] overflow-x-auto">
           <div className="grid grid-cols-12 px-5 py-3 ledger-table-head">
             <span className="col-span-2">Daire</span>
             <span className="col-span-2 text-right">Tutar</span>
@@ -274,8 +297,8 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
             {!listLoading && !payments?.data.length && (
               <EmptyState
                 icon={CreditCard}
-                title="Ödeme bulunamadı"
-                description="Filtreye uygun ödeme kaydı yok."
+                title={UI_COPY.paymentsPanel.emptyTitle}
+                description={UI_COPY.paymentsPanel.emptyDescription}
               />
             )}
           </div>
@@ -334,14 +357,61 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
             </div>
           )}
         </div>
+
+        <div className="xl:hidden p-3 space-y-2">
+          {listLoading && Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-[20px] border border-white/80 bg-white/70 p-4">
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="mt-2 h-3 w-28" />
+              <Skeleton className="mt-3 h-9 w-full" />
+            </div>
+          ))}
+          {!listLoading && payments?.data.map((row) => (
+            <div key={row.id} className="rounded-[20px] border border-white/80 bg-white/78 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#0c1427]">
+                    {row.unit.site.name} / {row.unit.number}
+                  </p>
+                  <p className="mt-1 text-xs text-[#617287]">
+                    {paymentMethodLabel(row.method)} · {formatShortDate(row.paidAt ?? row.createdAt)}
+                  </p>
+                </div>
+                <StatusPill label={paymentStatusLabel(row.status)} tone={paymentStatusTone(row.status)} />
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-xl bg-[#f7faff] p-2">
+                  <p className="text-[#6b7d93]">Tutar</p>
+                  <p className="mt-0.5 font-semibold text-[#102038] tabular-nums">{formatTry(Number(row.amount))}</p>
+                </div>
+                <div className="rounded-xl bg-[#f7faff] p-2">
+                  <p className="text-[#6b7d93]">Makbuz</p>
+                  <p className="mt-0.5 font-semibold text-[#102038]">{row.receiptNumber ?? '-'}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          {!listLoading && !payments?.data.length && (
+            <EmptyState
+              icon={CreditCard}
+              title={UI_COPY.paymentsPanel.emptyTitle}
+              description={UI_COPY.paymentsPanel.emptyDescription}
+            />
+          )}
+        </div>
       </div>
 
       <div className="ledger-panel overflow-hidden">
-        <SectionTitle title="Şüpheli İşlemler" subtitle="İnceleme gerektiren tahsilat kayıtları." />
+        <SectionTitle title={UI_COPY.paymentsPanel.suspiciousTitle} subtitle={UI_COPY.paymentsPanel.suspiciousSubtitle} />
         <div className="ledger-divider">
           {suspLoading && Array.from({ length: 2 }).map((_, i) => (
             <div key={i} className="px-5 py-3"><Skeleton className="h-10 w-full" /></div>
           ))}
+          {!suspLoading && suspiciousError && (
+            <div className="px-5 py-3 text-sm text-[#ba1a1a]">
+              {UI_COPY.paymentsPanel.suspiciousLoadError}
+            </div>
+          )}
           {!suspLoading && suspicious?.data.map((row) => (
             <div key={row.id} className="px-5 py-3 border-b border-[#e6e8ea] text-sm">
               <div className="flex items-center justify-between gap-3">
@@ -355,7 +425,13 @@ export function PaymentsPanel({ siteId }: PaymentsPanelProps) {
               </p>
             </div>
           ))}
-          {!suspLoading && !suspicious?.data.length && <EmptyState icon={AlertTriangle} title="Şüpheli ödeme yok" description="Şu an inceleme gerektiren ödeme kaydı görünmüyor." />}
+          {!suspLoading && !suspicious?.data.length && (
+            <EmptyState
+              icon={AlertTriangle}
+              title={UI_COPY.paymentsPanel.suspiciousEmptyTitle}
+              description={UI_COPY.paymentsPanel.suspiciousEmptyDescription}
+            />
+          )}
         </div>
       </div>
     </div>

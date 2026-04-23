@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { ViewStatePanel } from '@/components/view-state-panel'
+import { UI_COPY } from '@/lib/ui-copy'
 
 interface ResidentItem {
   id: string
@@ -102,7 +104,7 @@ export default function ResidentsPage() {
     isActive: activeFilter === 'all' ? undefined : activeFilter === 'active',
   }
 
-  const { data: residentsResponse, isLoading, refetch } = useApiQuery<ResidentListResponse>(
+  const { data: residentsResponse, isLoading, error, refetch } = useApiQuery<ResidentListResponse>(
     ['residents', queryParams],
     '/residents',
     queryParams,
@@ -213,13 +215,53 @@ export default function ResidentsPage() {
     }
   }
 
+  if (!hydrated) return null
+
+  if (!selectedSiteId) {
+    return (
+      <div className="space-y-6 motion-in">
+        <ScopedBreadcrumb module="Sakinler" />
+        <PageHeader
+          title={UI_COPY.residents.title}
+          eyebrow={UI_COPY.residents.eyebrow}
+          subtitle={UI_COPY.residents.siteRequiredSubtitle}
+        />
+        <ViewStatePanel
+          state="empty"
+          title={UI_COPY.residents.siteRequiredTitle}
+          description={UI_COPY.residents.siteRequiredDescription}
+        />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6 motion-in">
+        <ScopedBreadcrumb module="Sakinler" />
+        <PageHeader
+          title={UI_COPY.residents.title}
+          eyebrow={UI_COPY.residents.eyebrow}
+          subtitle={UI_COPY.residents.fallbackSubtitle}
+        />
+        <ViewStatePanel
+          state="error"
+          title={UI_COPY.residents.loadErrorTitle}
+          description={error instanceof Error ? error.message : 'Bir hata oluştu.'}
+          actionLabel={UI_COPY.common.retry}
+          actionHref="/residents"
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 motion-in">
       <ScopedBreadcrumb module="Sakinler" />
       <PageHeader
-        title="Sakinler"
-        eyebrow="İletişim Operasyonu"
-        subtitle="Sakin kayıtlarını, bağlı daireleri ve toplu işlem akışlarını tek ekrandan yönetin."
+        title={UI_COPY.residents.title}
+        eyebrow={UI_COPY.residents.eyebrow}
+        subtitle={UI_COPY.residents.pageSubtitle}
         actions={(
           <div className="flex items-center gap-2">
             {isTenantAdmin ? (
@@ -309,7 +351,7 @@ export default function ResidentsPage() {
           title="Sakin listesi"
           subtitle="İletişim bilgileri, daire ataması ve durum görünümü."
         />
-        <div className="overflow-x-auto">
+        <div className="hidden xl:block overflow-x-auto">
           <div className="min-w-[880px]">
             <div className="grid grid-cols-12 px-5 py-3 ledger-table-head">
               <span className="col-span-1">
@@ -393,6 +435,86 @@ export default function ResidentsPage() {
               })}
             </div>
           </div>
+        </div>
+
+        <div className="space-y-3 p-4 xl:hidden">
+          <div className="flex items-center justify-between rounded-[16px] border border-white/80 bg-white/74 px-3 py-2 text-xs text-[#506176]">
+            <p>Bu sayfadaki sakinleri toplu işlem için seçin.</p>
+            <label className="inline-flex items-center gap-2 font-semibold text-[#0c1427]">
+              <input
+                type="checkbox"
+                checked={items.length > 0 && items.every((i) => selectedSet.has(i.id))}
+                onChange={toggleSelectAllCurrentPage}
+              />
+              Tümünü Seç
+            </label>
+          </div>
+
+          {isLoading && Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="rounded-[20px] border border-white/80 bg-white/80 p-4 shadow-[0_12px_26px_rgba(8,17,31,0.05)]">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="mt-2 h-4 w-64" />
+              <Skeleton className="mt-3 h-16 w-full rounded-xl" />
+            </div>
+          ))}
+
+          {!isLoading && items.length === 0 && (
+            <EmptyState
+              icon={Users}
+              title="Sakin bulunamadı"
+              description="Bu filtreyle eşleşen kayıt yok. Arama veya durum filtresini genişletin."
+            />
+          )}
+
+          {!isLoading && items.map((resident) => {
+            const siteName = resident.occupancies[0]?.unit.site.name ?? '-'
+            const unitNumber = resident.occupancies[0]?.unit.number ?? '-'
+
+            return (
+              <div key={resident.id} className="rounded-[20px] border border-white/80 bg-white/80 p-4 shadow-[0_12px_26px_rgba(8,17,31,0.05)]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[#0c1427]">
+                      {resident.firstName} {resident.lastName}
+                    </p>
+                    <p className="mt-1 truncate text-xs text-[#6b7280]">{resident.email ?? '-'}</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={selectedSet.has(resident.id)}
+                    onChange={() => toggleSelect(resident.id)}
+                  />
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-xl bg-[#f8fafc] px-3 py-2">
+                    <p className="text-[#6b7280]">Telefon</p>
+                    <p className="mt-0.5 text-[#0c1427]">{resident.phoneNumber}</p>
+                  </div>
+                  <div className="rounded-xl bg-[#f8fafc] px-3 py-2">
+                    <p className="text-[#6b7280]">Tip</p>
+                    <p className="mt-0.5 text-[#0c1427]">{residentTypeLabel(resident.type)}</p>
+                  </div>
+                  <div className="col-span-2 rounded-xl bg-[#f8fafc] px-3 py-2">
+                    <p className="text-[#6b7280]">Site / Daire</p>
+                    <p className="mt-0.5 text-[#0c1427]">{siteName} / {unitNumber}</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <StatusPill
+                    label={resident.isActive ? 'Aktif' : 'Pasif'}
+                    tone={resident.isActive ? 'success' : 'neutral'}
+                  />
+                  <Link href={`/residents/${resident.id}`}>
+                    <Button size="sm" className="h-8 px-3 text-xs">
+                      Detay
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 

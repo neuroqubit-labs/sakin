@@ -64,10 +64,9 @@
   body {
     @apply min-h-full bg-background text-foreground antialiased;
     background:
-      radial-gradient(circle at 0% 0%, rgba(79, 125, 247, 0.18), transparent 26%),
-      radial-gradient(circle at 88% 10%, rgba(59, 209, 255, 0.14), transparent 24%),
-      radial-gradient(circle at 80% 100%, rgba(124, 153, 214, 0.14), transparent 28%),
-      linear-gradient(180deg, #f8fbff 0%, #eef3f8 52%, #edf2f6 100%);
+      radial-gradient(circle at 4% 0%, rgba(79, 125, 247, 0.12), transparent 24%),
+      radial-gradient(circle at 84% 8%, rgba(59, 209, 255, 0.08), transparent 20%),
+      linear-gradient(180deg, #f8fbff 0%, #f1f5fa 48%, #eff4f9 100%);
   }
 
   ::selection {
@@ -82,7 +81,7 @@
   }
 
   .ledger-page-subtitle {
-    @apply text-[15px] font-medium leading-7 text-[#64758b] md:text-base;
+    @apply text-[15px] font-medium leading-7 text-[#556883] md:text-base;
   }
 
   .ledger-surface {
@@ -122,7 +121,7 @@
   }
 
   .ledger-label {
-    @apply text-[10px] font-semibold uppercase tracking-[0.24em] text-[#71829a];
+    @apply text-[10px] font-semibold uppercase tracking-[0.24em] text-[#62758f];
   }
 
   .ledger-value {
@@ -152,7 +151,7 @@
   }
 
   .ledger-table-head {
-    @apply text-[10px] font-semibold uppercase tracking-[0.22em] text-[#7b8ca3];
+    @apply text-[10px] font-semibold uppercase tracking-[0.22em] text-[#5f738f];
   }
 
   .ledger-divider {
@@ -188,7 +187,7 @@
   }
 
   .ledger-table-row-hover {
-    @apply transition-all duration-200 hover:bg-white/70 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.72)];
+    @apply transition-all duration-200 hover:bg-white/82;
     transition-timing-function: var(--ease-smooth);
   }
 
@@ -201,18 +200,16 @@
   }
 
   .ledger-shell-sidebar {
-    @apply border-r border-white/80 bg-[rgba(255,255,255,0.76)] shadow-[0_20px_60px_rgba(8,17,31,0.1)] backdrop-blur-[28px];
+    @apply border-r border-white/80 bg-[rgba(255,255,255,0.82)] shadow-[0_14px_34px_rgba(8,17,31,0.08)] backdrop-blur-[24px];
   }
 
   .ledger-shell-topbar {
-    @apply border border-white/85 bg-[rgba(255,255,255,0.7)] shadow-[0_18px_44px_rgba(8,17,31,0.06)] backdrop-blur-2xl;
+    @apply border border-white/85 bg-[rgba(255,255,255,0.78)] shadow-[0_14px_30px_rgba(8,17,31,0.05)] backdrop-blur-xl;
   }
 
   .ledger-panel:hover {
-    box-shadow:
-      0 26px 70px rgba(8, 17, 31, 0.11),
-      inset 0 1px 0 rgba(255, 255, 255, 0.74);
-    transform: translateY(-2px);
+    box-shadow: 0 20px 44px rgba(8, 17, 31, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.74);
+    transform: translateY(-1px);
   }
 }
 

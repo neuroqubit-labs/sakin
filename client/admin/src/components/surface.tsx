@@ -1,9 +1,11 @@
 'use client'
 
 import React from 'react'
+import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
-import { Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { ActionCard } from '@/lib/ui-contracts'
 
 interface PageHeaderProps {
   title: string
@@ -130,4 +132,35 @@ export function StatusPill({ label, tone }: { label: string; tone: 'danger' | 's
           ? 'ledger-chip ledger-chip-warning'
           : 'ledger-chip ledger-chip-neutral'
   return <span className={className}>{label}</span>
+}
+
+function priorityTone(priority: ActionCard['priority']) {
+  if (priority === 'high') return 'text-[#b42318] bg-[#fff0ee] border-[#ffd8d0]'
+  if (priority === 'medium') return 'text-[#9a620f] bg-[#fff7e8] border-[#ffe5ba]'
+  return 'text-[#0e7a52] bg-[#effbf3] border-[#cdeedb]'
+}
+
+export function ActionBanner({ card }: { card: ActionCard }) {
+  const toneClass = priorityTone(card.priority)
+  const Icon = card.priority === 'high' ? AlertTriangle : card.priority === 'medium' ? Sparkles : CheckCircle2
+  return (
+    <div className="rounded-[20px] border border-white/80 bg-white/80 p-4 shadow-[0_10px_24px_rgba(8,17,31,0.05)]">
+      <div className="flex items-start gap-3">
+        <span className={cn('mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-xl border', toneClass)}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#71829a]">{card.metric}</p>
+          <p className="mt-1 text-sm font-medium leading-6 text-[#16263d]">{card.message}</p>
+          <Link
+            href={card.ctaTarget}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-[#dce7f6] bg-[#f8fbff] px-3 py-1.5 text-xs font-semibold text-[#17345a] transition-colors hover:bg-white"
+          >
+            {card.ctaLabel}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
 }

@@ -8,23 +8,22 @@ import {
   BarChart3,
   Building2,
   Calendar,
-  CheckCircle,
-  ChevronRight,
   Percent,
   ShieldAlert,
-  TrendingDown,
   Wallet,
 } from 'lucide-react'
 import { DuesStatus } from '@sakin/shared'
 import { useApiQuery } from '@/hooks/use-api'
 import { useSiteContext } from '@/providers/site-provider'
-import { KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
+import { ActionBanner, KpiCard, PageHeader, SectionTitle, StatusPill } from '@/components/surface'
 import { duesStatusLabel, duesStatusTone, formatShortDate, formatTry, paymentMethodLabel } from '@/lib/formatters'
 import { buildFilterParams } from '@/lib/query-params'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { PaymentCollectModal } from '@/components/payment-collect-modal'
-import type { LucideIcon } from 'lucide-react'
+import { ViewStatePanel } from '@/components/view-state-panel'
+import type { ActionCard } from '@/lib/ui-contracts'
+import { UI_COPY } from '@/lib/ui-copy'
 
 interface WorkSummaryResponse {
   kpi: {
@@ -173,72 +172,68 @@ export default function DashboardPage() {
   const weeklyDelta = trendDelta(weekCurrent?.totals.confirmedAmount ?? 0, weekPrev?.totals.confirmedAmount ?? 0)
   const monthlyDelta = trendDelta(monthCurrent?.totals.confirmedAmount ?? 0, monthPrev?.totals.confirmedAmount ?? 0)
 
-  interface ActionSuggestion {
-    text: string
-    href: string
-    icon: LucideIcon
-    tone: 'danger' | 'warning' | 'neutral'
-  }
-
-  const actions = useMemo((): ActionSuggestion[] => {
+  const actionCards = useMemo((): ActionCard[] => {
     if (!summary) return []
-    const items: ActionSuggestion[] = []
-    if (summary.kpi.overdueCount > 0) {
-      items.push({
-        text: `${summary.kpi.overdueCount} gecikmiş kayıt için tahsilat takibi başlatın.`,
-        href: '/dues?status=OVERDUE',
-        icon: AlertTriangle,
-        tone: 'danger',
-      })
-    }
-    if (portfolioHighRisk.length > 0) {
-      items.push({
-        text: `${portfolioHighRisk.length} site yüksek riskte, tahsilat ve politika gözden geçirmesi yapın.`,
-        href: '/sites',
-        icon: AlertTriangle,
-        tone: 'warning',
-      })
-    }
-    if (weeklyDelta < 0) {
-      items.push({
-        text: `Haftalık tahsilat ivmesi %${Math.abs(weeklyDelta)} düştü, ödeme kampanyası planlayın.`,
-        href: '/reports',
-        icon: TrendingDown,
-        tone: 'warning',
-      })
-    }
-    if (items.length === 0) {
-      items.push({
-        text: 'Kritik risk görünmüyor, politika ve rapor denetimini rutin takvimde sürdürün.',
-        href: '/reports',
-        icon: CheckCircle,
-        tone: 'neutral',
-      })
-    }
-    return items.slice(0, 3)
-  }, [summary, portfolioHighRisk.length, weeklyDelta])
+    return [
+      {
+        priority: 'high',
+        metric: `${summary.kpi.overdueCount} gecikmiş kayıt`,
+        message: UI_COPY.dashboard.actionCards.overdueMessage,
+        ctaLabel: UI_COPY.dashboard.actionCards.overdueCta,
+        ctaTarget: '/finance',
+      },
+      {
+        priority: summary.kpi.overdueCount > 0 ? 'high' : 'medium',
+        metric: `Açık borç ${formatTry(summary.kpi.totalDebt)}`,
+        message: UI_COPY.dashboard.actionCards.overdueListMessage,
+        ctaLabel: UI_COPY.dashboard.actionCards.overdueListCta,
+        ctaTarget: '/finance?status=OVERDUE',
+      },
+      {
+        priority: 'low',
+        metric: `${summary.alerts.openDebtItems} açık borç işlemi`,
+        message: UI_COPY.dashboard.actionCards.residentMessage,
+        ctaLabel: UI_COPY.dashboard.actionCards.residentCta,
+        ctaTarget: '/residents',
+      },
+    ]
+  }, [summary])
 
   if (siteError) {
-    return <p className="text-sm text-red-600">{siteError}</p>
+    return (
+      <ViewStatePanel
+        state="error"
+        title={UI_COPY.dashboard.siteErrorTitle}
+        description={siteError}
+        actionLabel={UI_COPY.dashboard.siteErrorAction}
+        actionHref="/dashboard"
+      />
+    )
   }
 
   return (
     <div className="space-y-6 motion-in">
       <PageHeader
-        title="Genel Bakış"
-        eyebrow="Wafra Enterprise Console"
+        title={UI_COPY.dashboard.title}
+        eyebrow={UI_COPY.dashboard.eyebrow}
         subtitle={
           selectedSiteName
-            ? `${selectedSiteName} için günlük durum özeti, tahsilat ritmi ve öncelikli operasyon aksiyonları tek yüzeyde.`
-            : 'Tüm portföyün günlük durum özeti, tahsilat ritmi ve öncelikli operasyon aksiyonları tek yüzeyde.'
+            ? `${selectedSiteName} ${UI_COPY.dashboard.selectedSiteSubtitleSuffix}`
+            : UI_COPY.dashboard.portfolioSubtitle
         }
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <div className="hidden rounded-full border border-white/80 bg-white/74 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#63758d] shadow-[0_10px_24px_rgba(8,17,31,0.05)] md:inline-flex">
-              {selectedSiteName ?? 'Tüm Portföy'}
+              {selectedSiteName ?? UI_COPY.dashboard.portfolioChip}
             </div>
-            <Link href="/payments">
-              <Button size="sm">Tahsilatlar</Button>
+            <Link href="/finance">
+              <Button size="sm">{UI_COPY.dashboard.quickActions.collection}</Button>
+            </Link>
+            <Link href="/finance?status=OVERDUE">
+              <Button size="sm" variant="outline">{UI_COPY.dashboard.quickActions.overdue}</Button>
+            </Link>
+            <Link href="/residents">
+              <Button size="sm" variant="outline">{UI_COPY.dashboard.quickActions.residents}</Button>
             </Link>
           </div>
         }
@@ -295,7 +290,7 @@ export default function DashboardPage() {
       {/* Portfolio Risk Panel */}
       {portfolio.length > 0 && (
         <div className="ledger-panel overflow-hidden">
-          <SectionTitle title="Portföy Risk Paneli" subtitle="Tahsilat seviyesi, açık borç ve bina riskini tek listede topla." />
+          <SectionTitle title={UI_COPY.dashboard.sections.portfolioRiskTitle} subtitle={UI_COPY.dashboard.sections.portfolioRiskSubtitle} />
           <div className="ledger-divider">
             {portfolio.map((site) => (
               <div key={site.id} className="px-4 py-3 lg:px-5">
@@ -327,7 +322,7 @@ export default function DashboardPage() {
       {summary && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="ledger-panel overflow-hidden">
-            <SectionTitle title="En Borçlu Daireler" subtitle="Öncelikli tahsilat gerektiren daireleri en üstte tut." />
+            <SectionTitle title={UI_COPY.dashboard.sections.topDebtorsTitle} subtitle={UI_COPY.dashboard.sections.topDebtorsSubtitle} />
             <div className="ledger-divider">
               {topDebtors.map((row) => (
                 <div key={row.id} className="px-4 py-3 lg:px-5">
@@ -335,7 +330,7 @@ export default function DashboardPage() {
                     <Link href={`/units/${row.id}`} className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-[#102038]">{row.siteName} / {row.unitNumber}</p>
                       <p className="mt-1 text-xs leading-6 text-[#6b7d93]">
-                        {row.residentName ?? 'Sorumlu atanmamış'} · Vade: {formatShortDate(row.dueDate)} · {row.overdueDays} gün
+                        {row.residentName ?? UI_COPY.dashboard.unassignedResident} · Vade: {formatShortDate(row.dueDate)} · {row.overdueDays} gün
                       </p>
                     </Link>
                     <div className="flex items-center gap-3 shrink-0">
@@ -354,50 +349,59 @@ export default function DashboardPage() {
                         })}
                         className="rounded-2xl border border-[#0f766e]/10 bg-[linear-gradient(135deg,#0f766e,#10b981)] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-[0_14px_28px_rgba(16,185,129,0.24)] transition-all hover:-translate-y-0.5"
                       >
-                        Tahsil Et
+                        {UI_COPY.dashboard.collectButton}
                       </button>
                     </div>
                   </div>
                 </div>
               ))}
-              {topDebtors.length === 0 && <p className="px-5 py-5 text-sm text-[#6b7280]">Açık borç kaydı bulunamadı.</p>}
+              {topDebtors.length === 0 && <p className="px-5 py-5 text-sm text-[#6b7280]">{UI_COPY.dashboard.sections.topDebtorsEmpty}</p>}
             </div>
           </div>
 
           <div className="space-y-4">
             <div className="ledger-panel overflow-hidden">
-              <SectionTitle title="Aksiyon Önerileri" subtitle="Bugün öne çıkması gereken operasyon hamleleri." />
+              <SectionTitle title={UI_COPY.dashboard.sections.operationsTitle} subtitle={UI_COPY.dashboard.sections.operationsSubtitle} />
               <div className="p-3 space-y-2">
-                {actions.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <Link
-                      key={item.text}
-                      href={item.href}
-                      className="group flex items-center gap-3 rounded-[22px] border border-white/72 bg-white/48 px-4 py-3 text-sm text-[#102038] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/70"
-                    >
-                      <Icon className={`h-4 w-4 shrink-0 ${
-                        item.tone === 'danger' ? 'text-[#ba1a1a]' :
-                        item.tone === 'warning' ? 'text-[#8a4b00]' :
-                        'text-[#006e2d]'
-                      }`} />
-                      <span className="flex-1">{item.text}</span>
-                      <ChevronRight className="h-3.5 w-3.5 text-[#9ca3af] group-hover:text-[#0c1427] transition-colors" />
-                    </Link>
-                  )
-                })}
+                {actionCards.map((card) => (
+                  <ActionBanner key={card.ctaTarget} card={card} />
+                ))}
               </div>
             </div>
 
             <div className="ledger-panel overflow-hidden">
-              <SectionTitle title="Son Tahsilatlar" subtitle="Yakın zamanda kayda geçen ödemeleri hızlıca denetle." />
+              <SectionTitle title={UI_COPY.dashboard.sections.dayEndTitle} subtitle={UI_COPY.dashboard.sections.dayEndSubtitle} />
+              <div className="p-3 space-y-2">
+                <div className="rounded-[20px] border border-white/80 bg-white/78 px-4 py-3 text-sm text-[#16263d]">
+                  <p className="font-semibold">{UI_COPY.dashboard.checklist.step1Title}</p>
+                  <p className="mt-1 text-xs text-[#617287]">
+                    {UI_COPY.dashboard.checklist.step1NotePrefix} {formatTry(weekCurrent?.totals.confirmedAmount ?? 0)}
+                  </p>
+                </div>
+                <div className="rounded-[20px] border border-white/80 bg-white/78 px-4 py-3 text-sm text-[#16263d]">
+                  <p className="font-semibold">{UI_COPY.dashboard.checklist.step2Title}</p>
+                  <p className="mt-1 text-xs text-[#617287]">
+                    {UI_COPY.dashboard.checklist.step2HighRiskPrefix} {portfolioHighRisk.length} • {UI_COPY.dashboard.checklist.step2OpenDebtPrefix} {summary.alerts.openDebtItems}
+                  </p>
+                </div>
+                <div className="rounded-[20px] border border-white/80 bg-white/78 px-4 py-3 text-sm text-[#16263d]">
+                  <p className="font-semibold">{UI_COPY.dashboard.checklist.step3Title}</p>
+                  <p className="mt-1 text-xs text-[#617287]">
+                    {UI_COPY.dashboard.checklist.step3OverduePrefix} {summary.kpi.overdueCount} • {UI_COPY.dashboard.checklist.step3OverdueDebtPrefix} {formatTry(summary.kpi.overdueDebt)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="ledger-panel overflow-hidden">
+              <SectionTitle title={UI_COPY.dashboard.sections.recentPaymentsTitle} subtitle={UI_COPY.dashboard.sections.recentPaymentsSubtitle} />
               <div className="ledger-divider">
                 {(summary.recentPayments ?? []).slice(0, 6).map((payment) => (
                   <div key={payment.id} className="px-4 py-3 lg:px-5">
                     <div className="ledger-table-row-hover flex items-center justify-between gap-3 rounded-[22px] border border-white/72 bg-white/46 px-4 py-4">
                       <div>
                         <p className="text-sm font-semibold text-[#102038]">{payment.siteName} / {payment.unitNumber}</p>
-                        <p className="mt-1 text-xs leading-6 text-[#6b7d93]">{payment.residentName ?? 'Bilinmeyen'} · {paymentMethodLabel(payment.method)}</p>
+                        <p className="mt-1 text-xs leading-6 text-[#6b7d93]">{payment.residentName ?? UI_COPY.dashboard.unknownResident} · {paymentMethodLabel(payment.method)}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-[#102038]">{formatTry(payment.amount)}</p>
@@ -406,7 +410,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
-                {summary.recentPayments.length === 0 && <p className="px-5 py-5 text-sm text-[#6b7280]">Tahsilat kaydı yok.</p>}
+                {summary.recentPayments.length === 0 && <p className="px-5 py-5 text-sm text-[#6b7280]">{UI_COPY.dashboard.sections.recentPaymentsEmpty}</p>}
               </div>
             </div>
           </div>

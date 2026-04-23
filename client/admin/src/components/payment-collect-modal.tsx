@@ -10,6 +10,7 @@ import {
   paymentMethodLabel,
 } from '@/lib/formatters'
 import { UnitDuesSearch, type UnitDuesSearchResult } from '@/components/unit-dues-search'
+import { InlineValidation } from '@/components/inline-validation'
 
 type ManualPaymentMethod = PaymentMethod.CASH | PaymentMethod.BANK_TRANSFER | PaymentMethod.POS
 
@@ -33,6 +34,7 @@ interface PaymentCollectModalProps {
   open: boolean
   onClose: () => void
   onSuccess?: () => void | Promise<void>
+  onRecorded?: (payload: { amount: number; paidAt: string; unitNumber: string; duesId: string }) => void
   initialDuesId?: string
   initialUnitId?: string
   presetAmount?: number
@@ -56,6 +58,7 @@ export function PaymentCollectModal({
   open,
   onClose,
   onSuccess,
+  onRecorded,
   initialDuesId,
   initialUnitId,
   presetAmount,
@@ -75,6 +78,8 @@ export function PaymentCollectModal({
 
   // Submission state
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ amount?: string; paidAt?: string }>({})
   const [submitting, setSubmitting] = useState(false)
 
   // Reset on open/close
@@ -89,6 +94,8 @@ export function PaymentCollectModal({
     setSendReceipt(true)
     setNote('')
     setSubmitError(null)
+    setSubmitSuccess(null)
+    setFieldErrors({})
   }, [open, presetAmount])
 
   // When UnitDuesSearch selects a dues
@@ -124,17 +131,29 @@ export function PaymentCollectModal({
 
   async function submitPayment(e: React.FormEvent) {
     e.preventDefault()
+    const nextErrors: { amount?: string; paidAt?: string } = {}
     if (!searchResult) {
       setSubmitError('Lütfen bir daire ve borç kaydı seçin.')
       return
     }
     if (!Number.isFinite(amount) || amount <= 0) {
-      setSubmitError('Geçerli bir tahsilat tutarı girin.')
+      nextErrors.amount = "Tahsilat tutarı 0'dan büyük olmalı."
+    }
+    if (searchResult.remainingAmount > 0 && amount - searchResult.remainingAmount > 0.001) {
+      nextErrors.amount = 'Tahsilat tutarı kalan borcu aşamaz.'
+    }
+    if (!paidAt) {
+      nextErrors.paidAt = 'İşlem tarihi zorunludur.'
+    }
+    setFieldErrors(nextErrors)
+    if (Object.keys(nextErrors).length > 0) {
+      setSubmitError('Lütfen formdaki hataları düzeltin.')
       return
     }
 
     setSubmitting(true)
     setSubmitError(null)
+    setSubmitSuccess(null)
     try {
       await apiClient('/payments/manual-collection', {
         method: 'POST',
@@ -147,6 +166,13 @@ export function PaymentCollectModal({
           paidAt: paidAt || undefined,
         }),
       })
+      onRecorded?.({
+        amount: Number(amount),
+        paidAt: paidAt || new Date().toISOString(),
+        unitNumber: searchResult.unitNumber,
+        duesId: searchResult.duesId,
+      })
+      setSubmitSuccess('Tahsilat kaydı oluşturuldu. Liste doğrulanıyor...')
       await onSuccess?.()
       onClose()
     } catch (err) {
@@ -213,6 +239,7 @@ export function PaymentCollectModal({
                     placeholder="0.00"
                     required
                   />
+                  <InlineValidation message={fieldErrors.amount} tone="error" />
                   {remainingDebt > 0 ? (
                     <button
                       type="button"
@@ -224,6 +251,11 @@ export function PaymentCollectModal({
                     >
                       Tam Ödeme
                     </button>
+                  ) : null}
+                  {!fieldErrors.amount && remainingDebt > 0 ? (
+                    <InlineValidation
+                      message={`Kalan borç: ${formatTry(remainingDebt)} — tek işlemde en fazla bu tutar alınabilir.`}
+                    />
                   ) : null}
                 </div>
               </div>
@@ -280,6 +312,7 @@ export function PaymentCollectModal({
                       onChange={(e) => setPaidAt(e.target.value)}
                       className="ledger-input w-full bg-[#e6e8ea]"
                     />
+                    <InlineValidation message={fieldErrors.paidAt} tone="error" />
                   </div>
                   <div className="rounded-[22px] border border-white/80 bg-[#f7faff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                     <div className="flex items-start gap-3">
@@ -316,6 +349,7 @@ export function PaymentCollectModal({
               </div>
 
               {submitError ? <p className="text-sm text-[#ba1a1a]">{submitError}</p> : null}
+              {submitSuccess ? <InlineValidation message={submitSuccess} tone="success" /> : null}
             </div>
           </section>
 
